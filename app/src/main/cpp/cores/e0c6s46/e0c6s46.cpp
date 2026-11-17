@@ -898,6 +898,7 @@ void E0C6S46::reset()
     m_bz_1shot_on = 0; m_bz_1shot_running = false; m_bz_1shot_count = 0; m_bz_pulse = 0; m_r43 = 0;
 
     m_now = 0;
+    m_target = 0;
     m_t256 = 64 * UNITS_PER_TICK;
     m_tprg = NEVER;
     m_tbz = NEVER;
@@ -1305,7 +1306,9 @@ void E0C6S46::runEvents(uint64_t upTo)
 
 void E0C6S46::run(uint64_t units)
 {
-    const uint64_t target = m_now + units;
+    // absolute target, so instruction overshoot doesn't add up across slices
+    m_target += units;
+    const uint64_t target = m_target;
     while (m_now < target) {
         // interrupts (not right after EI/PSET, as MAME)
         if (m_possible_irq && (m_op & 0xfe0) != 0xe40 && (m_op & 0xff8) != 0xf48) {
@@ -1367,7 +1370,7 @@ int E0C6S46::lcdPixel(int com, int seg) const
     X(m_stopwatch_on) X(m_swl_cur_pulse) X(m_swl_slice) X(m_swl_count) X(m_swh_count) X(m_prgtimer_select) X(m_prgtimer_on) \
     X(m_prgtimer_src_pulse) X(m_prgtimer_cur_pulse) X(m_prgtimer_count) X(m_prgtimer_reload) X(m_bz_43_on) X(m_bz_freq) \
     X(m_bz_envelope) X(m_bz_envelope_count) X(m_bz_duty_ratio) X(m_bz_1shot_on) X(m_bz_1shot_running) X(m_bz_1shot_count) \
-    X(m_bz_pulse) X(m_r43) X(m_now) X(m_t256) X(m_tprg) X(m_tbz)
+    X(m_bz_pulse) X(m_r43) X(m_now) X(m_target) X(m_t256) X(m_tprg) X(m_tbz)
 
 void E0C6S46::save(std::vector<uint8_t>& out) const
 {

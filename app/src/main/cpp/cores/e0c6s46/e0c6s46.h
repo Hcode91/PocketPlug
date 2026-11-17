@@ -78,7 +78,7 @@ private:
 
     // ---- scheduler (units of 1/65536 s) ----
     static const uint64_t NEVER = ~0ull;
-    uint64_t m_now = 0;
+    uint64_t m_now = 0, m_target = 0;
     uint64_t m_t256 = 0, m_tprg = NEVER, m_tbz = NEVER;
 
     // CPU
