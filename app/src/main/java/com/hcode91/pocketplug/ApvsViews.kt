@@ -20,88 +20,126 @@ private fun Paint.text(size: Float, color: Int, bold: Boolean = true) = apply {
 }
 
 /**
- * Top panel of the 1292 APVS console: black body with a brushed-metal strip,
- * the RESET, START and GAME SELECT push buttons and the power light.
+ * The 1292 console as seen from the player's side: light grey body, a black
+ * panel with four red switches (OFF/ON, RESET, SELECT, START) and the model
+ * badge, "Programmable Video System" lettering, and the cartridge standing in
+ * its slot on the right, labelled with the current game.
  */
-class ApvsConsoleView(ctx: Context, private val badge: String = "1292") : View(ctx) {
+class ApvsConsoleView(ctx: Context, private val badge: String = "1292", private val cartTitle: String = "") : View(ctx) {
     var onInput: ((Int) -> Unit)? = null
+    /** Called on press with the button's bit: the core holds it until the game reacts. */
+    var onTap: ((Int) -> Unit)? = null
     var onReset: (() -> Unit)? = null
+    var onPower: (() -> Unit)? = null
 
-    private class Btn(val label: String, val bit: Int) { val r = RectF() }
-    private val buttons = arrayOf(Btn("RESET", 0), Btn("START", ApvsBits.START), Btn("GAME\nSELECT", ApvsBits.SELECT))
+    private enum class Action { POWER, RESET, BIT }
+    private class Btn(val label: String, val action: Action, val bit: Int = 0) { val r = RectF() }
+    private val buttons = arrayOf(
+        Btn("OFF ON", Action.POWER), Btn("RESET", Action.RESET),
+        Btn("SELECT", Action.BIT, ApvsBits.SELECT), Btn("START", Action.BIT, ApvsBits.START),
+    )
     private var pressed = -1
     private val body = RectF()
-    private val strip = RectF()
+    private val panel = RectF()
+    private val slot = RectF()
+    private val cart = RectF()
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val t = Paint(Paint.ANTI_ALIAS_FLAG)
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         val pad = w * 0.04f
-        body.set(pad, h * 0.08f, w - pad, h * 0.92f)
-        strip.set(body.left + body.width() * 0.03f, body.top + body.height() * 0.16f, body.right - body.width() * 0.03f, body.bottom - body.height() * 0.16f)
-        val bw = strip.width() * 0.2f
-        val bh = strip.height() * 0.62f
-        val x0 = strip.left + strip.width() * 0.32f
+        body.set(pad, h * 0.1f, w - pad, h * 0.95f)
+        panel.set(body.left + body.width() * 0.04f, body.top + body.height() * 0.1f,
+            body.left + body.width() * 0.58f, body.top + body.height() * 0.66f)
+        slot.set(body.left + body.width() * 0.64f, body.top + body.height() * 0.08f,
+            body.right - body.width() * 0.04f, body.bottom - body.height() * 0.08f)
+        cart.set(slot.left + slot.width() * 0.08f, slot.top + slot.height() * 0.06f,
+            slot.right - slot.width() * 0.08f, slot.bottom - slot.height() * 0.1f)
+        val bw = panel.width() * 0.13f
+        val bh = panel.height() * 0.42f
+        val step = panel.width() * 0.17f
+        val x0 = panel.left + panel.width() * 0.25f
         for ((i, b) in buttons.withIndex()) {
-            val x = x0 + i * (bw + strip.width() * 0.035f)
-            b.r.set(x, strip.centerY() - bh / 2, x + bw, strip.centerY() + bh / 2)
+            val cx = x0 + i * step
+            b.r.set(cx - bw / 2, panel.bottom - panel.height() * 0.12f - bh, cx + bw / 2, panel.bottom - panel.height() * 0.12f)
         }
     }
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF0B0814.toInt())
-        p.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFF2A2A2E.toInt(), 0xFF0E0E10.toInt(), Shader.TileMode.CLAMP)
-        c.drawRoundRect(body, body.height() * 0.18f, body.height() * 0.18f, p)
-        p.shader = LinearGradient(0f, strip.top, 0f, strip.bottom,
-            intArrayOf(0xFFD9DADF.toInt(), 0xFF9C9EA6.toInt(), 0xFFC9CBD1.toInt()), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
-        c.drawRoundRect(strip, strip.height() * 0.12f, strip.height() * 0.12f, p)
+        val r = body.height() * 0.07f
+        p.color = 0x88000000.toInt()
+        c.drawRoundRect(body.left + 6, body.top + 10, body.right + 6, body.bottom + 10, r, r, p)
+        // light grey plastic body
+        p.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFFE1E2E4.toInt(), 0xFFB5B7BB.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(body, r, r, p)
         p.shader = null
+        p.style = Paint.Style.STROKE; p.strokeWidth = 2f; p.color = 0xFF8D9096.toInt()
+        c.drawRoundRect(body, r, r, p)
+        p.style = Paint.Style.FILL
 
-        // badge + power light
-        t.text(strip.height() * 0.2f, 0xFF1A1A1E.toInt())
-        c.drawText(badge, strip.left + strip.width() * 0.14f, strip.centerY() - strip.height() * 0.02f, t)
-        t.text(strip.height() * 0.11f, 0xFF3A3A40.toInt())
-        c.drawText("ADVANCED PROGRAMMABLE", strip.left + strip.width() * 0.14f, strip.centerY() + strip.height() * 0.17f, t)
-        c.drawText("VIDEO SYSTEM", strip.left + strip.width() * 0.14f, strip.centerY() + strip.height() * 0.31f, t)
-        p.color = 0xFFFF3B30.toInt()
-        c.drawCircle(strip.left + strip.width() * 0.275f, strip.centerY(), strip.height() * 0.06f, p)
-
+        // black control panel with the badge and red switches
+        p.color = 0xFF141416.toInt()
+        c.drawRoundRect(panel, 8f, 8f, p)
+        t.text(panel.height() * 0.2f, 0xFFE8E8EA.toInt())
+        t.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD_ITALIC)
+        t.textAlign = Paint.Align.LEFT
+        c.drawText(badge, panel.left + panel.width() * 0.04f, panel.top + panel.height() * 0.26f, t)
+        t.textAlign = Paint.Align.CENTER
         for ((i, b) in buttons.withIndex()) {
             val down = i == pressed
-            val r = RectF(b.r).apply { if (down) offset(0f, b.r.height() * 0.05f) }
+            t.text(panel.height() * 0.1f, 0xFFDADADD.toInt())
+            c.drawText(b.label, b.r.centerX(), b.r.top - panel.height() * 0.06f, t)
             p.color = 0xFF000000.toInt()
-            c.drawRoundRect(b.r.left, b.r.top + b.r.height() * 0.08f, b.r.right, b.r.bottom + b.r.height() * 0.08f, 10f, 10f, p)
-            p.shader = LinearGradient(0f, r.top, 0f, r.bottom,
-                if (i == 0) 0xFFB8302A.toInt() else 0xFF3A3B42.toInt(),
-                if (i == 0) 0xFF7A1A16.toInt() else 0xFF1C1D22.toInt(), Shader.TileMode.CLAMP)
-            c.drawRoundRect(r, 10f, 10f, p)
+            c.drawRoundRect(b.r.left - 3, b.r.top - 3, b.r.right + 3, b.r.bottom + 3, 5f, 5f, p)
+            val k = RectF(b.r).apply { if (down) offset(0f, b.r.height() * 0.08f) }
+            p.shader = LinearGradient(0f, k.top, 0f, k.bottom,
+                if (down) 0xFFA0161A.toInt() else 0xFFF0353A.toInt(), 0xFF7C0E12.toInt(), Shader.TileMode.CLAMP)
+            c.drawRoundRect(k, 5f, 5f, p)
             p.shader = null
-            val lines = b.label.split("\n")
-            t.text(b.r.height() * (if (lines.size > 1) 0.25f else 0.3f), 0xFFF2F2F2.toInt())
-            lines.forEachIndexed { k, s ->
-                val y = r.centerY() + t.textSize * 0.35f + (k - (lines.size - 1) / 2f) * t.textSize * 1.05f
-                c.drawText(s, r.centerX(), y, t)
-            }
         }
-    }
 
-    /** Called on press with the button's bit: the core holds it until the game reacts. */
-    var onTap: ((Int) -> Unit)? = null
+        // lettering on the grey below the panel
+        t.text(body.height() * 0.11f, 0xFF2A2B30.toInt(), bold = false)
+        t.typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+        c.drawText("Programmable Video System", panel.centerX(), body.bottom - body.height() * 0.12f, t)
+
+        // cartridge slot with the game's cartridge in it
+        p.color = 0xFF1A1A1D.toInt()
+        c.drawRoundRect(slot, 6f, 6f, p)
+        p.color = 0xFF2B2C30.toInt()
+        c.drawRect(cart, p)
+        val label = RectF(cart.left + cart.width() * 0.06f, cart.top + cart.height() * 0.08f, cart.right - cart.width() * 0.06f, cart.bottom - cart.height() * 0.08f)
+        // bright striped label like the original game cartridges
+        val stripes = intArrayOf(0xFFF7D21E.toInt(), 0xFFE5322D.toInt(), 0xFF2E9E46.toInt(), 0xFF2D63C8.toInt())
+        val sh = label.height() * 0.1f
+        for ((i, col) in stripes.withIndex()) {
+            p.color = col
+            c.drawRect(label.left, label.top + i * sh, label.right, label.top + (i + 1) * sh, p)
+        }
+        p.color = 0xFFFFF6D8.toInt()
+        c.drawRect(label.left, label.top + 4 * sh, label.right, label.bottom, p)
+        t.text(label.height() * 0.24f, 0xFF1A1A1A.toInt())
+        val title = cartTitle.uppercase()
+        while (t.measureText(title) > label.width() * 0.9f && t.textSize > 6f) t.textSize *= 0.92f
+        c.drawText(title, label.centerX(), label.top + 4 * sh + (label.height() - 4 * sh) / 2 + t.textSize * 0.36f, t)
+    }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                val i = buttons.indexOfFirst { RectF(it.r).apply { inset(-12f, -16f) }.contains(e.x, e.y) }
+                val i = buttons.indexOfFirst { RectF(it.r).apply { inset(-it.r.width() * 0.3f, -it.r.height() * 0.4f) }.contains(e.x, e.y) }
                 if (i >= 0) {
                     pressed = i
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    if (i == 0) onReset?.invoke()
-                    else {
+                    val b = buttons[i]
+                    when (b.action) {
+                        Action.POWER -> onPower?.invoke()
+                        Action.RESET -> onReset?.invoke()
                         // A tap counts as exactly one press however briefly the
                         // screen is touched; keeping a finger on the button also
                         // holds it down, so it auto-repeats like the real console.
-                        onTap?.invoke(buttons[i].bit)
-                        onInput?.invoke(buttons[i].bit)
+                        Action.BIT -> { onTap?.invoke(b.bit); onInput?.invoke(b.bit) }
                     }
                     invalidate()
                 }
@@ -119,7 +157,7 @@ class ApvsConsoleView(ctx: Context, private val badge: String = "1292") : View(c
  * the fire button. Multi-touch: steer with one finger while pressing keys or
  * fire with another.
  */
-class ApvsControllerView(ctx: Context, private val player: Int) : View(ctx) {
+class ApvsControllerView(ctx: Context, private val player: Int, private val greyBody: Boolean = false) : View(ctx) {
     var onInput: ((Int) -> Unit)? = null
     var onAnalog: ((Float, Float) -> Unit)? = null
     /** Bits pressed from a gamepad / keyboard, shown lit. */
@@ -174,10 +212,11 @@ class ApvsControllerView(ctx: Context, private val player: Int) : View(ctx) {
         c.drawColor(0xFF0B0814.toInt())
         // body
         p.shader = LinearGradient(body.left, 0f, body.right, 0f,
-            intArrayOf(0xFF1C1C20.toInt(), 0xFF2F3036.toInt(), 0xFF17171A.toInt()), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
+            if (greyBody) intArrayOf(0xFFB8BBC0.toInt(), 0xFFE2E3E6.toInt(), 0xFFA9ACB2.toInt())
+            else intArrayOf(0xFF1C1C20.toInt(), 0xFF2F3036.toInt(), 0xFF17171A.toInt()), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
         c.drawRoundRect(body, body.width() * 0.12f, body.width() * 0.12f, p)
         p.shader = null
-        t.text(body.width() * 0.07f, 0xFF8E9098.toInt())
+        t.text(body.width() * 0.07f, if (greyBody) 0xFF4A4C52.toInt() else 0xFF8E9098.toInt())
         c.drawText(if (player == 0) "LEFT" else "RIGHT", body.centerX(), body.top + body.height() * 0.05f, t)
 
         // joystick well + stick
@@ -220,7 +259,7 @@ class ApvsControllerView(ctx: Context, private val player: Int) : View(ctx) {
             c.drawRoundRect(f, 8f, 8f, p)
             p.shader = null
         }
-        t.text(fireL.height() * 0.3f, 0xFF8E9098.toInt())
+        t.text(fireL.height() * 0.3f, if (greyBody) 0xFF4A4C52.toInt() else 0xFF8E9098.toInt())
         c.drawText("FIRE", body.centerX(), fireL.centerY() + t.textSize * 0.36f, t)
     }
 

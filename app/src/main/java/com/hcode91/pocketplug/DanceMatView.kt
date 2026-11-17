@@ -14,9 +14,14 @@ import android.view.MotionEvent
 import android.view.View
 
 /**
- * On-screen dance mat drawn like the real vinyl mat: a 3x3 grid with the four
- * arrows, the two upper diagonals, BACK and START in the lower corners and the
- * logo panel in the middle. Multi-touch, so jumps (two arrows) work.
+ * On-screen dance mat drawn like the Retro Dance Mat's vinyl pad: silver mat
+ * with a black border, SELECT (red) and START (blue) buttons along the top,
+ * blue up/down and red left/right arrows, green diagonal arrows in the four
+ * corners and the round logo panel in the middle. Multi-touch, so jumps work.
+ *
+ * The 110dance hardware only reads the two upper diagonals; the lower corner
+ * arrows are drawn as on the mat but aren't connected to anything.
+ * SELECT is the game's "back" button and START its "select/start" button.
  */
 class DanceMatView(ctx: Context) : View(ctx) {
 
@@ -25,124 +30,172 @@ class DanceMatView(ctx: Context) : View(ctx) {
     var externalMask = 0
         set(v) { field = v; invalidate() }
 
-    private enum class Kind { ARROW, DIAG, BACK, START, LOGO }
-    private class Pad(val bit: Int, val kind: Kind, val angle: Float, val base: Int, val lit: Int) { val r = RectF() }
+    private enum class Kind { ARROW, DIAG, LOGO, BUTTON }
+    private class Pad(val bit: Int, val kind: Kind, val angle: Float, val color: Int, val lit: Int, val label: String = "") { val r = RectF() }
 
+    private val BLUE = 0xFF1E6FD9.toInt();  private val BLUE_LIT = 0xFF7CC4FF.toInt()
+    private val RED = 0xFFD7262E.toInt();   private val RED_LIT = 0xFFFF8088.toInt()
+    private val GREEN = 0xFF2DB24A.toInt(); private val GREEN_LIT = 0xFF9BFFAE.toInt()
+
+    // 3x3 grid, row by row, then the two buttons along the top
     private val pads = arrayOf(
-        Pad(DanceMatBits.UP_LEFT, Kind.DIAG, -45f, 0xFFB98A00.toInt(), 0xFFFFE14D.toInt()),
-        Pad(DanceMatBits.UP, Kind.ARROW, 0f, 0xFF1F5FD6.toInt(), 0xFF6FD3FF.toInt()),
-        Pad(DanceMatBits.UP_RIGHT, Kind.DIAG, 45f, 0xFFB98A00.toInt(), 0xFFFFE14D.toInt()),
-        Pad(DanceMatBits.LEFT, Kind.ARROW, -90f, 0xFFC0267E.toInt(), 0xFFFF7FD0.toInt()),
-        Pad(0, Kind.LOGO, 0f, 0xFF231A4E.toInt(), 0xFF231A4E.toInt()),
-        Pad(DanceMatBits.RIGHT, Kind.ARROW, 90f, 0xFFC0267E.toInt(), 0xFFFF7FD0.toInt()),
-        Pad(DanceMatBits.BACK, Kind.BACK, 0f, 0xFF8E1D2A.toInt(), 0xFFFF5D6E.toInt()),
-        Pad(DanceMatBits.DOWN, Kind.ARROW, 180f, 0xFF1F5FD6.toInt(), 0xFF6FD3FF.toInt()),
-        Pad(DanceMatBits.START, Kind.START, 0f, 0xFF167A45.toInt(), 0xFF5DFF9C.toInt()),
+        Pad(DanceMatBits.UP_LEFT, Kind.DIAG, -45f, GREEN, GREEN_LIT),
+        Pad(DanceMatBits.UP, Kind.ARROW, 0f, BLUE, BLUE_LIT),
+        Pad(DanceMatBits.UP_RIGHT, Kind.DIAG, 45f, GREEN, GREEN_LIT),
+        Pad(DanceMatBits.LEFT, Kind.ARROW, -90f, RED, RED_LIT),
+        Pad(0, Kind.LOGO, 0f, 0, 0),
+        Pad(DanceMatBits.RIGHT, Kind.ARROW, 90f, RED, RED_LIT),
+        Pad(0, Kind.DIAG, -135f, GREEN, GREEN_LIT),   // not wired on 110dance
+        Pad(DanceMatBits.DOWN, Kind.ARROW, 180f, BLUE, BLUE_LIT),
+        Pad(0, Kind.DIAG, 135f, GREEN, GREEN_LIT),    // not wired on 110dance
+        Pad(DanceMatBits.BACK, Kind.BUTTON, 0f, RED, RED_LIT, "SELECT"),
+        Pad(DanceMatBits.START, Kind.BUTTON, 0f, BLUE, BLUE_LIT, "START"),
     )
 
     private var touchMask = 0
     private val mat = RectF()
+    private val inner = RectF()
     private val pFill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val pStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND }
     private val pGlow = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pText = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD); textAlign = Paint.Align.CENTER }
+    private val pText = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD_ITALIC); textAlign = Paint.Align.CENTER }
     private val arrow = Path()
-    private val star = Path()
+    private val dancer = Path()
     private var cell = 0f
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        val pad = w * 0.04f
-        val size = minOf(w - pad * 2, h - pad * 2)
-        mat.set((w - size) / 2, (h - size) / 2, (w + size) / 2, (h + size) / 2)
-        val border = size * 0.045f
-        val gap = size * 0.022f
-        cell = (size - border * 2 - gap * 2) / 3
-        for (i in pads.indices) {
+        val pad = w * 0.03f
+        // the real mat is a little taller than wide because of the button strip
+        var mw = w - pad * 2
+        var mh = mw * 1.1f
+        if (mh > h - pad * 2) { mh = h - pad * 2; mw = mh / 1.1f }
+        mat.set((w - mw) / 2, (h - mh) / 2, (w + mw) / 2, (h + mh) / 2)
+        val border = mw * 0.035f
+        inner.set(mat.left + border, mat.top + border, mat.right - border, mat.bottom - border)
+        val strip = inner.height() - inner.width()          // button strip along the top
+        val gap = inner.width() * 0.012f
+        cell = (inner.width() - gap * 4) / 3
+        for (i in 0 until 9) {
             val col = i % 3; val row = i / 3
-            val l = mat.left + border + col * (cell + gap)
-            val t = mat.top + border + row * (cell + gap)
+            val l = inner.left + gap + col * (cell + gap)
+            val t = inner.top + strip + gap + row * (cell + gap)
             pads[i].r.set(l, t, l + cell, t + cell)
         }
-        // chunky arrow pointing up, centred on (0,0), unit = cell
+        val bw = inner.width() * 0.17f
+        val bh = strip * 0.32f
+        pads[9].r.set(inner.left + inner.width() * 0.07f, inner.top + strip * 0.16f, inner.left + inner.width() * 0.07f + bw, inner.top + strip * 0.16f + bh)
+        pads[10].r.set(inner.right - inner.width() * 0.07f - bw, pads[9].r.top, inner.right - inner.width() * 0.07f, pads[9].r.bottom)
+
+        // pentagon "house" arrow pointing up, centred on (0,0), unit = cell
         arrow.reset()
-        arrow.moveTo(0f, -0.34f); arrow.lineTo(0.30f, -0.02f); arrow.lineTo(0.12f, -0.02f)
-        arrow.lineTo(0.12f, 0.32f); arrow.lineTo(-0.12f, 0.32f); arrow.lineTo(-0.12f, -0.02f)
-        arrow.lineTo(-0.30f, -0.02f); arrow.close()
-        star.reset()
-        for (k in 0 until 10) {
-            val a = Math.toRadians((k * 36 - 90).toDouble())
-            val rr = if (k % 2 == 0) 0.3f else 0.13f
-            val x = (Math.cos(a) * rr).toFloat(); val y = (Math.sin(a) * rr).toFloat()
-            if (k == 0) star.moveTo(x, y) else star.lineTo(x, y)
-        }
-        star.close()
-        pGlow.maskFilter = BlurMaskFilter(cell * 0.12f, BlurMaskFilter.Blur.NORMAL)
+        arrow.moveTo(0f, -0.38f); arrow.lineTo(0.33f, -0.04f); arrow.lineTo(0.16f, -0.04f)
+        arrow.lineTo(0.16f, 0.36f); arrow.lineTo(-0.16f, 0.36f); arrow.lineTo(-0.16f, -0.04f)
+        arrow.lineTo(-0.33f, -0.04f); arrow.close()
+
+        // simple dancer silhouette for the centre logo
+        dancer.reset()
+        dancer.addCircle(0f, -0.2f, 0.055f, Path.Direction.CW)
+        dancer.moveTo(-0.03f, -0.14f); dancer.lineTo(0.04f, -0.14f); dancer.lineTo(0.05f, 0.04f); dancer.lineTo(-0.04f, 0.04f); dancer.close()
+        dancer.moveTo(0.03f, -0.13f); dancer.lineTo(0.17f, -0.26f); dancer.lineTo(0.19f, -0.23f); dancer.lineTo(0.05f, -0.09f); dancer.close()
+        dancer.moveTo(-0.02f, -0.12f); dancer.lineTo(-0.15f, -0.04f); dancer.lineTo(-0.13f, -0.01f); dancer.lineTo(-0.01f, -0.08f); dancer.close()
+        dancer.moveTo(-0.04f, 0.02f); dancer.lineTo(-0.12f, 0.2f); dancer.lineTo(-0.08f, 0.21f); dancer.lineTo(0.0f, 0.04f); dancer.close()
+        dancer.moveTo(0.02f, 0.03f); dancer.lineTo(0.13f, 0.12f); dancer.lineTo(0.1f, 0.22f); dancer.lineTo(0.06f, 0.21f); dancer.lineTo(0.08f, 0.13f); dancer.lineTo(0.0f, 0.06f); dancer.close()
+
+        pGlow.maskFilter = BlurMaskFilter(cell * 0.1f, BlurMaskFilter.Blur.NORMAL)
         setLayerType(LAYER_TYPE_SOFTWARE, null) // BlurMaskFilter needs software rendering
     }
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF0B0814.toInt())
-        // the vinyl mat
-        val r = mat.width() * 0.04f
-        pFill.shader = LinearGradient(0f, mat.top, 0f, mat.bottom, 0xFF1C1640.toInt(), 0xFF0F0B26.toInt(), Shader.TileMode.CLAMP)
+        // black border + silver vinyl
+        val r = mat.width() * 0.05f
+        pFill.color = 0xFF151517.toInt()
         c.drawRoundRect(mat, r, r, pFill)
+        pFill.shader = LinearGradient(inner.left, inner.top, inner.right, inner.bottom,
+            intArrayOf(0xFFB9BDC4.toInt(), 0xFFE6E8EC.toInt(), 0xFFA7ABB3.toInt(), 0xFFD9DCE1.toInt()),
+            floatArrayOf(0f, 0.35f, 0.7f, 1f), Shader.TileMode.CLAMP)
+        c.drawRoundRect(inner, r * 0.6f, r * 0.6f, pFill)
         pFill.shader = null
-        pStroke.color = 0xFF3D3380.toInt(); pStroke.strokeWidth = mat.width() * 0.008f
-        c.drawRoundRect(mat, r, r, pStroke)
+        // dark band behind the button strip, like the printed header
+        pFill.color = 0xFF2A2C31.toInt()
+        c.drawRect(inner.left + inner.width() * 0.3f, inner.top, inner.right - inner.width() * 0.3f, pads[0].r.top - cell * 0.02f, pFill)
 
         val pressed = touchMask or externalMask
         for (p in pads) drawPad(c, p, p.bit != 0 && (pressed and p.bit) != 0)
     }
 
     private fun drawPad(c: Canvas, p: Pad, on: Boolean) {
-        val rr = cell * 0.1f
-        if (on) {
-            pGlow.color = p.lit
-            c.drawRoundRect(p.r, rr, rr, pGlow)
+        when (p.kind) {
+            Kind.BUTTON -> {
+                val rr = p.r.height() / 2
+                if (on) { pGlow.color = p.lit; c.drawRoundRect(p.r, rr, rr, pGlow) }
+                pFill.shader = LinearGradient(0f, p.r.top, 0f, p.r.bottom, if (on) p.lit else p.color, darken(p.color), Shader.TileMode.CLAMP)
+                c.drawRoundRect(p.r, rr, rr, pFill)
+                pFill.shader = null
+                pText.textSize = p.r.height() * 0.95f
+                pText.color = 0xFF16171A.toInt()
+                c.drawText(p.label, p.r.centerX(), p.r.bottom + pText.textSize * 1.05f, pText)
+                return
+            }
+            else -> {}
         }
-        pFill.shader = LinearGradient(p.r.left, p.r.top, p.r.right, p.r.bottom,
-            if (on) p.lit else lighten(p.base), if (on) p.base else darken(p.base), Shader.TileMode.CLAMP)
+
+        // every square: silver pad with a dark outline and dark corner stripes
+        val rr = cell * 0.04f
+        pFill.shader = LinearGradient(p.r.left, p.r.top, p.r.right, p.r.bottom, 0xFFDCDEE2.toInt(), 0xFFAEB2B9.toInt(), Shader.TileMode.CLAMP)
         c.drawRoundRect(p.r, rr, rr, pFill)
         pFill.shader = null
-        pStroke.color = if (on) 0xFFFFFFFF.toInt() else 0x55FFFFFF
-        pStroke.strokeWidth = cell * 0.025f
+        pStroke.color = 0xFF3A3C42.toInt(); pStroke.strokeWidth = cell * 0.02f
         c.drawRoundRect(p.r, rr, rr, pStroke)
 
         c.save()
         c.translate(p.r.centerX(), p.r.centerY())
         c.scale(cell, cell)
         when (p.kind) {
-            Kind.ARROW, Kind.DIAG -> {
+            Kind.DIAG -> {
+                // green square with a dark green frame holding the arrow
+                val sq = RectF(-0.36f, -0.36f, 0.36f, 0.36f)
+                if (on) { pGlow.color = p.lit; c.drawRect(sq, pGlow) }
+                pFill.color = if (on) p.lit else 0xFF1F2A22.toInt()
+                c.drawRect(sq, pFill)
+                pStroke.color = p.color; pStroke.strokeWidth = 0.04f
+                c.drawRect(sq, pStroke)
                 c.rotate(p.angle)
-                pFill.color = if (on) 0xFFFFFFFF.toInt() else 0xF0FFFFFF.toInt()
+                c.scale(0.85f, 0.85f)
+                pFill.color = if (on) 0xFFFFFFFF.toInt() else p.color
                 c.drawPath(arrow, pFill)
-                pStroke.color = 0x99000000.toInt(); pStroke.strokeWidth = 0.02f
+                pStroke.color = 0xFFE9FFE9.toInt(); pStroke.strokeWidth = 0.035f
+                c.drawPath(arrow, pStroke)
+            }
+            Kind.ARROW -> {
+                c.rotate(p.angle)
+                c.scale(1.12f, 1.12f)
+                if (on) { pGlow.color = p.lit; c.drawPath(arrow, pGlow) }
+                pFill.shader = LinearGradient(0f, -0.38f, 0f, 0.36f, if (on) p.lit else lighten(p.color), if (on) p.color else darken(p.color), Shader.TileMode.CLAMP)
+                c.drawPath(arrow, pFill)
+                pFill.shader = null
+                pStroke.color = 0xFFFFFFFF.toInt(); pStroke.strokeWidth = 0.035f
                 c.drawPath(arrow, pStroke)
             }
             Kind.LOGO -> {
-                pFill.color = 0xFFFF4FD8.toInt()
-                c.drawPath(star, pFill)
+                pFill.color = 0xFF5E626B.toInt()
+                c.drawCircle(0f, 0f, 0.47f, pFill)
+                pFill.color = 0xFFF4F5F7.toInt()
+                c.drawCircle(0f, 0f, 0.41f, pFill)
+                pFill.color = 0xFF1B2D5C.toInt()
+                c.drawPath(dancer, pFill)
             }
-            Kind.BACK, Kind.START -> {
-                pStroke.color = 0xFFFFFFFF.toInt(); pStroke.strokeWidth = 0.05f
-                if (p.kind == Kind.BACK) {
-                    c.drawLine(-0.14f, -0.24f, 0.14f, 0.04f, pStroke); c.drawLine(0.14f, -0.24f, -0.14f, 0.04f, pStroke)
-                } else {
-                    c.drawCircle(0f, -0.1f, 0.15f, pStroke)
-                }
-            }
+            else -> {}
         }
         c.restore()
-
-        if (p.kind == Kind.BACK || p.kind == Kind.START || p.kind == Kind.LOGO) {
-            pText.color = 0xFFFFFFFF.toInt()
-            pText.textSize = cell * (if (p.kind == Kind.LOGO) 0.11f else 0.15f)
-            val label = when (p.kind) { Kind.BACK -> "BACK"; Kind.START -> "START"; else -> "DANCE" }
-            c.drawText(label, p.r.centerX(), p.r.centerY() + cell * (if (p.kind == Kind.LOGO) 0.36f else 0.32f), pText)
+        if (p.kind == Kind.LOGO) {
+            pText.textSize = cell * 0.13f
+            pText.color = 0xFF1B2D5C.toInt()
+            c.drawText("Dance!", p.r.centerX(), p.r.centerY() + cell * 0.36f, pText)
         }
     }
 
-    private fun lighten(c: Int) = blend(c, 0xFFFFFFFF.toInt(), 0.12f)
+    private fun lighten(c: Int) = blend(c, 0xFFFFFFFF.toInt(), 0.25f)
     private fun darken(c: Int) = blend(c, 0xFF000000.toInt(), 0.35f)
     private fun blend(a: Int, b: Int, t: Float): Int {
         fun ch(s: Int) = (((a shr s) and 0xff) * (1 - t) + ((b shr s) and 0xff) * t).toInt() shl s
@@ -171,7 +224,7 @@ class DanceMatView(ctx: Context) : View(ctx) {
         return true
     }
 
-    /** Each pad's hit area extends half the gap around it, so the whole mat is live. */
+    /** Nearest pad within a small margin, so the gaps between pads still count. */
     private fun hit(x: Float, y: Float): Int {
         if (cell <= 0f) return 0
         var best: Pad? = null
@@ -182,6 +235,6 @@ class DanceMatView(ctx: Context) : View(ctx) {
             val d = dx * dx + dy * dy
             if (d < bestD) { bestD = d; best = p }
         }
-        return if (bestD <= (cell * 0.15f) * (cell * 0.15f)) best?.bit ?: 0 else 0
+        return if (bestD <= (cell * 0.12f) * (cell * 0.12f)) best?.bit ?: 0 else 0
     }
 }

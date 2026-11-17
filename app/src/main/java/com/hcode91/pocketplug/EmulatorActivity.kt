@@ -78,7 +78,7 @@ class EmulatorActivity : Activity() {
                 setContentView(StackLayout(this).apply {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)   // TV cabinet incl. margins
-                    add(m, 1.0f)     // square mat
+                    add(m, 1.12f)    // mat incl. its SELECT/START strip
                 })
             }
             Skin.APVS_1292 -> {
@@ -91,15 +91,16 @@ class EmulatorActivity : Activity() {
                         onPower = { powerCycle() }
                     }
                 } else {
-                    ApvsConsoleView(this, machine.badge.ifEmpty { "1292" }).apply {
+                    ApvsConsoleView(this, machine.badge.ifEmpty { "1292" }, title).apply {
                         onInput = { setTouch(0, it) }
                         onTap = { Native.tapInputs(handle, it) }
                         onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                        onPower = { powerCycle() }
                     }
                 }
                 val row = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.HORIZONTAL }
                 for (pl in 0..1) {
-                    val v = ApvsControllerView(this, pl).apply {
+                    val v = ApvsControllerView(this, pl, greyBody = machine.badge != "1392").apply {
                         onInput = { setTouch(1 + pl, it) }
                         onAnalog = { x, y -> Native.setAnalog(handle, pl, x, y) }
                     }
@@ -109,7 +110,7 @@ class EmulatorActivity : Activity() {
                 setContentView(StackLayout(this).apply {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)
-                    add(console, if (machine.badge == "1392") 0.34f else 0.2f)
+                    add(console, 0.34f)
                     add(row, 0.92f)
                 })
             }

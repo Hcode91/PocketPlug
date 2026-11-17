@@ -28,7 +28,9 @@ Tap a game to play it, hold it to remove it.
 
 ### 1292 APVS controls
 
-The console panel has **RESET**, **START** and **GAME SELECT**. Each hand
+The console panel has **OFF/ON** (power-cycles the console), **RESET**,
+**START** and **GAME SELECT**, and the cartridge in the slot shows the current
+game's name. The 1292 and 1392 each look like their real consoles. Each hand
 controller has an analog joystick (it springs back to centre), the 12-key
 keypad (1-9, CL, 0, EN) and a FIRE button. On the real controllers the fire
 button is wired to key 2, so it lights that key too. Most games are chosen with
@@ -45,9 +47,11 @@ keypad, Backspace/X for CL and Enter/Y for EN.
 
 ### Retro Dance Mat controls
 
-The mat on screen is multi-touch, so two-arrow jumps work. The upper corners are
-the diagonal arrows and the lower corners are **BACK** and **START**. Pressing
-START during a song pauses it, as on the real unit.
+The mat on screen is drawn like the real vinyl mat and is multi-touch, so
+two-arrow jumps work. **SELECT** (red, top left) is the game's back button and
+**START** (blue, top right) confirms; pressing START during a song pauses it, as
+on the real unit. The game only reads the two upper diagonal arrows - the lower
+corner arrows are printed on the mat but do nothing in 110dance.
 
 Gamepad/keyboard: D-pad or WASD for the arrows, L1/R1 or Q/E for the diagonals,
 A/Start/Enter for START, B/Select/Esc for BACK.
