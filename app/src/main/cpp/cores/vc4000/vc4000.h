@@ -36,7 +36,7 @@ public:
 
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
-    void setInputs(uint32_t pressed) override { m_inputs = pressed; }
+    void setInputs(uint32_t pressed) override;
     void setAnalog(int stick, float x, float y) override;
     bool tapInputs(uint32_t mask) override;
 
@@ -89,7 +89,11 @@ private:
     // tapped START/SELECT: held until the game reacts (see tapInputs)
     uint32_t m_tap = 0;
     int m_tapFrames = 0;
+    bool m_tapRead = false;
     uint8_t m_tapBcd[2] = {};
+    // keypad presses are latched until the game has read them (see setInputs)
+    uint32_t m_latch = 0, m_latchSeen = 0;
+    int m_latchFrames = 0;   // latched keys the game never reads expire
     uint8_t m_joyX[2] = { 105, 105 }, m_joyY[2] = { 105, 105 };
 
     uint32_t m_frame[VIS_W * VIS_H];

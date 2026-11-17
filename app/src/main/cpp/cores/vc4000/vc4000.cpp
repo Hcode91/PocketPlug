@@ -151,8 +151,20 @@ void Vc4000Core::reset()
     m_sndReg = 0; m_sndSize = 0; m_sndPos = 0;
     m_sampleAcc = 0;
     m_audio.clear();
-    m_tap = 0; m_tapFrames = 0;
+    m_tap = 0; m_tapFrames = 0; m_tapRead = false;
+    m_latch = m_latchSeen = 0;
     m_cpu.reset();
+}
+
+// Some cartridges (Cockpit, for one) only look at the keypad in a short burst
+// every second or so. A quick tap on a touch screen falls between those
+// reads, so a newly pressed key is latched until the game has read it.
+void Vc4000Core::setInputs(uint32_t pressed)
+{
+    const uint32_t keypadMask = (1u << 24) - 1;   // both players' keypads
+    uint32_t fresh = pressed & ~m_inputs & keypadMask;
+    if (fresh) { m_latch |= fresh; m_latchFrames = 0; }
+    m_inputs = pressed;
 }
 
 bool Vc4000Core::tapInputs(uint32_t mask)
@@ -161,6 +173,7 @@ bool Vc4000Core::tapInputs(uint32_t mask)
     if (!mask) return false;
     m_tap = mask;
     m_tapFrames = 0;
+    m_tapRead = false;
     m_tapBcd[0] = m_reg[R_BCD0];
     m_tapBcd[1] = m_reg[R_BCD1];
     return true;
@@ -182,9 +195,30 @@ void Vc4000Core::setAnalog(int stick, float x, float y)
  Memory map (address bus is 13 bits; A13/A14 not connected)
 ************************************************************************/
 
+#ifdef PP_DEBUG
+#include <cstdio>
+#include <map>
+#include <cstdlib>
+static std::map<int, int> g_ioReads;
+static std::map<int, int> g_pcs;
+void vc4000_debug_dump()
+{
+    printf("IO reads:"); for (auto& kv : g_ioReads) printf(" %04x:%d", kv.first, kv.second); printf("\n");
+    printf("PCs:"); for (auto& kv : g_pcs) if (kv.second > 50) printf(" %04x:%d", kv.first, kv.second); printf("\n");
+    g_ioReads.clear(); g_pcs.clear();
+}
+#endif
+
 uint8_t Vc4000Core::read(uint16_t a)
 {
     a &= 0x1fff;
+#ifdef PP_DEBUG
+    if ((a & 0x17ff) >= 0x1680) g_ioReads[a]++;
+    if (getenv("IOLOG") && (((a & 0x17ff) >= 0x1680 && (a & 0x17ff) < 0x1700) || (a & 0xff) == 0xcc || (a & 0xff) == 0xcd))
+        printf("rd %04x pc=%04x line=%d\n", a, m_cpu.m_ppc, m_line);
+    if (a == m_cpu.pc()) g_pcs[a]++;
+    if (getenv("PCWATCH") && a == strtol(getenv("PCWATCH"), 0, 16) && a == m_cpu.pc()) printf("hit %04x line=%d\n", a, m_line);
+#endif
     // cartridge
     switch (m_type) {
     case CART_STD:
@@ -220,12 +254,15 @@ void Vc4000Core::write(uint16_t a, uint8_t d)
 
 uint8_t Vc4000Core::key_r(int offset)
 {
+    const uint32_t in = m_inputs | m_latch;
     auto col = [&](int base, int a, int b, int c, int d) -> uint8_t {
         uint8_t v = 0;
-        if (m_inputs & (1u << (base + a))) v |= 0x80;
-        if (m_inputs & (1u << (base + b))) v |= 0x40;
-        if (m_inputs & (1u << (base + c))) v |= 0x20;
-        if (m_inputs & (1u << (base + d))) v |= 0x10;
+        if (in & (1u << (base + a))) v |= 0x80;
+        if (in & (1u << (base + b))) v |= 0x40;
+        if (in & (1u << (base + c))) v |= 0x20;
+        if (in & (1u << (base + d))) v |= 0x10;
+        // the game has now seen these keys
+        m_latchSeen |= m_latch & ((1u << (base + a)) | (1u << (base + b)) | (1u << (base + c)) | (1u << (base + d)));
         return v;
     };
     using namespace Vc4000Bits;
@@ -234,8 +271,9 @@ uint8_t Vc4000Core::key_r(int offset)
     case 0x09: return col(0, K2, K5, K8, K0);
     case 0x0a: return col(0, K3, K6, K9, KCLEAR);
     case 0x0b: {
-        uint32_t in = m_inputs | m_tap;
-        return ((in >> START) & 1 ? 0x40 : 0) | ((in >> SELECT) & 1 ? 0x80 : 0);
+        uint32_t p = m_inputs | m_tap;
+        if (m_tap) m_tapRead = true;
+        return ((p >> START) & 1 ? 0x40 : 0) | ((p >> SELECT) & 1 ? 0x80 : 0);
     }
     case 0x0c: return col(P2, K1, K4, K7, KENTER);
     case 0x0d: return col(P2, K2, K5, K8, K0);
@@ -563,13 +601,18 @@ void Vc4000Core::runFrame()
         produceSamples();
     }
     // A tapped button stays down until the game reacts - the game number shown
-    // in the score digits changes - or for one full 32-frame poll cycle, which
-    // games that sample the panel on a timer (Golf, Circus...) need.
+    // in the score digits changes - or, failing that, for at least one full
+    // 32-frame poll cycle (Golf, Circus...) and until the game has read the
+    // panel at least once (Cockpit only looks every ~72 frames).
     if (m_tap) {
         m_tapFrames++;
         bool reacted = m_reg[R_BCD0] != m_tapBcd[0] || m_reg[R_BCD1] != m_tapBcd[1];
-        if (reacted || m_tapFrames >= 32) m_tap = 0;
+        if (reacted || (m_tapFrames >= 32 && m_tapRead) || m_tapFrames >= 200) m_tap = 0;
     }
+    // latched keypad presses the game read during this frame are released now
+    m_latch &= ~m_latchSeen;
+    m_latchSeen = 0;
+    if (m_latch && ++m_latchFrames > 150) m_latch = 0;   // ~3 s
 
     for (int y = 0; y < VIS_H; y++) {
         uint32_t* dst = &m_frame[y * VIS_W];

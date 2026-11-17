@@ -33,6 +33,11 @@ keypad (1-9, CL, 0, EN) and a FIRE button. On the real controllers the fire
 button is wired to key 2, so it lights that key too. Most games are chosen with
 GAME SELECT and started with START.
 
+Some cartridges check their inputs only now and then (Cockpit, for example,
+looks about every 1.4 seconds), so the core keeps a quick tap held until the
+game has read it. In Cockpit, GAME SELECT picks the difficulty and keypad
+**3** starts the flight; START isn't used.
+
 Gamepad/keyboard: left stick, D-pad or arrows for player 1's joystick, the right
 stick for player 2's; A/B/Space for fire; Start/Select; number keys for the
 keypad, Backspace/X for CL and Enter/Y for EN.

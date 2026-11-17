@@ -10,6 +10,7 @@
 #include <map>
 #include <sstream>
 #include <chrono>
+#include <array>
 
 static void writePPM(const char* path, const uint32_t* px, int w, int h)
 {
@@ -30,10 +31,14 @@ int main(int argc, char** argv)
     if (!core || !core->load({ rf }, err)) { fprintf(stderr, "load failed: %s\n", err.c_str()); return 1; }
     int frames = atoi(argv[3]);
     std::map<int, uint32_t> script, tapScript;
+    // "frame:j<stick>:<x>:<y>" moves an analog stick (-1..1)
+    std::map<int, std::vector<std::array<float, 3>>> stickScript;
     if (argc > 5) {
         std::stringstream ss(argv[5]); std::string tok;
         while (std::getline(ss, tok, ',')) {
             int f; unsigned m;
+            float jx, jy; int st;
+            if (sscanf(tok.c_str(), "%d:j%d:%f:%f", &f, &st, &jx, &jy) == 4) { stickScript[f].push_back({ (float)st, jx, jy }); continue; }
             if (sscanf(tok.c_str(), "%d:t%x", &f, &m) == 2) tapScript[f] = m;
             else { sscanf(tok.c_str(), "%d:%x", &f, &m); script[f] = m; }
         }
@@ -43,6 +48,7 @@ int main(int argc, char** argv)
     for (int f = 0; f < frames; f++) {
         if (script.count(f)) core->setInputs(script[f]);
         if (tapScript.count(f)) core->tapInputs(tapScript[f]);
+        if (stickScript.count(f)) for (auto& j : stickScript[f]) core->setAnalog((int)j[0], j[1], j[2]);
         core->runFrame();
         int16_t buf[4096]; size_t n;
         while ((n = core->readAudio(buf, 4096)) > 0) audio.insert(audio.end(), buf, buf + n);
