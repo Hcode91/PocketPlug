@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292 }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -57,6 +57,13 @@ object ApvsBits {
     const val SELECT = 1 shl 25
     fun key(player: Int, k: Int) = 1 shl (player * KEYS_PER_PLAYER + k)
     fun fire(player: Int) = key(player, K2)
+}
+
+/** Buttons of the egg-shaped LCD pets: A (left), B (middle), C (right). */
+object EggPetBits {
+    const val A = 1
+    const val B = 2
+    const val C = 4
 }
 
 /** VC 4000 software list titles (MAME hash/vc4000.xml), keyed by CRC32. */
@@ -141,6 +148,16 @@ object Machines {
             knownCarts = vc4000Titles,
             cartLibrary = "vc4000",
             badge = "1392",
+        ),
+        MachineDef(
+            id = "tama",
+            title = "Egg Pet - Generation 1",
+            subtitle = "1996 keychain virtual pet (MAME set: tama). Lives in real time.",
+            chip = "Epson E0C6S46",
+            region = "Japan / World",
+            year = "1996",
+            roms = listOf(RomSpec("tama.bin", 0x3000L, 0x5c864cb1L)),
+            skin = Skin.EGG_PET,
         ),
     )
 

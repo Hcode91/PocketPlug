@@ -11,6 +11,7 @@ controller.
 |---|---|---|---|
 | Retro Dance Mat (110 song Super StepMania + 9-in-1 games) (PAL) | `110dance` | VT1682 | Boots, menus, songs and mini-games playable, sound working |
 | Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
+| Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock setting, egg, hatching and care screens work; lives in real time |
 
 ## Using it
 
@@ -55,6 +56,22 @@ corner arrows are printed on the mat but do nothing in 110dance.
 
 Gamepad/keyboard: D-pad or WASD for the arrows, L1/R1 or Q/E for the diagonals,
 A/Start/Enter for START, B/Select/Esc for BACK.
+
+### Egg Pet controls
+
+The three yellow buttons are A, B and C (left to right), as on the real toy.
+At first start the egg shows: press **B** for the clock, **A** sets the hour,
+**B** the minutes, **C** confirms - the egg hatches a few minutes later. Tap the
+key ring (or use Back) for the menu.
+
+The pet lives in real time. When you leave the app its exact state is kept, and
+when you come back the clock is fast-forwarded by the time you were away (up to
+14 days; "Time passes..." shows on the screen while it catches up, about 10-20
+seconds per day on a phone). Turn that off in the menu ("While closed: time
+stops") to freeze the pet while the app is closed. **Reset** in the menu is the
+pin hole on the back: a new egg.
+
+Gamepad/keyboard: X / Left / 1 / Z = A, A / Enter / 2 / X = B, B / Right / 3 / C = C.
 
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.
@@ -102,5 +119,6 @@ cartridge file instead of the ROM, e.g. `./tools/headless 1292apvs golf.bin 400 
 PocketPlug is distributed under the GNU GPL v2 or later (`LICENSE`), because the
 VC 4000 core is a port of MAME's GPL-2.0+ driver (Peter Trauner, Manfred
 Schneider, Robbbert). The VT1682 core (David Haywood), the 2650 CPU (Juergen
-Buchmueller) and PocketPlug's own code are BSD-3-Clause. See `LICENSES/README.md`.
+Buchmueller), the E0C6200/E0C6S46 MCU (hap) and PocketPlug's own code are
+BSD-3-Clause. See `LICENSES/README.md`.
 No ROMs or cartridges are included.

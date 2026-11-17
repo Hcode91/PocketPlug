@@ -16,4 +16,6 @@ object Native {
     @JvmStatic external fun runFrame(handle: Long, inputs: Int, pixels: IntArray, audio: ShortArray): Int
     @JvmStatic external fun saveState(handle: Long, path: String): Boolean
     @JvmStatic external fun loadState(handle: Long, path: String): Boolean
+    /** Real-time machines: fast-forward the clock silently. False if unsupported. */
+    @JvmStatic external fun advanceTime(handle: Long, seconds: Double): Boolean
 }

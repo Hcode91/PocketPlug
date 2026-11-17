@@ -44,6 +44,10 @@ public:
     // Analog sticks: x/y in -1..1 (left/up negative). Ignored by cores without them.
     virtual void setAnalog(int stick, float x, float y) { (void)stick; (void)x; (void)y; }
 
+    // Real-time machines (LCD pets): fast-forward the emulated clock by this
+    // much wall time, silently. Returns false if the core doesn't do this.
+    virtual bool advanceTime(double seconds) { (void)seconds; return false; }
+
     // Save states
     virtual bool saveState(std::vector<uint8_t>& out) = 0;
     virtual bool loadState(const std::vector<uint8_t>& in) = 0;

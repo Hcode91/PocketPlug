@@ -17,11 +17,20 @@ import android.widget.Toast
 
 class EmulatorActivity : Activity() {
 
+    companion object {
+        /** Longest absence we fast-forward (a neglected pet won't survive it anyway). */
+        const val MAX_CATCH_UP = 14 * 86400.0
+    }
+
     private lateinit var machine: MachineDef
     private var handle = 0L
     private lateinit var tv: TvView
     private var mat: DanceMatView? = null
     private val pads = arrayOfNulls<ApvsControllerView>(2)
+    private var pet: EggPetView? = null
+    // LCD pets keep living while the app is closed: the clock is fast-forwarded on return
+    private var liveSavedAt = 0L
+    @Volatile private var catchUpSeconds = 0.0
     private var cartFile: java.io.File? = null
     private var title = ""
 
@@ -71,6 +80,19 @@ class EmulatorActivity : Activity() {
         }
 
         when (machine.skin) {
+            Skin.EGG_PET -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val p = EggPetView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                pet = p
+                setContentView(p)
+                // pick up the pet where it was left
+                val live = liveFile()
+                if (live.exists() && Native.loadState(handle, live.absolutePath))
+                    liveSavedAt = prefs.getLong("live_${machine.id}", 0L)
+            }
             Skin.DANCE_MAT -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val m = DanceMatView(this).apply { onInput = { setTouch(0, it) } }
@@ -142,6 +164,20 @@ class EmulatorActivity : Activity() {
         }
     }
 
+    private fun liveFile() = java.io.File(filesDir, "live").apply { mkdirs() }.let { java.io.File(it, "${machine.id}.state") }
+
+    private fun realTime() = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("realtime_${machine.id}", true)
+
+    /** LCD pets: remember the exact state and when we left it. */
+    private fun saveLive() {
+        if (pet == null || handle == 0L) return
+        if (synchronized(coreLock) { Native.saveState(handle, liveFile().absolutePath) }) {
+            // time not yet fast-forwarded (app left mid catch-up) still counts next time
+            liveSavedAt = System.currentTimeMillis() - (catchUpSeconds * 1000).toLong()
+            getSharedPreferences("settings", MODE_PRIVATE).edit().putLong("live_${machine.id}", liveSavedAt).apply()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (handle != 0L) start()
@@ -160,14 +196,42 @@ class EmulatorActivity : Activity() {
 
     private fun start() {
         if (running) return
+        if (pet != null && liveSavedAt > 0 && realTime())
+            catchUpSeconds = ((System.currentTimeMillis() - liveSavedAt) / 1000.0).coerceIn(0.0, MAX_CATCH_UP)
         running = true
         thread = Thread({ emuLoop() }, "PocketPlug-emu").apply { priority = Thread.MAX_PRIORITY; start() }
     }
 
     private fun stop() {
         running = false
-        thread?.join(2000)
+        thread?.join(4000)
         thread = null
+        saveLive()
+    }
+
+    /** Fast-forwards the pet's clock in one-minute steps, showing progress on its screen. */
+    private fun catchUp() {
+        val total = catchUpSeconds
+        var left = total
+        while (running && left > 0.5) {
+            val step = minOf(left, 60.0)
+            synchronized(coreLock) { Native.advanceTime(handle, step) }
+            left -= step
+            catchUpSeconds = left
+            pet?.status = "Time passes...\n${formatSpan(total - left)} of ${formatSpan(total)}"
+        }
+        catchUpSeconds = 0.0
+        pet?.status = null
+    }
+
+    private fun formatSpan(sec: Double): String {
+        val s = sec.toLong()
+        return when {
+            s >= 86400 -> "${s / 86400}d ${s % 86400 / 3600}h"
+            s >= 3600 -> "${s / 3600}h ${s % 3600 / 60}m"
+            s >= 60 -> "${s / 60}m"
+            else -> "${s}s"
+        }
     }
 
     private fun emuLoop() {
@@ -185,12 +249,14 @@ class EmulatorActivity : Activity() {
                 .build().also { it.play() }
         }.getOrNull()
 
+        if (catchUpSeconds > 1.0) catchUp()
+
         val frameNs = (1_000_000_000.0 / refresh).toLong()
         var next = SystemClock.elapsedRealtimeNanos()
         while (running) {
             if (paused) { Thread.sleep(16); next = SystemClock.elapsedRealtimeNanos(); continue }
             val n = synchronized(coreLock) { Native.runFrame(handle, touchInputs or keyInputs, pixels, audio) }
-            tv.updateFrame(pixels)
+            pet?.updateFrame(pixels) ?: tv.updateFrame(pixels)
             if (track != null && n > 0) {
                 // a blocking write paces emulation to the audio clock
                 track.write(audio, 0, n)
@@ -208,35 +274,47 @@ class EmulatorActivity : Activity() {
         paused = true
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
         val stateFile = cartFile?.let { RomStore.cartStateFile(this, machine, it) } ?: RomStore.stateFile(this, machine)
-        val items = arrayOf(
-            "Resume",
-            "Save state",
-            if (stateFile.exists()) "Load state" else "Load state (none saved)",
-            "Reset",
-            if (tv.scanlines) "Scanlines: on" else "Scanlines: off",
-            "Quit to library",
-        )
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Resume" to {}
+        items += "Save state" to {
+            val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
+            Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
+        }
+        items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
+            if (stateFile.exists()) {
+                val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
+                Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()
+            }
+        }
+        if (pet != null) {
+            items += "Reset (pin hole on the back)" to {
+                paused = true
+                AlertDialog.Builder(this)
+                    .setMessage("Reset the pet? A new egg will appear and the current pet is gone.")
+                    .setPositiveButton("Reset") { _, _ -> synchronized(coreLock) { Native.reset(handle) }; saveLive(); paused = false }
+                    .setNegativeButton("Cancel") { _, _ -> paused = false }
+                    .setOnCancelListener { paused = false }
+                    .show()
+            }
+            items += (if (realTime()) "While closed: time keeps running" else "While closed: time stops") to {
+                prefs.edit().putBoolean("realtime_${machine.id}", !realTime()).apply()
+                Toast.makeText(this, if (realTime()) "Your pet lives on while the app is closed"
+                    else "Your pet's time stops while the app is closed", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            items += "Reset" to { synchronized(coreLock) { Native.reset(handle) } }
+            items += (if (tv.scanlines) "Scanlines: on" else "Scanlines: off") to {
+                tv.scanlines = !tv.scanlines
+                prefs.edit().putBoolean("scanlines", tv.scanlines).apply()
+                tv.invalidate()
+            }
+        }
+        items += "Quit to library" to { finish() }
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(items) { _, which ->
-                when (which) {
-                    1 -> {
-                        val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
-                        Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
-                    }
-                    2 -> if (stateFile.exists()) {
-                        val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
-                        Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()
-                    }
-                    3 -> synchronized(coreLock) { Native.reset(handle) }
-                    4 -> {
-                        tv.scanlines = !tv.scanlines
-                        prefs.edit().putBoolean("scanlines", tv.scanlines).apply()
-                        tv.invalidate()
-                    }
-                    5 -> { finish(); return@setItems }
-                }
+            .setItems(items.map { it.first }.toTypedArray()) { _, which ->
                 paused = false
+                items[which].second()
             }
             .setOnCancelListener { paused = false }
             .show()
@@ -246,7 +324,18 @@ class EmulatorActivity : Activity() {
     override fun onBackPressed() { showMenu() }
 
     // ---- gamepad / keyboard ----
-    private fun keyBit(code: Int): Int = if (machine.skin == Skin.APVS_1292) apvsKeyBit(code) else danceKeyBit(code)
+    private fun keyBit(code: Int): Int = when (machine.skin) {
+        Skin.APVS_1292 -> apvsKeyBit(code)
+        Skin.EGG_PET -> petKeyBit(code)
+        else -> danceKeyBit(code)
+    }
+
+    private fun petKeyBit(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_Z -> EggPetBits.A
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_X -> EggPetBits.B
+        KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_3, KeyEvent.KEYCODE_C -> EggPetBits.C
+        else -> 0
+    }
 
     private fun apvsKeyBit(code: Int): Int = when (code) {
         KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_SPACE -> ApvsBits.fire(0)
@@ -310,6 +399,7 @@ class EmulatorActivity : Activity() {
             Native.tapInputs(handle, b)
         keyInputs = keyInputs or b
         mat?.externalMask = keyInputs
+        pet?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }
@@ -320,6 +410,7 @@ class EmulatorActivity : Activity() {
         if (b == 0) return super.onKeyUp(keyCode, event)
         keyInputs = keyInputs and b.inv()
         mat?.externalMask = keyInputs
+        pet?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }

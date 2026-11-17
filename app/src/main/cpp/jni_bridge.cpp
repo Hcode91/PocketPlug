@@ -139,3 +139,9 @@ Java_com_hcode91_pocketplug_Native_tapInputs(JNIEnv*, jclass, jlong h, jint mask
 {
     return (h && ((Core*)(intptr_t)h)->tapInputs((uint32_t)mask)) ? JNI_TRUE : JNI_FALSE;
 }
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_hcode91_pocketplug_Native_advanceTime(JNIEnv*, jclass, jlong h, jdouble seconds)
+{
+    return (h && ((Core*)(intptr_t)h)->advanceTime(seconds)) ? JNI_TRUE : JNI_FALSE;
+}
