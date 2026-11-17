@@ -1,0 +1,10 @@
+build/
+.gradle/
+local.properties
+.cxx/
+*.iml
+.idea/
+tools/headless
+*.bin
+*.zip
+*.7z
