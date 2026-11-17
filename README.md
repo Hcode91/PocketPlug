@@ -10,7 +10,7 @@ controller.
 | Machine | Set | Core | Status |
 |---|---|---|---|
 | Retro Dance Mat (110 song Super StepMania + 9-in-1 games) (PAL) | `110dance` | VT1682 | Boots, menus, songs and mini-games playable, sound working |
-| Radofin 1292 Advanced Programmable Video System | `1292apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
+| Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
 
 ## Using it
 
@@ -20,7 +20,8 @@ controller.
    compared with MAME's.
 3. Tap **Play**.
 
-Cartridge consoles (like the 1292 APVS) have a game library instead: tap
+Cartridge consoles (like the 1292 APVS) have a game library instead (compatible
+consoles such as the 1292 and 1392 share one): tap
 **Add games** and pick a cartridge dump, a .zip/.7z of dumps, or a whole MAME
 software-list zip (e.g. `vc4000.zip`). Known cartridges get their proper titles.
 Tap a game to play it, hold it to remove it.

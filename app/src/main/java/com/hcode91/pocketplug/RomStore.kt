@@ -88,7 +88,13 @@ object RomStore {
 
     data class Cart(val file: File, val title: String, val crc: Long, val known: Boolean)
 
-    fun cartDir(ctx: Context, m: MachineDef) = File(ctx.filesDir, "carts/${m.id}").apply { mkdirs() }
+    fun cartDir(ctx: Context, m: MachineDef): File {
+        val dir = File(ctx.filesDir, "carts/${m.cartLibrary}")
+        // 0.2.x kept the 1292's games under its own id: move them to the shared library
+        val old = File(ctx.filesDir, "carts/${m.id}")
+        if (m.cartLibrary != m.id && old.isDirectory && !dir.exists()) old.renameTo(dir)
+        return dir.apply { mkdirs() }
+    }
 
     fun cartStateFile(ctx: Context, m: MachineDef, cart: File) =
         File(ctx.filesDir, "states").apply { mkdirs() }.let { File(it, "${m.id}_${cart.nameWithoutExtension}.state") }

@@ -82,7 +82,7 @@ class EmulatorActivity : Activity() {
             }
             Skin.APVS_1292 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val console = ApvsConsoleView(this).apply {
+                val console = ApvsConsoleView(this, machine.badge.ifEmpty { "1292" }).apply {
                     onInput = { setTouch(0, it) }
                     onTap = { Native.tapInputs(handle, it) }
                     onReset = { synchronized(coreLock) { Native.reset(handle) } }

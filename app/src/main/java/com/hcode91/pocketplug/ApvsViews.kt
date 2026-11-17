@@ -23,7 +23,7 @@ private fun Paint.text(size: Float, color: Int, bold: Boolean = true) = apply {
  * Top panel of the 1292 APVS console: black body with a brushed-metal strip,
  * the RESET, START and GAME SELECT push buttons and the power light.
  */
-class ApvsConsoleView(ctx: Context) : View(ctx) {
+class ApvsConsoleView(ctx: Context, private val badge: String = "1292") : View(ctx) {
     var onInput: ((Int) -> Unit)? = null
     var onReset: (() -> Unit)? = null
 
@@ -59,7 +59,7 @@ class ApvsConsoleView(ctx: Context) : View(ctx) {
 
         // badge + power light
         t.text(strip.height() * 0.2f, 0xFF1A1A1E.toInt())
-        c.drawText("1292", strip.left + strip.width() * 0.14f, strip.centerY() - strip.height() * 0.02f, t)
+        c.drawText(badge, strip.left + strip.width() * 0.14f, strip.centerY() - strip.height() * 0.02f, t)
         t.text(strip.height() * 0.11f, 0xFF3A3A40.toInt())
         c.drawText("ADVANCED PROGRAMMABLE", strip.left + strip.width() * 0.14f, strip.centerY() + strip.height() * 0.17f, t)
         c.drawText("VIDEO SYSTEM", strip.left + strip.width() * 0.14f, strip.centerY() + strip.height() * 0.31f, t)

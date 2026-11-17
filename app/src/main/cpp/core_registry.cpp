@@ -18,8 +18,8 @@ Core* createCore(const std::string& id)
         c.romCrc = 0xcd668e41;
         return new Vt1682Core(c);
     }
-    // Radofin 1292 Advanced Programmable Video System (VC 4000 family, cartridges)
-    if (id == "1292apvs")
+    // Radofin 1292 / 1392 Advanced Programmable Video System (VC 4000 family, cartridges)
+    if (id == "1292apvs" || id == "1392apvs")   // 1392: same hardware, internal power supply
         return new Vc4000Core();
     return nullptr;
 }

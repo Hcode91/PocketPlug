@@ -27,6 +27,10 @@ data class MachineDef(
     val cartMaxSize: Long = 0,
     /** Known cartridges: CRC32 -> title. */
     val knownCarts: Map<Long, String> = emptyMap(),
+    /** Compatible machines share one game library (folder name). */
+    val cartLibrary: String = id,
+    /** Model name printed on the console (skins that show one). */
+    val badge: String = "",
 )
 
 /** Input bits for the dance mat (match UIO port A on the VT1682, 1 = pressed). */
@@ -120,6 +124,23 @@ object Machines {
             media = MediaKind.CARTRIDGE,
             cartMaxSize = 0x1800,
             knownCarts = vc4000Titles,
+            cartLibrary = "vc4000",
+            badge = "1292",
+        ),
+        MachineDef(
+            id = "1392apvs",
+            title = "1392 Advanced Programmable Video System",
+            subtitle = "Radofin - the 1292 with a built-in power supply; shares its games",
+            chip = "Signetics 2650 + 2636",
+            region = "Europe",
+            year = "1976",
+            roms = emptyList(),
+            skin = Skin.APVS_1292,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x1800,
+            knownCarts = vc4000Titles,
+            cartLibrary = "vc4000",
+            badge = "1392",
         ),
     )
 
