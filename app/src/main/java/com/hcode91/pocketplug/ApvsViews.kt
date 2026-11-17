@@ -85,32 +85,29 @@ class ApvsConsoleView(ctx: Context) : View(ctx) {
         }
     }
 
-    // Many cartridges only look at START / GAME SELECT every half second or so,
-    // so on the real console you hold the button until the game reacts. A quick
-    // tap on glass is far shorter, so each press is held for at least this long.
-    private val minHoldMs = 650L
-    private var downAt = 0L
-    private val release = Runnable { pressed = -1; onInput?.invoke(0); invalidate() }
+    /** Called on press with the button's bit: the core holds it until the game reacts. */
+    var onTap: ((Int) -> Unit)? = null
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 val i = buttons.indexOfFirst { RectF(it.r).apply { inset(-12f, -16f) }.contains(e.x, e.y) }
                 if (i >= 0) {
-                    removeCallbacks(release)
                     pressed = i
-                    downAt = android.os.SystemClock.uptimeMillis()
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    if (i == 0) onReset?.invoke() else onInput?.invoke(buttons[i].bit)
+                    if (i == 0) onReset?.invoke()
+                    else {
+                        // A tap counts as exactly one press however briefly the
+                        // screen is touched; keeping a finger on the button also
+                        // holds it down, so it auto-repeats like the real console.
+                        onTap?.invoke(buttons[i].bit)
+                        onInput?.invoke(buttons[i].bit)
+                    }
                     invalidate()
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (pressed >= 0) {
-                    val held = android.os.SystemClock.uptimeMillis() - downAt
-                    if (pressed == 0 || held >= minHoldMs) release.run()
-                    else postDelayed(release, minHoldMs - held)
-                }
+                if (pressed >= 0) { pressed = -1; onInput?.invoke(0); invalidate() }
             }
         }
         return true

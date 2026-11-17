@@ -29,15 +29,20 @@ int main(int argc, char** argv)
     std::string err;
     if (!core || !core->load({ rf }, err)) { fprintf(stderr, "load failed: %s\n", err.c_str()); return 1; }
     int frames = atoi(argv[3]);
-    std::map<int, uint32_t> script;
+    std::map<int, uint32_t> script, tapScript;
     if (argc > 5) {
         std::stringstream ss(argv[5]); std::string tok;
-        while (std::getline(ss, tok, ',')) { int f; unsigned m; sscanf(tok.c_str(), "%d:%x", &f, &m); script[f] = m; }
+        while (std::getline(ss, tok, ',')) {
+            int f; unsigned m;
+            if (sscanf(tok.c_str(), "%d:t%x", &f, &m) == 2) tapScript[f] = m;
+            else { sscanf(tok.c_str(), "%d:%x", &f, &m); script[f] = m; }
+        }
     }
     std::vector<int16_t> audio;
     auto t0 = std::chrono::steady_clock::now();
     for (int f = 0; f < frames; f++) {
         if (script.count(f)) core->setInputs(script[f]);
+        if (tapScript.count(f)) core->tapInputs(tapScript[f]);
         core->runFrame();
         int16_t buf[4096]; size_t n;
         while ((n = core->readAudio(buf, 4096)) > 0) audio.insert(audio.end(), buf, buf + n);

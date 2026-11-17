@@ -38,6 +38,7 @@ public:
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     void setInputs(uint32_t pressed) override { m_inputs = pressed; }
     void setAnalog(int stick, float x, float y) override;
+    bool tapInputs(uint32_t mask) override;
 
     bool saveState(std::vector<uint8_t>& out) override;
     bool loadState(const std::vector<uint8_t>& in) override;
@@ -85,6 +86,10 @@ private:
     std::vector<int16_t> m_audio;
 
     uint32_t m_inputs = 0;
+    // tapped START/SELECT: held until the game reacts (see tapInputs)
+    uint32_t m_tap = 0;
+    int m_tapFrames = 0;
+    uint8_t m_tapBcd[2] = {};
     uint8_t m_joyX[2] = { 105, 105 }, m_joyY[2] = { 105, 105 };
 
     uint32_t m_frame[VIS_W * VIS_H];

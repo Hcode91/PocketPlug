@@ -133,3 +133,9 @@ Java_com_hcode91_pocketplug_Native_setAnalog(JNIEnv*, jclass, jlong h, jint stic
 {
     if (h) ((Core*)(intptr_t)h)->setAnalog(stick, x, y);
 }
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_hcode91_pocketplug_Native_tapInputs(JNIEnv*, jclass, jlong h, jint mask)
+{
+    return (h && ((Core*)(intptr_t)h)->tapInputs((uint32_t)mask)) ? JNI_TRUE : JNI_FALSE;
+}

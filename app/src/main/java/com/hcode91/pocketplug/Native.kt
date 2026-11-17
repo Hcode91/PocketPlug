@@ -11,6 +11,8 @@ object Native {
     /** [width, height, refresh * 1000, sampleRate] */
     @JvmStatic external fun videoInfo(handle: Long): IntArray
     @JvmStatic external fun setAnalog(handle: Long, stick: Int, x: Float, y: Float)
+    /** Press console buttons once; the core holds them until the game reacts. */
+    @JvmStatic external fun tapInputs(handle: Long, mask: Int): Boolean
     @JvmStatic external fun runFrame(handle: Long, inputs: Int, pixels: IntArray, audio: ShortArray): Int
     @JvmStatic external fun saveState(handle: Long, path: String): Boolean
     @JvmStatic external fun loadState(handle: Long, path: String): Boolean

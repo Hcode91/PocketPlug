@@ -37,6 +37,10 @@ public:
 
     // Input: bitmask of machine-specific buttons, 1 = pressed
     virtual void setInputs(uint32_t pressed) = 0;
+    // A "tap" of console buttons: the core holds them down until the game has
+    // read them once, then releases them. Returns false if the core doesn't
+    // support it (the caller should then just hold the bits briefly itself).
+    virtual bool tapInputs(uint32_t mask) { (void)mask; return false; }
     // Analog sticks: x/y in -1..1 (left/up negative). Ignored by cores without them.
     virtual void setAnalog(int stick, float x, float y) { (void)stick; (void)x; (void)y; }
 

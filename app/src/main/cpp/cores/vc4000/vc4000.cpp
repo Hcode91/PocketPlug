@@ -151,7 +151,19 @@ void Vc4000Core::reset()
     m_sndReg = 0; m_sndSize = 0; m_sndPos = 0;
     m_sampleAcc = 0;
     m_audio.clear();
+    m_tap = 0; m_tapFrames = 0;
     m_cpu.reset();
+}
+
+bool Vc4000Core::tapInputs(uint32_t mask)
+{
+    mask &= (1u << Vc4000Bits::START) | (1u << Vc4000Bits::SELECT);
+    if (!mask) return false;
+    m_tap = mask;
+    m_tapFrames = 0;
+    m_tapBcd[0] = m_reg[R_BCD0];
+    m_tapBcd[1] = m_reg[R_BCD1];
+    return true;
 }
 
 void Vc4000Core::setAnalog(int stick, float x, float y)
@@ -221,7 +233,10 @@ uint8_t Vc4000Core::key_r(int offset)
     case 0x08: return col(0, K1, K4, K7, KENTER);
     case 0x09: return col(0, K2, K5, K8, K0);
     case 0x0a: return col(0, K3, K6, K9, KCLEAR);
-    case 0x0b: return ((m_inputs >> START) & 1 ? 0x40 : 0) | ((m_inputs >> SELECT) & 1 ? 0x80 : 0);
+    case 0x0b: {
+        uint32_t in = m_inputs | m_tap;
+        return ((in >> START) & 1 ? 0x40 : 0) | ((in >> SELECT) & 1 ? 0x80 : 0);
+    }
     case 0x0c: return col(P2, K1, K4, K7, KENTER);
     case 0x0d: return col(P2, K2, K5, K8, K0);
     case 0x0e: return col(P2, K3, K6, K9, KCLEAR);
@@ -547,6 +562,15 @@ void Vc4000Core::runFrame()
         video_line();
         produceSamples();
     }
+    // A tapped button stays down until the game reacts - the game number shown
+    // in the score digits changes - or for one full 32-frame poll cycle, which
+    // games that sample the panel on a timer (Golf, Circus...) need.
+    if (m_tap) {
+        m_tapFrames++;
+        bool reacted = m_reg[R_BCD0] != m_tapBcd[0] || m_reg[R_BCD1] != m_tapBcd[1];
+        if (reacted || m_tapFrames >= 32) m_tap = 0;
+    }
+
     for (int y = 0; y < VIS_H; y++) {
         uint32_t* dst = &m_frame[y * VIS_W];
         const uint8_t* src = &m_bitmap[y][VIS_X];

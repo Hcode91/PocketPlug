@@ -84,6 +84,7 @@ class EmulatorActivity : Activity() {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val console = ApvsConsoleView(this).apply {
                     onInput = { setTouch(0, it) }
+                    onTap = { Native.tapInputs(handle, it) }
                     onReset = { synchronized(coreLock) { Native.reset(handle) } }
                 }
                 val row = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.HORIZONTAL }
@@ -282,6 +283,8 @@ class EmulatorActivity : Activity() {
         if (machine.skin == Skin.APVS_1292 && dpadBit(keyCode) != 0) { dpad = dpad or dpadBit(keyCode); applyDpad(); return true }
         val b = keyBit(keyCode)
         if (b == 0) return super.onKeyDown(keyCode, event)
+        if (machine.skin == Skin.APVS_1292 && event.repeatCount == 0 && (b and (ApvsBits.START or ApvsBits.SELECT)) != 0)
+            Native.tapInputs(handle, b)
         keyInputs = keyInputs or b
         mat?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
