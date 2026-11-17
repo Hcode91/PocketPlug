@@ -41,13 +41,13 @@ int main(int argc, char** argv)
         core->runFrame();
         int16_t buf[4096]; size_t n;
         while ((n = core->readAudio(buf, 4096)) > 0) audio.insert(audio.end(), buf, buf + n);
-        if (getenv("DBG") && (f + 1) % atoi(getenv("DBG")) == 0) printf("%d %s\n", f + 1, ((Vt1682Core*)core)->debugInfo().c_str());
+        if (getenv("DBG") && std::string(argv[1]) == "110dance" && (f + 1) % atoi(getenv("DBG")) == 0) printf("%d %s\n", f + 1, ((Vt1682Core*)core)->debugInfo().c_str());
         if ((f + 1) % 50 == 0) {
             char p[512]; snprintf(p, sizeof p, "%s/f%05d.ppm", argv[4], f + 1);
-            writePPM(p, core->frameBuffer(), 256, 240);
+            writePPM(p, core->frameBuffer(), core->frameWidth(), core->frameHeight());
         }
     }
-    if (getenv("DUMP")) { unsigned a0 = strtoul(getenv("DUMP"), 0, 16); FILE* d = fopen("/home/claude/out/dump.bin", "wb"); for (unsigned a = a0; a < a0 + (getenv("DUMPLEN") ? strtoul(getenv("DUMPLEN"),0,16) : 0x100); a++) { uint8_t b = ((Vt1682Core*)core)->mainRead(a); fwrite(&b, 1, 1, d); } fclose(d); }
+    if (getenv("DUMP") && std::string(argv[1]) == "110dance") { unsigned a0 = strtoul(getenv("DUMP"), 0, 16); FILE* d = fopen("/home/claude/out/dump.bin", "wb"); for (unsigned a = a0; a < a0 + (getenv("DUMPLEN") ? strtoul(getenv("DUMPLEN"),0,16) : 0x100); a++) { uint8_t b = ((Vt1682Core*)core)->mainRead(a); fwrite(&b, 1, 1, d); } fclose(d); }
     double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     printf("%d frames in %.2fs (%.1f fps)\n", frames, secs, frames / secs);
     // WAV

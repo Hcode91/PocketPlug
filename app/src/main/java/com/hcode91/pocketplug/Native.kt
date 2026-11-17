@@ -10,6 +10,7 @@ object Native {
     @JvmStatic external fun reset(handle: Long)
     /** [width, height, refresh * 1000, sampleRate] */
     @JvmStatic external fun videoInfo(handle: Long): IntArray
+    @JvmStatic external fun setAnalog(handle: Long, stick: Int, x: Float, y: Float)
     @JvmStatic external fun runFrame(handle: Long, inputs: Int, pixels: IntArray, audio: ShortArray): Int
     @JvmStatic external fun saveState(handle: Long, path: String): Boolean
     @JvmStatic external fun loadState(handle: Long, path: String): Boolean

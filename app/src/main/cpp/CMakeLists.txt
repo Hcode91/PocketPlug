@@ -9,7 +9,7 @@ endif()
 # Emulation is CPU-bound: optimise even in debug APKs
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fno-exceptions -fno-rtti")
 
-file(GLOB_RECURSE CORE_SOURCES
+file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/cores/*.cpp)
 

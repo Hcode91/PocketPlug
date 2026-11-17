@@ -1,0 +1,16 @@
+# Licensing
+
+PocketPlug as a whole is distributed under the **GNU General Public License,
+version 2 or (at your option) any later version** (`../LICENSE`), because it
+includes code derived from GPL-2.0+ parts of MAME.
+
+Individual files keep their own SPDX tags:
+
+| Files | Licence | Origin |
+|---|---|---|
+| `app/src/main/cpp/cores/vc4000/*` | GPL-2.0-or-later | MAME `src/mame/interton/vc4000*` (Peter Trauner, Manfred Schneider, Robbbert) |
+| `app/src/main/cpp/cores/vt1682/*` | BSD-3-Clause | MAME `src/mame/nintendo/vt1682*` (David Haywood) - `MAME-vt1682.txt` |
+| `app/src/main/cpp/common/s2650.*` | BSD-3-Clause | MAME `src/devices/cpu/s2650` (Juergen Buchmueller) |
+| everything else | BSD-3-Clause | PocketPlug - `BSD-3-Clause-PocketPlug.txt` |
+
+BSD-3-Clause code is compatible with, and distributed here under, the GPL.

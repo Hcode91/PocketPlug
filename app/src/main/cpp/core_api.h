@@ -37,6 +37,8 @@ public:
 
     // Input: bitmask of machine-specific buttons, 1 = pressed
     virtual void setInputs(uint32_t pressed) = 0;
+    // Analog sticks: x/y in -1..1 (left/up negative). Ignored by cores without them.
+    virtual void setAnalog(int stick, float x, float y) { (void)stick; (void)x; (void)y; }
 
     // Save states
     virtual bool saveState(std::vector<uint8_t>& out) = 0;

@@ -84,6 +84,100 @@ object RomStore {
         }
     }
 
+    // ---------------- cartridges ----------------
+
+    data class Cart(val file: File, val title: String, val crc: Long, val known: Boolean)
+
+    fun cartDir(ctx: Context, m: MachineDef) = File(ctx.filesDir, "carts/${m.id}").apply { mkdirs() }
+
+    fun cartStateFile(ctx: Context, m: MachineDef, cart: File) =
+        File(ctx.filesDir, "states").apply { mkdirs() }.let { File(it, "${m.id}_${cart.nameWithoutExtension}.state") }
+
+    fun listCarts(ctx: Context, m: MachineDef): List<Cart> =
+        (cartDir(ctx, m).listFiles() ?: emptyArray()).filter { it.isFile }.map { f ->
+            val crc = crc32(f)
+            val title = m.knownCarts[crc]
+            Cart(f, title ?: f.nameWithoutExtension, crc, title != null)
+        }.sortedBy { it.title.lowercase() }
+
+    data class CartImportResult(val added: List<String>, val duplicates: Int, val rejected: Int)
+
+    /**
+     * Imports every cartridge found in a file: a raw dump, a .zip / .7z of dumps,
+     * or a whole MAME software-list zip (zips inside a zip). Duplicates (same CRC)
+     * are skipped; files larger than the machine's cartridge size are rejected.
+     */
+    fun importCarts(ctx: Context, m: MachineDef, uri: Uri, progress: (String) -> Unit): CartImportResult {
+        val tmp = File(ctx.cacheDir, "import.tmp")
+        progress("Copying file…")
+        ctx.contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "Could not open the selected file" }
+            FileOutputStream(tmp).use { input.copyTo(it, 1 shl 20) }
+        }
+        val dir = cartDir(ctx, m)
+        val have = listCarts(ctx, m).map { it.crc }.toMutableSet()
+        val added = mutableListOf<String>()
+        var dup = 0
+        var rejected = 0
+
+        fun addCart(name: String, data: ByteArray) {
+            if (data.isEmpty() || data.size > m.cartMaxSize) { rejected++; return }
+            val crc = CRC32().apply { update(data) }.value
+            if (crc in have) { dup++; return }
+            var base = name.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast('.').ifBlank { "cart" }
+            base = base.replace(Regex("[^A-Za-z0-9 _().-]"), "_")
+            var f = File(dir, "$base.bin")
+            var n = 2
+            while (f.exists()) { f = File(dir, "$base ($n).bin"); n++ }
+            f.writeBytes(data)
+            have += crc
+            added += m.knownCarts[crc] ?: base
+            progress("Added ${added.size}…")
+        }
+
+        fun isZip(b: ByteArray) = b.size > 4 && b[0] == 'P'.code.toByte() && b[1] == 'K'.code.toByte()
+
+        // A zip inside the archive is one software-list entry: name it after the zip.
+        fun handleEntry(name: String, data: ByteArray) {
+            if (isZip(data)) {
+                val inner = mutableListOf<Pair<String, ByteArray>>()
+                ZipInputStream(data.inputStream()).use { z ->
+                    var e = z.nextEntry
+                    while (e != null) { if (!e.isDirectory) inner += e.name to z.readBytes(); e = z.nextEntry }
+                }
+                val zipName = name.substringAfterLast('/').substringBeforeLast('.')
+                if (inner.size == 1) addCart(zipName, inner[0].second)
+                else inner.sortedBy { it.first }.forEach { addCart(it.first, it.second) }
+            } else addCart(name, data)
+        }
+
+        try {
+            val magic = ByteArray(6)
+            tmp.inputStream().use { it.read(magic) }
+            when {
+                isZip(magic) -> ZipInputStream(tmp.inputStream().buffered()).use { zip ->
+                    var e = zip.nextEntry
+                    while (e != null) {
+                        if (!e.isDirectory) handleEntry(e.name, zip.readBytes())
+                        e = zip.nextEntry
+                    }
+                }
+                magic.contentEquals(byteArrayOf(0x37, 0x7a, 0xbc.toByte(), 0xaf.toByte(), 0x27, 0x1c)) ->
+                    SevenZFile.builder().setFile(tmp).get().use { z ->
+                        var e = z.nextEntry
+                        while (e != null) {
+                            if (!e.isDirectory) handleEntry(e.name, z.getInputStream(e).readBytes())
+                            e = z.nextEntry
+                        }
+                    }
+                else -> addCart(queryName(ctx, uri) ?: "cart", tmp.readBytes())
+            }
+        } finally {
+            tmp.delete()
+        }
+        return CartImportResult(added, dup, rejected)
+    }
+
     private fun queryName(ctx: Context, uri: Uri): String? =
         ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null

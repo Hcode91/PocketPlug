@@ -10,6 +10,7 @@ controller.
 | Machine | Set | Core | Status |
 |---|---|---|---|
 | Retro Dance Mat (110 song Super StepMania + 9-in-1 games) (PAL) | `110dance` | VT1682 | Boots, menus, songs and mini-games playable, sound working |
+| Radofin 1292 Advanced Programmable Video System | `1292apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
 
 ## Using it
 
@@ -18,6 +19,23 @@ controller.
    or the raw ROM file (e.g. `110songdancemat.bin`) all work. The checksum is
    compared with MAME's.
 3. Tap **Play**.
+
+Cartridge consoles (like the 1292 APVS) have a game library instead: tap
+**Add games** and pick a cartridge dump, a .zip/.7z of dumps, or a whole MAME
+software-list zip (e.g. `vc4000.zip`). Known cartridges get their proper titles.
+Tap a game to play it, hold it to remove it.
+
+### 1292 APVS controls
+
+The console panel has **RESET**, **START** and **GAME SELECT**. Each hand
+controller has an analog joystick (it springs back to centre), the 12-key
+keypad (1-9, CL, 0, EN) and a FIRE button. On the real controllers the fire
+button is wired to key 2, so it lights that key too. Most games are chosen with
+GAME SELECT and started with START.
+
+Gamepad/keyboard: left stick, D-pad or arrows for player 1's joystick, the right
+stick for player 2's; A/B/Space for fire; Start/Select; number keys for the
+keypad, Backspace/X for CL and Enter/Y for EN.
 
 ### Retro Dance Mat controls
 
@@ -38,13 +56,16 @@ app/src/main/cpp/
   core_api.h            interface every core implements
   core_registry.cpp     machine id -> core + configuration
   common/m6502.*        shared 6502 CPU
+  common/s2650.*        shared Signetics 2650 CPU
   cores/vt1682/         V.R. Technology VT1682 (two 6502s, tile/sprite video, DAC sound)
+  cores/vc4000/         Interton VC 4000 family / 1292 APVS (2650 + 2636 PVI)
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/
   Machines.kt           machine list (ROM files, CRCs, skin)
   RomStore.kt           ROM import (.zip/.7z/raw) and state files
   TvView.kt             CRT television presentation
   DanceMatView.kt       dance mat controller skin
+  ApvsViews.kt          1292 APVS console panel + hand controllers
 tools/                  desktop headless runner for testing cores against real ROMs
 ```
 
@@ -63,10 +84,13 @@ make -C tools
 ```
 
 Writes a screenshot every 50 frames and `audio.wav`. The last argument is an
-optional input script (`frame:hexmask`).
+optional input script (`frame:hexmask`). For cartridge machines pass the
+cartridge file instead of the ROM, e.g. `./tools/headless 1292apvs golf.bin 400 out/`.
 
 ## Credits and licence
 
-PocketPlug's own code is BSD-3-Clause (see `LICENSE`). The VT1682 core is a port of
-MAME's VT1682 driver by David Haywood (BSD-3-Clause); see `LICENSES/MAME-vt1682.txt`.
-No ROMs are included.
+PocketPlug is distributed under the GNU GPL v2 or later (`LICENSE`), because the
+VC 4000 core is a port of MAME's GPL-2.0+ driver (Peter Trauner, Manfred
+Schneider, Robbbert). The VT1682 core (David Haywood), the 2650 CPU (Juergen
+Buchmueller) and PocketPlug's own code are BSD-3-Clause. See `LICENSES/README.md`.
+No ROMs or cartridges are included.

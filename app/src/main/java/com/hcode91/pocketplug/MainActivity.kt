@@ -51,7 +51,7 @@ class MainActivity : Activity() {
         root.addView(ScrollView(this).apply { addView(list) },
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(TextView(this).apply {
-            text = "You need your own dumps of the systems' ROMs (MAME sets work: .zip, .7z or the raw .bin)."
+            text = "You need your own ROM and cartridge dumps (MAME sets and software-list zips work, as do .7z and raw .bin files)."
             textSize = 12f
             setTextColor(MUTED)
             setPadding(0, dp(8), 0, 0)
@@ -70,6 +70,7 @@ class MainActivity : Activity() {
     }
 
     private fun card(m: MachineDef): View {
+        if (m.media == MediaKind.CARTRIDGE) return cartCard(m)
         val ready = RomStore.isReady(this, m)
         val c = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -118,6 +119,65 @@ class MainActivity : Activity() {
         return c
     }
 
+    private fun cardShell(highlight: Boolean) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(18), dp(16), dp(18), dp(16))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(18).toFloat()
+            colors = intArrayOf(0xFF2A1B5C.toInt(), 0xFF1A1238.toInt())
+            orientation = GradientDrawable.Orientation.TL_BR
+            setStroke(dp(1), if (highlight) ACCENT else 0xFF3C2F6B.toInt())
+        }
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            .apply { bottomMargin = dp(14) }
+    }
+
+    /** Card for a cartridge console: its game library plus "Add games". */
+    private fun cartCard(m: MachineDef): View {
+        val carts = RomStore.listCarts(this, m)
+        val c = cardShell(carts.isNotEmpty())
+        c.addView(TextView(this).apply {
+            text = m.title; textSize = 22f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        })
+        c.addView(TextView(this).apply { text = m.subtitle; textSize = 14f; setTextColor(0xFFCFC6F5.toInt()) })
+        c.addView(TextView(this).apply {
+            text = "${m.chip} · ${m.region} · ${m.year} · ${m.id}"
+            textSize = 12f; setTextColor(MUTED); setPadding(0, dp(4), 0, dp(10))
+        })
+        c.addView(TextView(this).apply {
+            text = if (carts.isEmpty()) "○ No games yet - add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip)"
+                   else "● ${carts.size} game${if (carts.size == 1) "" else "s"} · tap to play, hold to remove"
+            textSize = 13f
+            setTextColor(if (carts.isEmpty()) 0xFFFFB86B.toInt() else 0xFF6CF0A8.toInt())
+            setPadding(0, 0, 0, dp(8))
+        })
+        for (cart in carts) {
+            c.addView(TextView(this).apply {
+                text = "▶  ${cart.title}" + if (cart.known) "" else "   (unknown dump)"
+                textSize = 16f
+                setTextColor(Color.WHITE)
+                setPadding(dp(10), dp(11), dp(10), dp(11))
+                background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(0x22FFFFFF) }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { bottomMargin = dp(6) }
+                setOnClickListener {
+                    startActivity(Intent(this@MainActivity, EmulatorActivity::class.java)
+                        .putExtra("machine", m.id).putExtra("cart", cart.file.absolutePath).putExtra("title", cart.title))
+                }
+                setOnLongClickListener {
+                    AlertDialog.Builder(this@MainActivity).setMessage("Remove ${cart.title}?")
+                        .setPositiveButton("Remove") { _, _ -> cart.file.delete(); rebuild() }
+                        .setNegativeButton("Cancel", null).show()
+                    true
+                }
+            })
+        }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END; setPadding(0, dp(6), 0, 0) }
+        row.addView(button("Add games", carts.isEmpty()) { startImport(m) })
+        c.addView(row)
+        return c
+    }
+
     private fun button(label: String, primary: Boolean, onClick: () -> Unit) = Button(this).apply {
         text = label
         isAllCaps = false
@@ -150,6 +210,24 @@ class MainActivity : Activity() {
         val status = TextView(this).apply { setPadding(dp(24), dp(20), dp(24), dp(8)); textSize = 15f }
         val dlg = AlertDialog.Builder(this).setTitle("Importing ${m.title}").setView(status).setCancelable(false).show()
         thread {
+            if (m.media == MediaKind.CARTRIDGE) {
+                val res = runCatching { RomStore.importCarts(this, m, uri) { msg -> runOnUiThread { status.text = msg } } }
+                runOnUiThread {
+                    dlg.dismiss()
+                    val msg = res.fold(
+                        onSuccess = { r ->
+                            buildString {
+                                append(if (r.added.isEmpty()) "No new games found." else "Added ${r.added.size} game${if (r.added.size == 1) "" else "s"}.")
+                                if (r.duplicates > 0) append("\n${r.duplicates} already in your library.")
+                                if (r.rejected > 0) append("\n${r.rejected} file(s) skipped (not a cartridge for this system).")
+                            }
+                        },
+                        onFailure = { "Import failed: ${it.message}" })
+                    AlertDialog.Builder(this).setMessage(msg).setPositiveButton("OK", null).show()
+                    rebuild()
+                }
+                return@thread
+            }
             val result = runCatching { RomStore.import(this, m, uri) { msg -> runOnUiThread { status.text = msg } } }
             runOnUiThread {
                 dlg.dismiss()

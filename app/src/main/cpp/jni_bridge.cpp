@@ -127,3 +127,9 @@ Java_com_hcode91_pocketplug_Native_loadState(JNIEnv* env, jclass, jlong h, jstri
 }
 
 } // extern "C"
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_hcode91_pocketplug_Native_setAnalog(JNIEnv*, jclass, jlong h, jint stick, jfloat x, jfloat y)
+{
+    if (h) ((Core*)(intptr_t)h)->setAnalog(stick, x, y);
+}
