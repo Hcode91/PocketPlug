@@ -135,7 +135,8 @@ class ApvsControllerView(ctx: Context, private val player: Int) : View(ctx) {
     )
     private val body = RectF()
     private val well = RectF()
-    private val fire = RectF()
+    private val fireL = RectF()
+    private val fireR = RectF()
     private var stickR = 0f
     private var knobX = 0f
     private var knobY = 0f
@@ -150,19 +151,22 @@ class ApvsControllerView(ctx: Context, private val player: Int) : View(ctx) {
         val wellSize = body.width() * 0.62f
         well.set(body.centerX() - wellSize / 2, body.top + body.height() * 0.07f, body.centerX() + wellSize / 2, body.top + body.height() * 0.07f + wellSize)
         stickR = wellSize * 0.36f
-        // keypad
-        val kTop = well.bottom + body.height() * 0.05f
+        // two red fire buttons above the keypad, as on the real controller
+        val top = well.bottom + body.height() * 0.04f
         val kw = body.width() * 0.24f
         val gap = body.width() * 0.05f
-        val kh = (body.bottom - body.height() * 0.13f - kTop - gap * 3) / 4
+        val avail = body.bottom - body.height() * 0.05f - top
+        val kh = (avail - gap * 4) / 4.75f
         val left = body.centerX() - (kw * 3 + gap * 2) / 2
+        val fh = kh * 0.75f
+        fireL.set(left, top, left + kw, top + fh)
+        fireR.set(left + 2 * (kw + gap), top, left + 3 * kw + 2 * gap, top + fh)
+        val kTop = top + fh + gap
         keys.forEachIndexed { i, k ->
             val cx = left + (i % 3) * (kw + gap)
             val cy = kTop + (i / 3) * (kh + gap)
             k.r.set(cx, cy, cx + kw, cy + kh)
         }
-        val fh = body.height() * 0.07f
-        fire.set(body.left + body.width() * 0.18f, body.bottom - fh * 1.35f, body.right - body.width() * 0.18f, body.bottom - fh * 0.35f)
         knobX = well.centerX(); knobY = well.centerY()
     }
 
@@ -196,23 +200,33 @@ class ApvsControllerView(ctx: Context, private val player: Int) : View(ctx) {
             p.color = 0xFF000000.toInt()
             c.drawRoundRect(k.r.left, k.r.top + 4, k.r.right, k.r.bottom + 4, 8f, 8f, p)
             p.shader = LinearGradient(0f, k.r.top, 0f, k.r.bottom,
-                if (on) 0xFFFFE89A.toInt() else 0xFFF1EFE8.toInt(), if (on) 0xFFE0B830.toInt() else 0xFFC7C4BA.toInt(), Shader.TileMode.CLAMP)
+                if (on) 0xFF5A5C66.toInt() else 0xFF34353B.toInt(), if (on) 0xFF3A3C44.toInt() else 0xFF111114.toInt(), Shader.TileMode.CLAMP)
             c.drawRoundRect(k.r, 8f, 8f, p)
             p.shader = null
-            t.text(k.r.height() * (if (k.label.length > 1) 0.4f else 0.55f), 0xFF151515.toInt())
+            p.style = Paint.Style.STROKE; p.strokeWidth = 2f; p.color = if (on) 0xFFFFE14D.toInt() else 0xFF4A4B52.toInt()
+            c.drawRoundRect(k.r, 8f, 8f, p)
+            p.style = Paint.Style.FILL
+            t.text(k.r.height() * (if (k.label.length > 1) 0.4f else 0.55f), if (on) 0xFFFFE14D.toInt() else 0xFFE8E8EA.toInt())
             c.drawText(k.label, k.r.centerX(), k.r.centerY() + t.textSize * 0.36f, t)
         }
 
-        // fire button (wired to keypad 2)
+        // fire buttons (both wired to keypad 2)
         val fireOn = (lit and ApvsBits.fire(player)) != 0
-        p.color = if (fireOn) 0xFFFF6B5E.toInt() else 0xFFC0261D.toInt()
-        c.drawRoundRect(fire, fire.height() / 2, fire.height() / 2, p)
-        t.text(fire.height() * 0.5f, 0xFFFFFFFF.toInt())
-        c.drawText("FIRE", fire.centerX(), fire.centerY() + t.textSize * 0.36f, t)
+        for (f in arrayOf(fireL, fireR)) {
+            p.color = 0xFF000000.toInt()
+            c.drawRoundRect(f.left, f.top + 4, f.right, f.bottom + 4, 8f, 8f, p)
+            p.shader = LinearGradient(0f, f.top, 0f, f.bottom,
+                if (fireOn) 0xFFFF8A80.toInt() else 0xFFE0352B.toInt(), if (fireOn) 0xFFE0352B.toInt() else 0xFF8E1A14.toInt(), Shader.TileMode.CLAMP)
+            c.drawRoundRect(f, 8f, 8f, p)
+            p.shader = null
+        }
+        t.text(fireL.height() * 0.3f, 0xFF8E9098.toInt())
+        c.drawText("FIRE", body.centerX(), fireL.centerY() + t.textSize * 0.36f, t)
     }
 
     private fun keyAt(x: Float, y: Float): Int {
-        if (RectF(fire).apply { inset(-10f, -10f) }.contains(x, y)) return ApvsBits.fire(player)
+        if (RectF(fireL).apply { inset(-10f, -10f) }.contains(x, y) || RectF(fireR).apply { inset(-10f, -10f) }.contains(x, y))
+            return ApvsBits.fire(player)
         for (k in keys) if (RectF(k.r).apply { inset(-6f, -6f) }.contains(x, y)) return ApvsBits.key(player, k.k)
         return 0
     }

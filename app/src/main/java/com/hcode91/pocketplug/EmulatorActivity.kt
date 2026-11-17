@@ -9,6 +9,7 @@ import android.media.AudioTrack
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.KeyEvent
+import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -82,10 +83,19 @@ class EmulatorActivity : Activity() {
             }
             Skin.APVS_1292 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val console = ApvsConsoleView(this, machine.badge.ifEmpty { "1292" }).apply {
-                    onInput = { setTouch(0, it) }
-                    onTap = { Native.tapInputs(handle, it) }
-                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                val console: View = if (machine.badge == "1392") {
+                    Apvs1392ConsoleView(this, machine.badge, title).apply {
+                        onInput = { setTouch(0, it) }
+                        onTap = { Native.tapInputs(handle, it) }
+                        onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                        onPower = { powerCycle() }
+                    }
+                } else {
+                    ApvsConsoleView(this, machine.badge.ifEmpty { "1292" }).apply {
+                        onInput = { setTouch(0, it) }
+                        onTap = { Native.tapInputs(handle, it) }
+                        onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    }
                 }
                 val row = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.HORIZONTAL }
                 for (pl in 0..1) {
@@ -99,12 +109,24 @@ class EmulatorActivity : Activity() {
                 setContentView(StackLayout(this).apply {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)
-                    add(console, 0.2f)
+                    add(console, if (machine.badge == "1392") 0.34f else 0.2f)
                     add(row, 0.92f)
                 })
             }
         }
         hideSystemBars()
+    }
+
+    /** OFF/ON switch: the TV goes dark for a moment and the console restarts. */
+    private fun powerCycle() {
+        paused = true
+        tv.powered = false
+        tv.invalidate()
+        tv.postDelayed({
+            synchronized(coreLock) { Native.reset(handle) }
+            tv.powered = true
+            paused = false
+        }, 700)
     }
 
     private fun setTouch(source: Int, mask: Int) {
