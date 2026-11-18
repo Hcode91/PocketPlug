@@ -64,6 +64,8 @@ object EggPetBits {
     const val A = 1
     const val B = 2
     const val C = 4
+    /** The angel model's vibration (shake) sensor. */
+    const val SHAKE = 8
 }
 
 /** VC 4000 software list titles (MAME hash/vc4000.xml), keyed by CRC32. */
@@ -158,6 +160,17 @@ object Machines {
             year = "1996",
             roms = listOf(RomSpec("tama.bin", 0x3000L, 0x5c864cb1L)),
             skin = Skin.EGG_PET,
+        ),
+        MachineDef(
+            id = "tamaang",
+            title = "Egg Pet - Angel",
+            subtitle = "1997 angel virtual pet (MAME set: tamaang). Shake it to help it. Lives in real time.",
+            chip = "Epson E0C6S48",
+            region = "Japan / World",
+            year = "1997",
+            roms = listOf(RomSpec("tamaang.bin", 0x4000L, 0x87bcb59fL)),
+            skin = Skin.EGG_PET,
+            badge = "angel",
         ),
     )
 

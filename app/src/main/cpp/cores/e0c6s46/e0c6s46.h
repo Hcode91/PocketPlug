@@ -17,6 +17,8 @@ public:
     //          1 = E0C6S48 (8192x12 ROM, 768x4 RAM, 2x102x4 VRAM)
     explicit E0C6S46(int variant = 0);
 
+    /** Optional fast oscillator (Hz) the program can switch the CPU to; 0 = none. */
+    void setOsc3(uint32_t hz) { m_osc3 = hz; }
     void setRom(const std::vector<uint16_t>& words) { m_rom = words; }
     void reset();                         // power-on reset (RAM cleared)
 
@@ -78,7 +80,8 @@ private:
 
     // ---- scheduler (units of 1/65536 s) ----
     static const uint64_t NEVER = ~0ull;
-    uint64_t m_now = 0, m_target = 0;
+    uint64_t m_now = 0, m_target = 0, m_osc3Frac = 0;
+    uint32_t m_osc3 = 0;
     uint64_t m_t256 = 0, m_tprg = NEVER, m_tbz = NEVER;
 
     // CPU
@@ -119,5 +122,6 @@ private:
     void clock_bz_envelope();
     void reset_bz_envelope();
     void runEvents(uint64_t upTo);
+    void addCycles(int cycles);
     uint64_t nextEvent() const;
 };

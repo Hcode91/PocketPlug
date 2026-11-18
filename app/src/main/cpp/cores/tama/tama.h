@@ -8,6 +8,10 @@ struct TamaConfig {
     std::string romName;
     uint32_t romCrc = 0;
     int variant = 0;     // 0 = E0C6S46, 1 = E0C6S48
+    uint32_t osc3 = 0;   // fast oscillator on the board (Hz), 0 = none
+    const int8_t* segCol = nullptr;   // segment line -> dot column (-1 = none), size lcdWidth
+    int iconSeg[8] = {8, 8, 8, 8, 28, 28, 28, 28};
+    int iconCom[8] = {0, 1, 2, 3, 12, 13, 14, 15};
 };
 
 // Frame buffer layout (32 x 17): rows 0-15 are the 32x16 dot matrix,
@@ -15,7 +19,7 @@ struct TamaConfig {
 // the actual LCD; 0xFF000000 = segment on, 0 = off.
 class TamaCore : public Core {
 public:
-    explicit TamaCore(const TamaConfig& c) : m_cfg(c), m_cpu(c.variant) {}
+    explicit TamaCore(const TamaConfig& c) : m_cfg(c), m_cpu(c.variant) { m_cpu.setOsc3(c.osc3); }
     bool load(const std::vector<RomFile>& roms, std::string& error) override;
     void reset() override;
     void runFrame() override;

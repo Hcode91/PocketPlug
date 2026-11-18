@@ -95,17 +95,17 @@ void TamaCore::render()
 {
     std::memset(m_fb, 0, sizeof(m_fb));
     const uint32_t ON = 0xff000000;
-    for (int seg = 0; seg < 40; seg++) {
-        int col = kSegCol[seg];
+    const int8_t* map = m_cfg.segCol ? m_cfg.segCol : kSegCol;
+    int segs = m_cfg.segCol ? m_cpu.lcdWidth() : 40;
+    for (int seg = 0; seg < segs; seg++) {
+        int col = map[seg];
         if (col < 0) continue;
         for (int com = 0; com < 16; com++)
             if (m_cpu.lcdPixel(com, seg)) m_fb[com * 32 + col] = ON;
     }
-    // icons: seg 8 com 0-3 (top row), seg 28 com 12-15 (bottom row)
-    for (int i = 0; i < 4; i++) {
-        if (m_cpu.lcdPixel(i, 8)) m_fb[16 * 32 + i] = ON;
-        if (m_cpu.lcdPixel(12 + i, 28)) m_fb[16 * 32 + 4 + i] = ON;
-    }
+    // the eight icon segments (4 top, 4 bottom)
+    for (int i = 0; i < 8; i++)
+        if (m_cpu.lcdPixel(m_cfg.iconCom[i], m_cfg.iconSeg[i])) m_fb[16 * 32 + i] = ON;
 }
 
 size_t TamaCore::readAudio(int16_t* out, size_t maxSamples)
@@ -117,10 +117,11 @@ size_t TamaCore::readAudio(int16_t* out, size_t maxSamples)
     return n;
 }
 
-// bits: 0 = left (A), 1 = middle (B), 2 = right (C)
+// bits: 0 = left (A), 1 = middle (B), 2 = right (C), 3 = shake sensor (K03)
 void TamaCore::setInputs(uint32_t pressed)
 {
     m_inputs = pressed;
+    m_cpu.setInputLine(3, (pressed & 8) ? 0 : 1);
     // active low: K02 = left, K01 = middle, K00 = right
     m_cpu.setInputLine(2, (pressed & 1) ? 0 : 1);
     m_cpu.setInputLine(1, (pressed & 2) ? 0 : 1);

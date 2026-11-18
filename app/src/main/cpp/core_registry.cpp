@@ -29,5 +29,13 @@ Core* createCore(const std::string& id)
         c.romCrc = 0x5c864cb1;
         return new TamaCore(c);
     }
+    if (id == "tamaang") {   // Angel: E0C6S48 with a 1 MHz OSC3 and a shake sensor
+        TamaConfig c;
+        c.romName = "tamaang.bin";
+        c.romCrc = 0x87bcb59f;
+        c.variant = 1;
+        c.osc3 = 1000000;
+        return new TamaCore(c);
+    }
     return nullptr;
 }

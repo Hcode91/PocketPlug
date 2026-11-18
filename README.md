@@ -12,6 +12,7 @@ controller.
 | Retro Dance Mat (110 song Super StepMania + 9-in-1 games) (PAL) | `110dance` | VT1682 | Boots, menus, songs and mini-games playable, sound working |
 | Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
 | Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock, egg, hatching and pet match MAME segment-for-segment over 10 min; lives in real time |
+| Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
 ## Using it
 
@@ -72,6 +73,9 @@ stops") to freeze the pet while the app is closed. **Reset** in the menu is the
 pin hole on the back: a new egg.
 
 Gamepad/keyboard: X / Left / 1 / Z = A, A / Enter / 2 / X = B, B / Right / 3 / C = C.
+
+The Angel has a vibration sensor: shake the phone, touch either wing, or press
+gamepad Y / Up / 4 / S. Its menu opens from the ball chain (or Back).
 
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.

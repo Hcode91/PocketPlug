@@ -899,6 +899,7 @@ void E0C6S46::reset()
 
     m_now = 0;
     m_target = 0;
+    m_osc3Frac = 0;
     m_t256 = 64 * UNITS_PER_TICK;
     m_tprg = NEVER;
     m_tbz = NEVER;
@@ -1239,7 +1240,10 @@ void E0C6S46::io_w(uint8_t offset, uint8_t data)
     case 0x60: case 0x61: case 0x62: case 0x63: m_port_p[offset & 3] = data & 0xf; break;
     case 0x7d: m_p_dir = data; break;
     case 0x7e: m_p_pullup = data; break;
-    case 0x70: m_osc = data; break;      // OSC3 not used by these toys
+    case 0x70:
+        // d2: OSC3 on, d3: CPU clock from OSC3 (when the board has one)
+        m_osc = data;
+        break;
     case 0x71: m_lcd_control = data; break;
     case 0x72: m_lcd_contrast = data; break;
     case 0x73: m_svd = data & 7; break;
@@ -1285,6 +1289,19 @@ void E0C6S46::io_w(uint8_t offset, uint8_t data)
  Scheduler
 ************************************************************************/
 
+// CPU clocks -> scheduler time: OSC1 (32768 Hz) is 2 units a clock; OSC3
+// runs much faster, so it's accumulated exactly in units * osc3.
+void E0C6S46::addCycles(int cycles)
+{
+    if ((m_osc & 8) && m_osc3) {
+        m_osc3Frac += (uint64_t)cycles * 65536;
+        m_now += m_osc3Frac / m_osc3;
+        m_osc3Frac %= m_osc3;
+    } else {
+        m_now += (uint64_t)cycles * UNITS_PER_TICK;
+    }
+}
+
 uint64_t E0C6S46::nextEvent() const
 {
     return std::min(m_t256, std::min(m_tprg, m_tbz));
@@ -1316,7 +1333,7 @@ void E0C6S46::run(uint64_t units)
             if ((m_f & I_FLAG) && check_interrupt()) {
                 m_icount = 0;
                 do_interrupt();
-                m_now += (uint64_t)(-m_icount) * UNITS_PER_TICK;
+                addCycles(-m_icount);
                 runEvents(m_now);
                 continue;
             }
@@ -1339,7 +1356,7 @@ void E0C6S46::run(uint64_t units)
         m_icount = -5;
         if (!(m_variant == 0 && m_op == 0xff9))   // E0C6S46 has no SLP
             execute_one();
-        m_now += (uint64_t)(-m_icount) * UNITS_PER_TICK;
+        addCycles(-m_icount);
         if (m_now >= m_t256 || m_now >= m_tprg || m_now >= m_tbz)
             runEvents(m_now);
     }
@@ -1370,7 +1387,7 @@ int E0C6S46::lcdPixel(int com, int seg) const
     X(m_stopwatch_on) X(m_swl_cur_pulse) X(m_swl_slice) X(m_swl_count) X(m_swh_count) X(m_prgtimer_select) X(m_prgtimer_on) \
     X(m_prgtimer_src_pulse) X(m_prgtimer_cur_pulse) X(m_prgtimer_count) X(m_prgtimer_reload) X(m_bz_43_on) X(m_bz_freq) \
     X(m_bz_envelope) X(m_bz_envelope_count) X(m_bz_duty_ratio) X(m_bz_1shot_on) X(m_bz_1shot_running) X(m_bz_1shot_count) \
-    X(m_bz_pulse) X(m_r43) X(m_now) X(m_target) X(m_t256) X(m_tprg) X(m_tbz)
+    X(m_bz_pulse) X(m_r43) X(m_now) X(m_target) X(m_osc3Frac) X(m_t256) X(m_tprg) X(m_tbz)
 
 void E0C6S46::save(std::vector<uint8_t>& out) const
 {

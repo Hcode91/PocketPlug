@@ -15,8 +15,13 @@ import kotlin.math.*
  *
  * Frames come from the E0C6S46 core: 32x17, rows 0-15 = dots, row 16 = icons.
  * Tapping the key ring opens the emulator menu.
+ *
+ * With [angel] set it is the 1997 angel model instead: pale lavender shell with
+ * a white window-pane grid and holographic bubbles, wings beside a star-shaped
+ * bezel, icons printed on the LCD, pale blue buttons and a ball chain. Touching
+ * a wing works the shake sensor (as does shaking the phone).
  */
-class EggPetView(ctx: Context) : View(ctx) {
+class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
 
     var onInput: ((Int) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -30,6 +35,7 @@ class EggPetView(ctx: Context) : View(ctx) {
     private val dots = BooleanArray(32 * 16)
     private val icons = BooleanArray(8)
     private var touchMask = 0
+    private val wingL = RectF(); private val wingR = RectF()
     private val pointerBtn = HashMap<Int, Int>()
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -53,10 +59,10 @@ class EggPetView(ctx: Context) : View(ctx) {
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
         // egg body: ~ 0.78 x 0.92 aspect; key ring above it
-        val ew = min(w * 0.84f, h * 0.64f / 1.2f)
-        val eh = ew * 1.2f
-        val cx = w / 2f
-        val top = h - eh - h * 0.03f
+        val ew = if (angel) min(w * 0.80f, h * 0.84f / 1.15f) else min(w * 0.84f, h * 0.64f / 1.2f)
+        val eh = if (angel) ew * 1.15f else ew * 1.2f
+        val cx = if (angel) w / 2f - ew * 0.04f else w / 2f
+        val top = if (angel) (h - eh) / 2f + h * 0.02f else h - eh - h * 0.03f
         eggBounds.set(cx - ew / 2, top, cx + ew / 2, top + eh)
         egg.reset()
         // egg: narrower top, fuller bottom (superellipse-ish via cubic curves)
@@ -78,7 +84,45 @@ class EggPetView(ctx: Context) : View(ctx) {
         btn[2].set(cx + ew * 0.19f, by - eh * 0.012f)
         ringR = min(ew * 0.22f, (top - h * 0.02f) * 0.30f).coerceAtLeast(ew * 0.08f)
         ring.set(cx + ew * 0.05f, max(ringR * 1.15f, top * 0.30f))
-        backdrop = makeBackdrop(s.toInt().coerceAtLeast(16))
+        if (angel) {
+            val sa = ew * 0.48f
+            lcd.set(cx - sa / 2, t + eh * 0.33f, cx + sa / 2, t + eh * 0.33f + sa)
+            btnR = ew * 0.065f
+            val bya = t + eh * 0.875f
+            btn[0].set(cx - ew * 0.2f, bya - eh * 0.01f)
+            btn[1].set(cx, bya + eh * 0.025f)
+            btn[2].set(cx + ew * 0.2f, bya - eh * 0.01f)
+            val wy = lcd.centerY() - sa * 0.05f
+            wingL.set(l + ew * 0.02f, wy - sa * 0.42f, lcd.left - ew * 0.075f, wy + sa * 0.22f)
+            wingR.set(lcd.right + ew * 0.075f, wy - sa * 0.42f, r - ew * 0.02f, wy + sa * 0.22f)
+            ring.set(-1000f, -1000f); ringR = 0f
+        }
+        backdrop = if (angel) makeAngelBackdrop(lcd.width().toInt().coerceAtLeast(16)) else makeBackdrop(s.toInt().coerceAtLeast(16))
+    }
+
+    private fun makeAngelBackdrop(size: Int): Bitmap {
+        val bm = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bm)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.shader = LinearGradient(0f, 0f, size.toFloat(), size.toFloat(), 0xFFC7D5DA.toInt(), 0xFFAFC0C8.toInt(), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, size.toFloat(), size.toFloat(), p); p.shader = null
+        // big printed star outline behind the dots
+        val star = Path()
+        val cx = size / 2f; val cy = size * 0.54f; val ro = size * 0.40f; val ri = ro * 0.42f
+        for (k in 0 until 10) {
+            val a = -PI / 2 + k * PI / 5
+            val rr = if (k % 2 == 0) ro else ri
+            val x = cx + (cos(a) * rr).toFloat(); val y = cy + (sin(a) * rr).toFloat()
+            if (k == 0) star.moveTo(x, y) else star.lineTo(x, y)
+        }
+        star.close()
+        p.style = Paint.Style.STROKE; p.strokeJoin = Paint.Join.ROUND
+        p.color = 0xFFF4F8FA.toInt(); p.strokeWidth = size * 0.035f
+        c.drawPath(star, p)
+        p.color = 0x664A86C8; p.strokeWidth = size * 0.006f
+        c.drawLine(cx - ro * 0.5f, cy - ro * 0.55f, cx + ro * 0.65f, cy + ro * 0.35f, p)
+        c.drawLine(cx - ro * 0.3f, cy + ro * 0.6f, cx + ro * 0.5f, cy - ro * 0.6f, p)
+        return bm
     }
 
     // ---- printed backdrop behind the LCD glass ----
@@ -145,8 +189,7 @@ class EggPetView(ctx: Context) : View(ctx) {
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF0B0814.toInt())
-        drawKeyChain(c)
-        drawShell(c)
+        if (angel) { drawAngelShell(c); drawBallChain(c) } else { drawKeyChain(c); drawShell(c) }
         drawLcd(c)
         drawButtons(c)
     }
@@ -233,10 +276,124 @@ class EggPetView(ctx: Context) : View(ctx) {
         paint.shader = null
     }
 
+    private fun drawBallChain(c: Canvas) {
+        val b = eggBounds
+        // from the top loop, over the right shoulder and down the side
+        val pts = ArrayList<PointF>()
+        val x0 = b.centerX() - b.width() * 0.02f; val y0 = b.top + b.height() * 0.015f
+        val br = b.width() * 0.028f
+        val path = Path().apply {
+            moveTo(x0, y0)
+            cubicTo(b.right - b.width() * 0.05f, b.top - b.height() * 0.06f, b.right + b.width() * 0.10f, b.top + b.height() * 0.25f,
+                b.right + b.width() * 0.035f, b.top + b.height() * 0.78f)
+        }
+        val pm = PathMeasure(path, false)
+        val len = pm.length
+        val pos = FloatArray(2)
+        var d = br * 0.6f
+        while (d < len) { pm.getPosTan(d, pos, null); pts += PointF(pos[0], pos[1]); d += br * 2.15f }
+        for ((k, p) in pts.withIndex()) {
+            if (k == pts.size - 3) {
+                // the clasp
+                paint.color = Color.WHITE
+                paint.shader = LinearGradient(p.x - br, p.y, p.x + br, p.y, 0xFFF0F0F0.toInt(), 0xFF6E7076.toInt(), Shader.TileMode.CLAMP)
+                c.drawRoundRect(p.x - br * 0.6f, p.y - br * 3f, p.x + br * 0.6f, p.y + br * 3f, br * 0.5f, br * 0.5f, paint)
+                paint.shader = null
+                continue
+            }
+            paint.color = Color.WHITE
+            paint.shader = RadialGradient(p.x - br * 0.35f, p.y - br * 0.35f, br * 1.2f,
+                intArrayOf(0xFFFFFFFF.toInt(), 0xFFB5B8BE.toInt(), 0xFF5D6066.toInt()), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+            c.drawCircle(p.x, p.y, br, paint)
+            paint.shader = null
+        }
+    }
+
+    private fun drawAngelShell(c: Canvas) {
+        val b = eggBounds
+        paint.color = Color.WHITE
+        paint.shader = RadialGradient(b.centerX() - b.width() * 0.1f, b.top + b.height() * 0.4f, b.height() * 0.75f,
+            intArrayOf(0xFFCBD7F7.toInt(), 0xFFAFC1F1.toInt(), 0xFF8EA4E3.toInt()), floatArrayOf(0f, 0.65f, 1f), Shader.TileMode.CLAMP)
+        c.drawPath(egg, paint)
+        paint.shader = null
+        c.save(); c.clipPath(egg)
+        // holographic bubbles
+        val rnd = java.util.Random(11)
+        val holo = intArrayOf(0x7066E0E8, 0x60B08CF0, 0x58F0A8E0, 0x6090F0D0, 0x50FFFFFF)
+        repeat(26) {
+            val x = b.left + rnd.nextFloat() * b.width(); val y = b.top + rnd.nextFloat() * b.height()
+            val r = b.width() * (0.03f + rnd.nextFloat() * 0.07f)
+            paint.color = Color.WHITE
+            paint.shader = RadialGradient(x, y, r, intArrayOf(holo[it % holo.size], 0x00FFFFFF), null, Shader.TileMode.CLAMP)
+            c.drawCircle(x, y, r, paint)
+        }
+        paint.shader = null
+        // white window-pane grid
+        stroke.color = 0xCCF6F8FF.toInt(); stroke.strokeWidth = b.width() * 0.018f
+        for (fx in floatArrayOf(0.14f, 0.36f, 0.64f, 0.86f)) c.drawLine(b.left + b.width() * fx, b.top, b.left + b.width() * fx, b.bottom, stroke)
+        for (fy in floatArrayOf(0.13f, 0.33f, 0.55f, 0.77f)) c.drawLine(b.left, b.top + b.height() * fy, b.right, b.top + b.height() * fy, stroke)
+        c.restore()
+        // rim
+        stroke.color = 0xFF7F95D8.toInt(); stroke.strokeWidth = b.width() * 0.012f
+        c.drawPath(egg, stroke)
+        // top loop
+        stroke.color = 0xFFA9B9EE.toInt(); stroke.strokeWidth = b.width() * 0.03f
+        c.drawArc(b.centerX() - b.width() * 0.06f, b.top - b.width() * 0.035f, b.centerX() + b.width() * 0.06f, b.top + b.width() * 0.06f, 180f, 180f, false, stroke)
+        // star-shaped bezel around the screen
+        val star = Path()
+        val cx = lcd.centerX(); val cy = lcd.centerY()
+        val ro = lcd.width() * 0.76f; val ri = lcd.width() * 0.62f
+        for (k in 0 until 24) {
+            val a = -PI / 2 + k * PI / 12
+            val rr = if (k % 2 == 0) ro else ri
+            val x = cx + (cos(a) * rr).toFloat(); val y = cy + (sin(a) * rr * 0.98f).toFloat()
+            if (k == 0) star.moveTo(x, y) else star.lineTo(x, y)
+        }
+        star.close()
+        paint.color = Color.WHITE
+        paint.shader = LinearGradient(cx - ro, cy - ro, cx + ro, cy + ro, 0xFFA8BFF4.toInt(), 0xFF6E8FE0.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(star, paint); paint.shader = null
+        stroke.color = 0x88FFFFFF.toInt(); stroke.strokeWidth = b.width() * 0.005f
+        c.drawPath(star, stroke)
+        // wings either side of the bezel
+        drawWing(c, wingL, false); drawWing(c, wingR, true)
+        // glossy highlight
+        paint.color = Color.WHITE
+        paint.shader = LinearGradient(b.left, b.top, b.left + b.width() * 0.5f, b.top + b.height() * 0.5f, 0x55FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.save(); c.clipPath(egg)
+        c.drawOval(b.left + b.width() * 0.05f, b.top + b.height() * 0.04f, b.left + b.width() * 0.5f, b.top + b.height() * 0.45f, paint)
+        c.restore(); paint.shader = null
+    }
+
+    private fun drawWing(c: Canvas, r: RectF, right: Boolean) {
+        c.save()
+        if (right) c.scale(-1f, 1f, r.centerX(), r.centerY())
+        val w = r.width(); val h = r.height()
+        val glow = (externalMask or touchMask) and EggPetBits.SHAKE != 0
+        // three layered feathers sweeping up and out (drawn as the left wing)
+        for (k in 0 until 3) {
+            val f = Path()
+            val y0 = r.top + h * (0.18f + k * 0.2f)
+            f.moveTo(r.right, r.top + h * 0.55f + k * h * 0.08f)
+            f.cubicTo(r.left + w * 0.55f, y0 + h * 0.2f, r.left + w * (0.05f + k * 0.08f), y0 + h * 0.05f, r.left + w * (0.02f + k * 0.1f), y0 - h * 0.08f)
+            f.cubicTo(r.left + w * (0.3f + k * 0.05f), y0 - h * 0.12f, r.left + w * 0.8f, y0 + h * 0.02f, r.right, r.top + h * 0.38f + k * h * 0.07f)
+            f.close()
+            paint.color = Color.WHITE
+            paint.shader = LinearGradient(r.left, r.top, r.right, r.bottom,
+                if (glow) intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFF2B0.toInt()) else intArrayOf(0xFFF2F8FF.toInt(), 0xFF9DC2F0.toInt()),
+                null, Shader.TileMode.CLAMP)
+            c.drawPath(f, paint)
+            paint.shader = null
+            stroke.color = 0x995C86D8.toInt(); stroke.strokeWidth = w * 0.02f
+            c.drawPath(f, stroke)
+        }
+        c.restore()
+    }
+
     private fun drawLcd(c: Canvas) {
         val s = lcd.width()
         // bezel
-        paint.color = 0xFF9AA39C.toInt()
+        paint.color = if (angel) 0xFF7E98DE.toInt() else 0xFF9AA39C.toInt()
         val bz = s * 0.035f
         c.drawRect(lcd.left - bz, lcd.top - bz, lcd.right + bz, lcd.bottom + bz, paint)
         backdrop?.let { c.drawBitmap(it, null, lcd, null) }
@@ -257,7 +414,8 @@ class EggPetView(ctx: Context) : View(ctx) {
         for (i in 0 until 8) {
             val cx = lcd.left + s * (0.125f + (i % 4) * 0.25f)
             val cy = if (i < 4) lcd.top + band * 0.5f else lcd.bottom - band * 0.5f
-            drawIcon(c, i, cx, cy, isz, if (icons[i]) 0xF0141414.toInt() else 0x10000000)
+            if (angel) drawAngelIcon(c, i, cx, cy, isz, if (icons[i]) 0xF0141414.toInt() else 0x40303A40)
+            else drawIcon(c, i, cx, cy, isz, if (icons[i]) 0xF0141414.toInt() else 0x10000000)
         }
         // glass sheen
         paint.color = Color.WHITE
@@ -271,6 +429,70 @@ class EggPetView(ctx: Context) : View(ctx) {
             paint.color = Color.WHITE; paint.textAlign = Paint.Align.CENTER; paint.textSize = s * 0.075f
             val lines = msg.split('\n')
             lines.forEachIndexed { k, line -> c.drawText(line, lcd.centerX(), lcd.centerY() + paint.textSize * (k - (lines.size - 1) / 2f + 0.35f), paint) }
+        }
+    }
+
+    /** The angel model's printed icons (heart face, spoon, sparkle, wings / bell, bow, torch, winged face). */
+    private fun drawAngelIcon(c: Canvas, i: Int, x: Float, y: Float, sz: Float, col: Int) {
+        val h = sz / 2
+        paint.color = col; stroke.color = col; stroke.strokeWidth = sz * 0.08f; stroke.shader = null
+        when (i) {
+            0 -> { // heart with a face
+                val p = Path()
+                p.moveTo(x, y + h * 0.85f)
+                p.cubicTo(x - h * 1.3f, y - h * 0.05f, x - h * 0.7f, y - h * 1.05f, x, y - h * 0.4f)
+                p.cubicTo(x + h * 0.7f, y - h * 1.05f, x + h * 1.3f, y - h * 0.05f, x, y + h * 0.85f)
+                c.drawPath(p, stroke)
+                c.drawCircle(x - h * 0.25f, y - h * 0.1f, sz * 0.05f, paint); c.drawCircle(x + h * 0.25f, y - h * 0.1f, sz * 0.05f, paint)
+                c.drawArc(x - h * 0.2f, y + h * 0.05f, x + h * 0.2f, y + h * 0.35f, 0f, 180f, false, stroke)
+            }
+            1 -> { // spoon
+                c.drawOval(x - h * 0.75f, y - h * 0.25f, x - h * 0.05f, y + h * 0.35f, stroke)
+                c.drawLine(x - h * 0.1f, y, x + h * 0.85f, y - h * 0.65f, stroke)
+            }
+            2 -> { // sparkle star
+                val p = Path()
+                for (k in 0 until 10) {
+                    val a = -PI / 2 + k * PI / 5; val rr = if (k % 2 == 0) h * 0.7f else h * 0.3f
+                    val px = x + (cos(a) * rr).toFloat(); val py = y + (sin(a) * rr).toFloat()
+                    if (k == 0) p.moveTo(px, py) else p.lineTo(px, py)
+                }
+                p.close(); c.drawPath(p, stroke)
+                for (k in 0 until 8) { val a = k * PI / 4; c.drawLine(x + (cos(a) * h * 0.85f).toFloat(), y + (sin(a) * h * 0.85f).toFloat(), x + (cos(a) * h).toFloat(), y + (sin(a) * h).toFloat(), stroke) }
+            }
+            3 -> { // pair of wings
+                for (sgn in intArrayOf(-1, 1)) {
+                    c.drawArc(x + sgn * h * 0.05f - (if (sgn < 0) h * 0.9f else 0f), y - h * 0.5f, x + sgn * h * 0.05f + (if (sgn > 0) h * 0.9f else 0f), y + h * 0.5f,
+                        if (sgn < 0) 90f else -90f, 180f, false, stroke)
+                }
+            }
+            4 -> { // bell
+                val p = Path()
+                p.moveTo(x - h * 0.6f, y + h * 0.5f)
+                p.cubicTo(x - h * 0.45f, y + h * 0.2f, x - h * 0.55f, y - h * 0.75f, x, y - h * 0.75f)
+                p.cubicTo(x + h * 0.55f, y - h * 0.75f, x + h * 0.45f, y + h * 0.2f, x + h * 0.6f, y + h * 0.5f)
+                p.close(); c.drawPath(p, stroke)
+                c.drawCircle(x, y + h * 0.72f, sz * 0.07f, paint)
+            }
+            5 -> { // bow and arrow
+                c.drawArc(x - h * 0.9f, y - h * 0.9f, x + h * 0.5f, y + h * 0.9f, -60f, 120f, false, stroke)
+                c.drawLine(x - h * 0.75f, y + h * 0.7f, x + h * 0.85f, y - h * 0.75f, stroke)
+                c.drawLine(x + h * 0.85f, y - h * 0.75f, x + h * 0.5f, y - h * 0.7f, stroke)
+                c.drawLine(x + h * 0.85f, y - h * 0.75f, x + h * 0.8f, y - h * 0.4f, stroke)
+            }
+            6 -> { // torch
+                c.drawLine(x, y - h * 0.05f, x, y + h * 0.9f, stroke)
+                val p = Path(); p.moveTo(x, y - h * 0.85f)
+                p.cubicTo(x + h * 0.45f, y - h * 0.4f, x + h * 0.3f, y, x, y); p.cubicTo(x - h * 0.3f, y, x - h * 0.45f, y - h * 0.4f, x, y - h * 0.85f)
+                c.drawPath(p, paint)
+                for (k in -1..1 step 2) c.drawLine(x + k * h * 0.55f, y - h * 0.75f, x + k * h * 0.8f, y - h * 0.95f, stroke)
+            }
+            7 -> { // smiling face with little wings
+                c.drawCircle(x, y + h * 0.1f, h * 0.45f, stroke)
+                c.drawArc(x - h * 0.2f, y, x + h * 0.2f, y + h * 0.3f, 0f, 180f, false, stroke)
+                c.drawArc(x - h, y - h * 0.4f, x - h * 0.4f, y + h * 0.3f, 90f, 180f, false, stroke)
+                c.drawArc(x + h * 0.4f, y - h * 0.4f, x + h, y + h * 0.3f, -90f, 180f, false, stroke)
+            }
         }
     }
 
@@ -324,6 +546,20 @@ class EggPetView(ctx: Context) : View(ctx) {
 
     private fun drawButtons(c: Canvas) {
         val held = touchMask or externalMask
+        if (angel) {
+            for (i in 0 until 3) {
+                val p = btn[i]; val down = held and (1 shl i) != 0
+                paint.color = 0xFF7D93D6.toInt()
+                c.drawCircle(p.x, p.y, btnR * 1.22f, paint)
+                paint.color = Color.WHITE
+                paint.shader = RadialGradient(p.x - btnR * 0.3f, p.y - btnR * 0.35f, btnR * 1.3f,
+                    if (down) intArrayOf(0xFFB9C9F0.toInt(), 0xFF8EA6E0.toInt()) else intArrayOf(0xFFF8FBFF.toInt(), 0xFFC3D2F6.toInt()),
+                    null, Shader.TileMode.CLAMP)
+                c.drawCircle(p.x, p.y + (if (down) btnR * 0.06f else 0f), btnR * (if (down) 0.94f else 1f), paint)
+                paint.shader = null
+            }
+            return
+        }
         for (i in 0 until 3) {
             val p = btn[i]; val down = held and (1 shl i) != 0
             paint.color = 0x55000000
@@ -349,8 +585,13 @@ class EggPetView(ctx: Context) : View(ctx) {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val x = e.getX(idx); val y = e.getY(idx)
-                if (hypot(x - ring.x, y - ring.y) < ringR * 1.3f || y < eggBounds.top) {
+                val chain = angel && x > eggBounds.right - eggBounds.width() * 0.06f
+                if ((!angel && hypot(x - ring.x, y - ring.y) < ringR * 1.3f) || y < eggBounds.top || chain) {
                     if (e.actionMasked == MotionEvent.ACTION_DOWN) { onMenu?.invoke(); return true }
+                }
+                if (angel && (wingL.contains(x, y) || wingR.contains(x, y))) {
+                    pointerBtn[e.getPointerId(idx)] = 3
+                    performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 }
                 val b = hitButton(x, y)
                 if (b >= 0) {

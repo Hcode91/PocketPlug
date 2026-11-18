@@ -6,6 +6,10 @@ import android.content.pm.ActivityInfo
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.KeyEvent
@@ -82,7 +86,7 @@ class EmulatorActivity : Activity() {
         when (machine.skin) {
             Skin.EGG_PET -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val p = EggPetView(this).apply {
+                val p = EggPetView(this, machine.badge == "angel").apply {
                     onInput = { setTouch(0, it) }
                     onMenu = { showMenu() }
                 }
@@ -178,12 +182,33 @@ class EmulatorActivity : Activity() {
         }
     }
 
+    // the angel model's vibration sensor: a real shake of the phone pulses K03
+    private val shakeListener = object : SensorEventListener {
+        private var lastShake = 0L
+        override fun onSensorChanged(e: SensorEvent) {
+            val g = Math.sqrt((e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]).toDouble()) / SensorManager.GRAVITY_EARTH
+            val now = SystemClock.uptimeMillis()
+            if (g > 1.8 && now - lastShake > 250) {
+                lastShake = now
+                setTouch(3, EggPetBits.SHAKE)
+                pet?.externalMask = keyInputs or EggPetBits.SHAKE
+                pet?.postDelayed({ setTouch(3, 0); pet?.externalMask = keyInputs }, 120)
+            }
+        }
+        override fun onAccuracyChanged(s: Sensor?, a: Int) {}
+    }
+
     override fun onResume() {
         super.onResume()
         if (handle != 0L) start()
+        if (machine.badge == "angel") {
+            val sm = getSystemService(SENSOR_SERVICE) as SensorManager
+            sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { sm.registerListener(shakeListener, it, SensorManager.SENSOR_DELAY_GAME) }
+        }
     }
 
     override fun onPause() {
+        (getSystemService(SENSOR_SERVICE) as SensorManager).unregisterListener(shakeListener)
         stop()
         super.onPause()
     }
@@ -334,6 +359,7 @@ class EmulatorActivity : Activity() {
         KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_Z -> EggPetBits.A
         KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_X -> EggPetBits.B
         KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_3, KeyEvent.KEYCODE_C -> EggPetBits.C
+        KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_4, KeyEvent.KEYCODE_S -> EggPetBits.SHAKE
         else -> 0
     }
 
