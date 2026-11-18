@@ -198,6 +198,14 @@ The machine has no clock chip: type the date at the sign-on screen.
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.
 
+## To do
+
+- **NGEN 386 models** (`ngen386`, `ngenb38`, `386i`) - parked. They need a 386
+  CPU core with protected mode and a different I/O map; MAME only has skeleton
+  drivers for them, and testing needs 386-era CTOS / BTOS II system disks
+  (ImageDisk dumps), which we don't have yet. The 80186 NGEN is done.
+- NGEN speaker sound (how the speaker is driven is still unknown).
+
 ## Layout
 
 ```
