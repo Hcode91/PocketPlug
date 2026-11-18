@@ -11,6 +11,8 @@
 #include <sstream>
 #include <chrono>
 #include <array>
+#include <dirent.h>
+#include <sys/stat.h>
 
 static void writePPM(const char* path, const uint32_t* px, int w, int h)
 {
@@ -23,22 +25,48 @@ static void writePPM(const char* path, const uint32_t* px, int w, int h)
 int main(int argc, char** argv)
 {
     if (argc < 5) { fprintf(stderr, "usage\n"); return 1; }
-    std::ifstream in(argv[2], std::ios::binary);
-    RomFile rf; rf.name = strrchr(argv[2], '/') ? strrchr(argv[2], '/') + 1 : argv[2];
-    rf.data.assign(std::istreambuf_iterator<char>(in), {});
+    // a directory = a whole ROM set (every file in it)
+    std::vector<RomFile> roms;
+    struct stat stt;
+    if (stat(argv[2], &stt) == 0 && S_ISDIR(stt.st_mode)) {
+        DIR* d = opendir(argv[2]);
+        while (dirent* e = readdir(d)) {
+            if (e->d_name[0] == '.') continue;
+            RomFile rf; rf.name = e->d_name; rf.path = std::string(argv[2]) + "/" + e->d_name;
+            std::ifstream in(rf.path, std::ios::binary);
+            rf.data.assign(std::istreambuf_iterator<char>(in), {});
+            roms.push_back(rf);
+        }
+        closedir(d);
+    } else {
+        std::ifstream in(argv[2], std::ios::binary);
+        RomFile rf; rf.name = strrchr(argv[2], '/') ? strrchr(argv[2], '/') + 1 : argv[2];
+        rf.path = argv[2];
+        rf.data.assign(std::istreambuf_iterator<char>(in), {});
+        roms.push_back(rf);
+    }
     Core* core = createCore(argv[1]);
     std::string err;
-    if (!core || !core->load({ rf }, err)) { fprintf(stderr, "load failed: %s\n", err.c_str()); return 1; }
+    if (!core || !core->load(roms, err)) { fprintf(stderr, "load failed: %s\n", err.c_str()); return 1; }
+    // MEDIA="drive:path" inserted before the first frame
+    if (const char* m = getenv("MEDIA")) {
+        int drv = atoi(m); const char* p = strchr(m, ':');
+        if (p && !core->mediaInsert(drv, p + 1, err)) fprintf(stderr, "media: %s\n", err.c_str());
+    }
     int frames = atoi(argv[3]);
     std::map<int, uint32_t> script, tapScript;
     // "frame:j<stick>:<x>:<y>" moves an analog stick (-1..1)
     std::map<int, std::vector<std::array<float, 3>>> stickScript;
+    // "frame:k<code>:<1|0>" presses / releases a computer key
+    std::map<int, std::vector<std::pair<int, bool>>> keyScript;
     if (argc > 5) {
         std::stringstream ss(argv[5]); std::string tok;
         while (std::getline(ss, tok, ',')) {
             int f; unsigned m;
             float jx, jy; int st;
             if (sscanf(tok.c_str(), "%d:j%d:%f:%f", &f, &st, &jx, &jy) == 4) { stickScript[f].push_back({ (float)st, jx, jy }); continue; }
+            int kc, kd;
+            if (sscanf(tok.c_str(), "%d:k%d:%d", &f, &kc, &kd) == 3) { keyScript[f].push_back({ kc, kd != 0 }); continue; }
             if (sscanf(tok.c_str(), "%d:t%x", &f, &m) == 2) tapScript[f] = m;
             else { sscanf(tok.c_str(), "%d:%x", &f, &m); script[f] = m; }
         }
@@ -48,6 +76,7 @@ int main(int argc, char** argv)
     for (int f = 0; f < frames; f++) {
         if (script.count(f)) core->setInputs(script[f]);
         if (tapScript.count(f)) core->tapInputs(tapScript[f]);
+        if (keyScript.count(f)) for (auto& k : keyScript[f]) core->keyEvent(k.first, k.second);
         if (stickScript.count(f)) for (auto& j : stickScript[f]) core->setAnalog((int)j[0], j[1], j[2]);
         core->runFrame();
         int16_t buf[4096]; size_t n;

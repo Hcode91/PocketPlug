@@ -24,11 +24,18 @@ list(APPEND UNIXPC_C_SOURCES
 set_source_files_properties(${UNIXPC_C_SOURCES} PROPERTIES
     COMPILE_FLAGS "-std=gnu99 -O2 -w")
 
+# Atari 1200XL / 130XE: Atari800 (GPL-2+) as libatari800, in C
+set(A800 ${CMAKE_CURRENT_SOURCE_DIR}/cores/atari800/a800)
+file(GLOB A800_C_SOURCES CONFIGURE_DEPENDS ${A800}/*.c ${A800}/libatari800/*.c ${A800}/roms/*.c)
+set_source_files_properties(${A800_C_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-std=gnu99 -O2 -w -I${A800}")
+
 add_library(pocketplug SHARED
     jni_bridge.cpp
     core_registry.cpp
     ${CORE_SOURCES}
-    ${UNIXPC_C_SOURCES})
+    ${UNIXPC_C_SOURCES}
+    ${A800_C_SOURCES})
 
 target_include_directories(pocketplug PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(pocketplug PRIVATE POCKETPLUG "MUSASHI_CNF=\"../m68kconf.h\"")

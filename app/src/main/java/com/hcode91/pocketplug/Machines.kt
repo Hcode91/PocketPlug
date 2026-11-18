@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -244,6 +244,36 @@ object Machines {
                 RomSpec("72-00617.15c", 0x2000L, 0x4e93ff40L),
             ),
             skin = Skin.DESKTOP_3B1,
+        ),
+        MachineDef(
+            id = "a1200xl",
+            title = "1200XL Home Computer",
+            subtitle = "1982 Atari 8-bit computer with 64 KB, function keys and keyboard lights. Load your own "
+                + "disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a1200xl)",
+            chip = "6502C, ANTIC, GTIA, POKEY (Atari800)",
+            region = "USA",
+            year = "1982",
+            roms = listOf(
+                RomSpec("co60616b.rom", 0x2000L, 0x6e29ec8dL),
+                RomSpec("co60617b.rom", 0x2000L, 0xd73ce29aL),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "1200xl",
+        ),
+        MachineDef(
+            id = "a130xe",
+            title = "130XE Home Computer",
+            subtitle = "1985 Atari 8-bit computer with 128 KB and BASIC built in. Load your own disk, program, "
+                + "cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a130xe)",
+            chip = "6502C, ANTIC, GTIA, POKEY, FREDDIE (Atari800)",
+            region = "USA / Europe",
+            year = "1985",
+            roms = listOf(
+                RomSpec("co24947a.rom", 0x2000L, 0x7d684184L),
+                RomSpec("co61598b.rom", 0x4000L, 0x1f9cd270L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "130xe",
         ),
         MachineDef(
             id = "500in1hh",

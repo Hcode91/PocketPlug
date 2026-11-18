@@ -1,0 +1,294 @@
+// PocketPlug - Atari 8-bit computers (1200XL, 130XE)
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Glue between Atari800's libatari800 (./a800) and PocketPlug's Core.
+
+#include "atari800.h"
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+
+extern "C" {
+#include "a800/config.h"
+#include "a800/atari.h"
+#include "a800/akey.h"
+#include "a800/afile.h"
+#include "a800/antic.h"
+#include "a800/cartridge.h"
+#include "a800/colours.h"
+#include "a800/cpu.h"
+#include "a800/pia.h"
+#include "a800/screen.h"
+#include "a800/sio.h"
+#include "a800/libatari800/libatari800.h"
+extern int LIBATARI800_raw_mode;
+extern int LIBATARI800_raw_key;
+}
+
+namespace {
+
+bool g_active = false;   // Atari800 is single-instance (globals)
+
+bool writeFile(const std::string& path, const std::vector<uint8_t>& a, const std::vector<uint8_t>& b)
+{
+    FILE* f = fopen(path.c_str(), "wb");
+    if (!f) return false;
+    bool ok = fwrite(a.data(), 1, a.size(), f) == a.size() && fwrite(b.data(), 1, b.size(), f) == b.size();
+    fclose(f);
+    return ok;
+}
+
+std::string dirOf(const std::string& p)
+{
+    size_t s = p.find_last_of('/');
+    return s == std::string::npos ? std::string(".") : p.substr(0, s);
+}
+
+const RomFile* find(const std::vector<RomFile>& roms, const char* name)
+{
+    for (auto& r : roms) if (r.name == name) return &r;
+    return nullptr;
+}
+
+} // namespace
+
+Atari800Core::Atari800Core(Model m) : model_(m), fb_(kW * kH, 0xff000000u) {}
+
+Atari800Core::~Atari800Core()
+{
+    if (loaded_) {
+        libatari800_exit();
+        g_active = false;
+    }
+}
+
+bool Atari800Core::load(const std::vector<RomFile>& roms, std::string& error)
+{
+    if (g_active) { error = "Only one Atari machine can run at a time"; return false; }
+    if (model_ == k1200XL) {
+        // the OS is two 8 KB chips ($C000, $E000); Atari800 wants one 16 KB image
+        const RomFile* lo = find(roms, "co60616b.rom");
+        const RomFile* hi = find(roms, "co60617b.rom");
+        if (!lo || !hi || lo->data.size() != 0x2000 || hi->data.size() != 0x2000) {
+            error = "Missing the 1200XL OS ROMs"; return false;
+        }
+        osPath_ = dirOf(lo->path) + "/.a1200xl-os.rom";
+        if (!writeFile(osPath_, lo->data, hi->data)) { error = "Can't write " + osPath_; return false; }
+    } else {
+        const RomFile* os = find(roms, "co61598b.rom");
+        const RomFile* basic = find(roms, "co24947a.rom");
+        if (!os || !basic) { error = "Missing the 130XE ROMs"; return false; }
+        osPath_ = os->path;
+        basicPath_ = basic->path;
+    }
+
+    std::vector<std::string> args = {
+        "atari800",
+        "-config", "/dev/null",
+        model_ == k1200XL ? "-1200" : "-xe",
+        "-ntsc",
+        // the 1200XL has no BASIC inside: it starts with no cartridge (see setOption)
+        model_ == k1200XL ? "-nobasic" : "-basic",
+        "-xlxe_rom", osPath_,
+        "-audio16", "-dsprate", "44100", "-nostereo",
+    };
+    if (!basicPath_.empty()) { args.push_back("-basic_rom"); args.push_back(basicPath_); }
+    std::vector<char*> argv;
+    for (auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
+    argv.push_back(nullptr);
+    if (!libatari800_init(int(args.size()), argv.data())) {
+        error = "Atari800 failed to start";
+        return false;
+    }
+    LIBATARI800_raw_mode = 1;
+    LIBATARI800_raw_key = AKEY_NONE;
+    g_active = loaded_ = true;
+    return true;
+}
+
+double Atari800Core::refreshRate() const
+{
+    return Atari800_tv_mode == Atari800_TV_PAL ? Atari800_FPS_PAL : Atari800_FPS_NTSC;
+}
+
+void Atari800Core::reset()
+{
+    if (loaded_) Atari800_Coldstart();
+}
+
+void Atari800Core::setInputs(uint32_t pressed)
+{
+    joy_ = pressed;
+}
+
+void Atari800Core::keyEvent(int code, bool down)
+{
+    if (code < 0 || code >= 72) return;
+    if (code == kReset) {           // the RESET key is wired to the 6502's NMI / warm start
+        if (down && !keys_[code] && loaded_) Atari800_Warmstart();
+        keys_[code] = down;
+        return;
+    }
+    keys_[code] = down;
+    for (size_t i = 0; i < held_.size(); i++)
+        if (held_[i] == code) { held_.erase(held_.begin() + i); break; }
+    if (down && (code < 64 || code == kBreak)) held_.push_back(code);
+}
+
+int Atari800Core::pickKey() const
+{
+    // the Atari keyboard reports one key at a time; the newest one wins
+    if (held_.empty()) return AKEY_NONE;
+    int k = held_.back();
+    if (k == kBreak) return AKEY_BREAK;
+    if (keys_[kShift]) k |= AKEY_SHFT;
+    if (keys_[kControl]) k |= AKEY_CTRL;
+    return k;
+}
+
+void Atari800Core::setOption(int id, int value)
+{
+    if (id != 1 || model_ != k1200XL || !loaded_) return;
+    // a BASIC cartridge plugged into the 1200XL: on a machine without built-in
+    // BASIC, Atari800 maps its BASIC ROM (Altirra BASIC, as this set has no
+    // BASIC ROM) like a cartridge when BASIC isn't disabled
+    bool on = value != 0;
+    if (on == !Atari800_disable_basic) return;
+    Atari800_disable_basic = !on;
+    Atari800_InitialiseMachine();
+}
+
+void Atari800Core::runFrame()
+{
+    if (!loaded_) return;
+    input_template_t in;
+    libatari800_clear_input_array(&in);
+    in.shift = keys_[kShift];
+    in.control = keys_[kControl];
+    in.start = keys_[kStart];
+    in.select = keys_[kSelect];
+    in.option = keys_[kOption];
+    in.joy0 = joy_ & 0x0f;
+    in.trig0 = (joy_ >> 4) & 1;
+    LIBATARI800_raw_key = pickKey();
+    libatari800_next_frame(&in);
+
+    render();
+    const int16_t* s = reinterpret_cast<const int16_t*>(libatari800_get_sound_buffer());
+    int n = libatari800_get_sound_buffer_len() / 2;
+    if (s && n > 0 && audio_.size() < size_t(kRate)) audio_.insert(audio_.end(), s, s + n);
+    if (SIO_last_op_time > 0) busy_ = 20;
+    else if (busy_ > 0) busy_--;
+}
+
+void Atari800Core::render()
+{
+    const uint8_t* src = reinterpret_cast<const uint8_t*>(Screen_atari);
+    const int x0 = (Screen_WIDTH - kW) / 2;
+    for (int y = 0; y < kH; y++) {
+        const uint8_t* s = src + y * Screen_WIDTH + x0;
+        uint32_t* d = &fb_[y * kW];
+        for (int x = 0; x < kW; x++) d[x] = 0xff000000u | uint32_t(Colours_table[s[x]]);
+    }
+}
+
+size_t Atari800Core::readAudio(int16_t* out, size_t maxSamples)
+{
+    size_t n = audio_.size() < maxSamples ? audio_.size() : maxSamples;
+    memcpy(out, audio_.data(), n * sizeof(int16_t));
+    audio_.erase(audio_.begin(), audio_.begin() + n);
+    return n;
+}
+
+bool Atari800Core::mediaInsert(int drive, const std::string& path, std::string& error)
+{
+    if (!loaded_) { error = "Not running"; return false; }
+    if (drive == 0 || drive == 1) {
+        if (!SIO_Mount(drive + 1, path.c_str(), FALSE) && !SIO_Mount(drive + 1, path.c_str(), TRUE)) {
+            error = "Not a disk image Atari800 can read (.atr .xfd .atx .dcm .pro)";
+            return false;
+        }
+        return true;
+    }
+    if (drive != 2) { error = "No such drive"; return false; }
+    int r = AFILE_OpenFile(path.c_str(), TRUE, 1, FALSE);
+    if (r == AFILE_ERROR) { error = "Atari800 doesn't recognise this file"; return false; }
+    if ((r & 0xff) == AFILE_ROM && (r >> 8) > 0) {
+        // a raw cartridge dump: the size alone has to pick the board
+        int kb = r >> 8, type = CARTRIDGE_NONE;
+        if (kb == 8) type = CARTRIDGE_STD_8;
+        else if (kb == 16) type = CARTRIDGE_STD_16;
+        else if (kb == 32) type = CARTRIDGE_XEGS_32;
+        else if (kb == 64) type = CARTRIDGE_XEGS_07_64;
+        else if (kb == 128) type = CARTRIDGE_XEGS_128;
+        if (type == CARTRIDGE_NONE) {
+            CARTRIDGE_Remove();
+            error = "Unknown cartridge type: use a .car file (it names the board)";
+            return false;
+        }
+        CARTRIDGE_SetTypeAutoReboot(&CARTRIDGE_main, type);
+    }
+    return true;
+}
+
+bool Atari800Core::mediaSave(int drive, const std::string& path)
+{
+    // Atari800 writes disk sectors straight into the image file
+    (void)drive; (void)path;
+    return true;
+}
+
+void Atari800Core::mediaEject(int drive)
+{
+    if (!loaded_) return;
+    if (drive == 0 || drive == 1) SIO_Dismount(drive + 1);
+    else if (drive == 2) CARTRIDGE_RemoveAutoReboot();
+}
+
+int Atari800Core::mediaActivity()
+{
+    int a = busy_ > 0 ? 1 : 0;
+    if (model_ == k1200XL && loaded_) {
+        uint8_t pb = PIA_PORTB | PIA_PORTB_mask;
+        if (!(pb & 0x04)) a |= 0x10;
+        if (!(pb & 0x08)) a |= 0x20;
+    }
+    return a;
+}
+
+bool Atari800Core::saveState(std::vector<uint8_t>& out)
+{
+    if (!loaded_) return false;
+    emulator_state_t* st = static_cast<emulator_state_t*>(calloc(1, sizeof(emulator_state_t)));
+    if (!st) return false;
+    libatari800_get_current_state(st);
+    size_t n = offsetof(emulator_state_t, state) + st->tags.size;
+    if (n > sizeof(emulator_state_t)) n = sizeof(emulator_state_t);
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(st);
+    out.assign(p, p + n);
+    out.push_back(uint8_t(!Atari800_disable_basic));
+    free(st);
+    return true;
+}
+
+bool Atari800Core::loadState(const std::vector<uint8_t>& in)
+{
+    if (!loaded_ || in.size() < offsetof(emulator_state_t, state) + 1) return false;
+    emulator_state_t* st = static_cast<emulator_state_t*>(calloc(1, sizeof(emulator_state_t)));
+    if (!st) return false;
+    size_t n = in.size() - 1;
+    if (n > sizeof(emulator_state_t)) n = sizeof(emulator_state_t);
+    memcpy(st, in.data(), n);
+    if (model_ == k1200XL && (in.back() != 0) != !Atari800_disable_basic) {
+        Atari800_disable_basic = !in.back();
+        Atari800_InitialiseMachine();
+    }
+    libatari800_restore_state(st);
+    free(st);
+    return true;
+}
+
+uint16_t Atari800Core::pc() const
+{
+    return CPU_regPC;
+}

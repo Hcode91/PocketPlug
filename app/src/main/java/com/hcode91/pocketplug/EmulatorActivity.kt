@@ -42,6 +42,8 @@ class EmulatorActivity : Activity() {
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
+    private var atari: AtariXlView? = null
+    private var atariStick = 0
     // 3B1 mouse: motion gathered between frames
     private val mouseLock = Any()
     private var mouseDx = 0f
@@ -143,6 +145,19 @@ class EmulatorActivity : Activity() {
                 workstation = v
                 setContentView(v)
                 attachDisks()
+            }
+            Skin.ATARI_XL -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = AtariXlView(this, machine.badge == "130xe").apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onDisks = { showAtariMenu() }
+                    onJoy = { setTouch(0, it) }
+                }
+                atari = v
+                setContentView(v)
+                if (machine.badge == "1200xl" && prefs.getBoolean("basic_${machine.id}", false))
+                    Native.setOption(handle, 1, 1)
             }
             Skin.NIXIE_CLOCK -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -399,6 +414,65 @@ class EmulatorActivity : Activity() {
         }
     }
 
+    // ---- Atari: disks, programs, cartridges, tapes ----
+    /** Both Atari models share one library of imported files. */
+    private fun atariDir() = java.io.File(filesDir, "atari8").apply { mkdirs() }
+    private var atariLoaded: java.io.File? = null
+    private var atariDisk2: java.io.File? = null
+
+    private fun loadAtari(f: java.io.File, drive: Int) {
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, drive, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        if (drive == 2) {
+            atariLoaded = f
+            atari?.mediaLabel = f.nameWithoutExtension
+            Toast.makeText(this, "Loading ${f.nameWithoutExtension}", Toast.LENGTH_SHORT).show()
+        } else {
+            atariDisk2 = f
+            Toast.makeText(this, "${f.nameWithoutExtension} in drive ${drive + 1}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun pickAtari(request: Int) {
+        val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
+        }
+        startActivityForResult(i, request)
+    }
+
+    private fun showAtariMenu() {
+        paused = true
+        val files = atariDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Load a game or program (.atr .xex .car .rom .cas)..." to { pickAtari(PICK_ATARI) }
+        for (f in files) items += "Load ${f.nameWithoutExtension}" to { loadAtari(f, 2) }
+        items += "Swap the disk in drive 1 (no restart)..." to { pickAtari(PICK_ATARI_D1) }
+        if (atariLoaded != null) items += "Remove the cartridge (restarts)" to {
+            synchronized(coreLock) { Native.mediaEject(handle, 2) }
+            atariLoaded = null; atari?.mediaLabel = null
+        }
+        items += "Eject drive 1" to { synchronized(coreLock) { Native.mediaEject(handle, 0) } }
+        if (files.isNotEmpty()) items += "Delete a file from the list..." to {
+            paused = true
+            AlertDialog.Builder(this)
+                .setTitle("Delete which file?")
+                .setItems(files.map { it.name }.toTypedArray()) { _, w -> files[w].delete(); paused = false }
+                .setOnCancelListener { paused = false }
+                .show()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Disks & cartridges")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which ->
+                paused = false
+                items[which].second()
+            }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    private val PICK_ATARI = 44
+    private val PICK_ATARI_D1 = 45
+
     private val PICK_FLOPPY = 41
     private val IMPORT_HD = 42
     private val EXPORT_HD = 43
@@ -458,6 +532,17 @@ class EmulatorActivity : Activity() {
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) return
         when (requestCode) {
+            PICK_ATARI, PICK_ATARI_D1 -> {
+                var name = "game"
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) name = it.getString(0) ?: name
+                }
+                val safe = name.replace(Regex("[^A-Za-z0-9._ ()-]"), "_").ifEmpty { "game" }
+                // a copy lives in the app's storage; disks are written back to it
+                val dest = java.io.File(atariDir(), safe)
+                runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
+                loadAtari(dest, if (requestCode == PICK_ATARI) 2 else 0)
+            }
             PICK_FLOPPY -> {
                 var name = "floppy"
                 contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
@@ -605,9 +690,11 @@ class EmulatorActivity : Activity() {
                 }
                 val r = Native.runFrame(handle, touchInputs or keyInputs, pixels, audio)
                 workstation?.indicators = Native.mediaActivity(handle)
+                atari?.indicators = Native.mediaActivity(handle)
                 r
             }
             if (workstation != null) workstation?.updateFrame(pixels)
+            else if (atari != null) atari?.updateFrame(pixels)
             else if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
@@ -684,6 +771,16 @@ class EmulatorActivity : Activity() {
             }
         }
         if (workstation != null) items += "Disks..." to { showDiskMenu() }
+        if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
+        if (atari != null && machine.badge == "1200xl") {
+            val on = prefs.getBoolean("basic_${machine.id}", false)
+            items += (if (on) "BASIC cartridge: plugged in" else "BASIC cartridge: not plugged in") to {
+                prefs.edit().putBoolean("basic_${machine.id}", !on).apply()
+                synchronized(coreLock) { Native.setOption(handle, 1, if (on) 0 else 1) }
+                Toast.makeText(this, if (on) "BASIC removed; the computer restarted"
+                    else "BASIC plugged in (a free stand-in for the real cartridge); the computer restarted", Toast.LENGTH_LONG).show()
+            }
+        }
         items += "Quit to library" to { finish() }
         AlertDialog.Builder(this)
             .setTitle(title)
@@ -754,6 +851,18 @@ class EmulatorActivity : Activity() {
     }
 
     override fun onGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (atari != null && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            var m = atariStick and AtariXlView.FIRE
+            if (y < -0.5f) m = m or AtariXlView.UP
+            if (y > 0.5f) m = m or AtariXlView.DOWN
+            if (x < -0.5f) m = m or AtariXlView.LEFT
+            if (x > 0.5f) m = m or AtariXlView.RIGHT
+            if (m != atariStick) setAtariStick(m)
+            return true
+        }
         if (machine.skin == Skin.HANDHELD && event.action == android.view.MotionEvent.ACTION_MOVE &&
             (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
             val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
@@ -955,7 +1064,72 @@ class EmulatorActivity : Activity() {
         }
     }
 
+    /** A real keyboard / gamepad on the Atari: keys as POKEY codes, arrows and pad steer the joystick. */
+    private fun atariKey(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_A -> 0x3f; KeyEvent.KEYCODE_B -> 0x15; KeyEvent.KEYCODE_C -> 0x12; KeyEvent.KEYCODE_D -> 0x3a
+        KeyEvent.KEYCODE_E -> 0x2a; KeyEvent.KEYCODE_F -> 0x38; KeyEvent.KEYCODE_G -> 0x3d; KeyEvent.KEYCODE_H -> 0x39
+        KeyEvent.KEYCODE_I -> 0x0d; KeyEvent.KEYCODE_J -> 0x01; KeyEvent.KEYCODE_K -> 0x05; KeyEvent.KEYCODE_L -> 0x00
+        KeyEvent.KEYCODE_M -> 0x25; KeyEvent.KEYCODE_N -> 0x23; KeyEvent.KEYCODE_O -> 0x08; KeyEvent.KEYCODE_P -> 0x0a
+        KeyEvent.KEYCODE_Q -> 0x2f; KeyEvent.KEYCODE_R -> 0x28; KeyEvent.KEYCODE_S -> 0x3e; KeyEvent.KEYCODE_T -> 0x2d
+        KeyEvent.KEYCODE_U -> 0x0b; KeyEvent.KEYCODE_V -> 0x10; KeyEvent.KEYCODE_W -> 0x2e; KeyEvent.KEYCODE_X -> 0x16
+        KeyEvent.KEYCODE_Y -> 0x2b; KeyEvent.KEYCODE_Z -> 0x17
+        KeyEvent.KEYCODE_1 -> 0x1f; KeyEvent.KEYCODE_2 -> 0x1e; KeyEvent.KEYCODE_3 -> 0x1a; KeyEvent.KEYCODE_4 -> 0x18
+        KeyEvent.KEYCODE_5 -> 0x1d; KeyEvent.KEYCODE_6 -> 0x1b; KeyEvent.KEYCODE_7 -> 0x33; KeyEvent.KEYCODE_8 -> 0x35
+        KeyEvent.KEYCODE_9 -> 0x30; KeyEvent.KEYCODE_0 -> 0x32
+        KeyEvent.KEYCODE_SPACE -> 0x21
+        KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> 0x0c
+        KeyEvent.KEYCODE_DEL -> 0x34
+        KeyEvent.KEYCODE_ESCAPE -> 0x1c
+        KeyEvent.KEYCODE_TAB -> 0x2c
+        KeyEvent.KEYCODE_CAPS_LOCK -> 0x3c
+        KeyEvent.KEYCODE_MINUS -> 0x0e
+        KeyEvent.KEYCODE_EQUALS -> 0x0f
+        KeyEvent.KEYCODE_SEMICOLON -> 0x02
+        KeyEvent.KEYCODE_APOSTROPHE -> 0x06          // +
+        KeyEvent.KEYCODE_BACKSLASH -> 0x07           // *
+        KeyEvent.KEYCODE_LEFT_BRACKET -> 0x36        // <
+        KeyEvent.KEYCODE_RIGHT_BRACKET -> 0x37       // >
+        KeyEvent.KEYCODE_COMMA -> 0x20
+        KeyEvent.KEYCODE_PERIOD -> 0x22
+        KeyEvent.KEYCODE_SLASH -> 0x26
+        KeyEvent.KEYCODE_GRAVE -> 0x27               // inverse
+        KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_SHIFT_RIGHT -> AtariXlView.SHIFT
+        KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_CTRL_RIGHT -> AtariXlView.CONTROL
+        KeyEvent.KEYCODE_F1 -> 0x03; KeyEvent.KEYCODE_F2 -> 0x04; KeyEvent.KEYCODE_F3 -> 0x13; KeyEvent.KEYCODE_F4 -> 0x14
+        KeyEvent.KEYCODE_F5, KeyEvent.KEYCODE_BUTTON_START -> AtariXlView.START
+        KeyEvent.KEYCODE_F6, KeyEvent.KEYCODE_BUTTON_SELECT -> AtariXlView.SELECT
+        KeyEvent.KEYCODE_F7, KeyEvent.KEYCODE_BUTTON_Y -> AtariXlView.OPTION
+        KeyEvent.KEYCODE_F8 -> AtariXlView.HELP
+        KeyEvent.KEYCODE_F9, KeyEvent.KEYCODE_BREAK -> AtariXlView.BREAK
+        KeyEvent.KEYCODE_F10 -> AtariXlView.RESET
+        else -> -1
+    }
+
+    private fun atariStickBit(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_DPAD_UP -> AtariXlView.UP
+        KeyEvent.KEYCODE_DPAD_DOWN -> AtariXlView.DOWN
+        KeyEvent.KEYCODE_DPAD_LEFT -> AtariXlView.LEFT
+        KeyEvent.KEYCODE_DPAD_RIGHT -> AtariXlView.RIGHT
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_X,
+        KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_ALT_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER -> AtariXlView.FIRE
+        else -> 0
+    }
+
+    private fun setAtariStick(bits: Int) {
+        atariStick = bits
+        setTouch(3, bits)
+        atari?.externalMask = bits
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (atari != null) {
+            val s = atariStickBit(keyCode)
+            if (s != 0) { setAtariStick(atariStick or s); return true }
+            val k = atariKey(keyCode)
+            if (k < 0) return super.onKeyDown(keyCode, event)
+            if (event.repeatCount == 0) keyQueue.add(k or 0x100)
+            return true
+        }
         if (uboard != null) {
             val k = boardKey(keyCode, event)
             if (k < 0) return super.onKeyDown(keyCode, event)
@@ -986,6 +1160,14 @@ class EmulatorActivity : Activity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (atari != null) {
+            val s = atariStickBit(keyCode)
+            if (s != 0) { setAtariStick(atariStick and s.inv()); return true }
+            val k = atariKey(keyCode)
+            if (k < 0) return super.onKeyUp(keyCode, event)
+            keyQueue.add(k)
+            return true
+        }
         if (uboard != null) {
             val k = boardKey(keyCode, event)
             if (k < 0) return super.onKeyUp(keyCode, event)

@@ -12,6 +12,7 @@
 #include "cores/spg2xx/spg2xx.h"
 #include "cores/ngen/ngen.h"
 #include "cores/unixpc/unixpc.h"
+#include "cores/atari800/atari800.h"
 #include "cores/nixie4004/nixieclock.h"
 #include "cores/tm990/tm990.h"
 
@@ -105,6 +106,10 @@ Core* createCore(const std::string& id)
         return new Tm990Core(true);
     if (id == "4004clk")      // 4004 Nixie Clock (Intel 4004)
         return new NixieClockCore();
+    if (id == "a1200xl")      // Atari 1200XL (Atari800)
+        return new Atari800Core(Atari800Core::k1200XL);
+    if (id == "a130xe")       // Atari 130XE (Atari800)
+        return new Atari800Core(Atari800Core::k130XE);
     if (id == "3b1")          // AT&T UNIX PC / PC 7300 / 3B1 (68010, FreeBee)
         return new UnixPcCore();
     if (id == "ngen")         // Convergent NGEN CP-001 / Burroughs B26 workstation (80186)

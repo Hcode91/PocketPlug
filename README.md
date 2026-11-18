@@ -21,6 +21,8 @@ controller.
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
 | TM 990/189 University Board (+ Video Board) | `990189`, `990189v` | TMS9980A + 2x TMS9901 (own cores), TMS9918 (own core) | University BASIC runs; the LED display and lights follow MAME frame-for-frame apart from a frame's lag in key echo; the video board's four colour demos run |
+| 1200XL Home Computer (Atari) | `a1200xl` | Atari800 (6502C, ANTIC, GTIA, POKEY, PIA) | Real 1200XL OS: logo, self test, function keys and the L1 / L2 lights; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
+| 130XE Home Computer (Atari) | `a130xe` | Atari800, 128 KB banked RAM | BASIC built in; loads disks, programs, cartridges and tapes |
 | PC 7300 / 3B1 Desktop (AT&T UNIX PC) | `3b1` | Motorola 68010 + MMU, 720x348 bitmap, WD2797 floppy, WD2010 hard disk, keyboard + mouse (FreeBee) | Installs the 3.51 Foundation set from floppies onto the emulated 64 MB hard disk, boots from it to the window manager; mouse and full keyboard |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
@@ -54,6 +56,11 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `990-469.u33` | 4 KB (4,096 bytes) | `e9b4ac1b` |
 | TM 990/189 + Video Board | `990189v` | the two `990189` files, plus `demo1000.u13` | 2 KB (2,048 bytes) | `c0e16685` |
 | | | `demo1800.u11` | 2 KB (2,048 bytes) | `8737dc4b` |
+| 1200XL Home Computer | `a1200xl` | `co60616b.rom` | 8 KB (8,192 bytes) | `6e29ec8d` |
+| | | `co60617b.rom` | 8 KB (8,192 bytes) | `d73ce29a` |
+| 130XE Home Computer | `a130xe` | `co24947a.rom` (BASIC) | 8 KB (8,192 bytes) | `7d684184` |
+| | | `co61598b.rom` (OS; MAME keeps it in the `a800xl` zip, so import that zip too) | 16 KB (16,384 bytes) | `1f9cd270` |
+| | | Plus your own software: `.atr` `.xfd` `.atx` `.dcm` `.pro` disks, `.xex` `.com` programs, `.car` / `.rom` cartridges, `.cas` tapes | - | - |
 | PC 7300 / 3B1 Desktop | `3b1` | `72-00616.14c` | 8 KB (8,192 bytes) | `c61f7ae0` |
 | | | `72-00617.15c` | 8 KB (8,192 bytes) | `4e93ff40` |
 | | | Plus your own 3B1 system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
@@ -259,6 +266,41 @@ Back) for the menu.
   retirement setting. The display and settings are kept between visits.
 - A real keyboard: 1 or S = SELECT, 2 or B = BROWSE.
 
+### 1200XL and 130XE Home Computers
+
+Import the MAME `a1200xl` zip for the 1200XL. For the 130XE import the `a130xe`
+zip and then the `a800xl` zip as well: the 130XE's OS chip is the 800XL's, and
+MAME only keeps it in that zip. The machine is the Atari800 emulator.
+
+Drawn as the computer under a TV, with a one-button joystick and a disk drive in
+front:
+
+- **1200XL**: cream case with the metal band of RESET, the POWER / L1 / L2 lights,
+  START, SELECT, OPTION, Inverse, BREAK, HELP and F1-F4 above dark brown keys.
+  L1 lights when the keyboard is locked (CONTROL + F1), L2 for the international
+  characters (CONTROL + F4). With nothing loaded it shows its logo; HELP starts
+  the self test.
+- **130XE**: light grey case with ribs behind the keys, dark grey keys and the
+  RESET / OPTION / SELECT / START / HELP column on the right. It starts in BASIC;
+  hold OPTION while loading to switch BASIC off (programs do this themselves).
+- SHIFT and CONTROL latch for the next key when tapped on their own. Hold START,
+  SELECT or OPTION as long as a game needs.
+- **Joystick**: drag the stick (8 ways); the red button is fire. A gamepad's
+  D-pad / left stick and A / B / X work too.
+- **Tap the cartridge slot or the disk drive** for the disk menu: load a game or
+  program (the file type is detected; the computer restarts with it), pick one you
+  loaded before, swap the disk in drive 1 for multi-disk games, remove the
+  cartridge, eject. Disks are copies in the app's storage and keep what games
+  save on them. A raw `.rom` cartridge is matched by size (8 / 16 KB standard,
+  32 / 64 / 128 KB XEGS); other boards need a `.car` file.
+- **Tap MENU** (or Back) for save / load state, reset and quit. On the 1200XL the
+  menu also plugs a BASIC cartridge in or out (a free stand-in, Altirra BASIC,
+  as the 1200XL had none built in); the computer restarts.
+- **A real keyboard** types on the Atari's: Enter = RETURN, Backspace = BACK S,
+  Esc, Tab, Caps Lock = CAPS, `'` = `+`, `\` = `*`, `[` `]` = `<` `>`,
+  `` ` `` = Inverse, F1-F4, F5 = START, F6 = SELECT, F7 = OPTION, F8 = HELP,
+  F9 / Break = BREAK, F10 = RESET. The arrow keys and Alt steer the joystick.
+
 ### PC 7300 / 3B1 Desktop
 
 Import the MAME `3b1` zip. Drawn as the desktop: the beige monitor with its green
@@ -343,6 +385,7 @@ app/src/main/cpp/
   cores/vt369/          VT NES-on-a-chip family: VT02/03, VT "4FFx", VT369 (+ SH6578)
   cores/tm990/          TM 990/189: TMS9980A (tms9980.h), TMS9901s, TMS9918 (tms9918.h)
   cores/nixie4004/       Intel 4004 CPU (i4004.h) and the 4004 Nixie Clock board
+  cores/atari800/       1200XL / 130XE: Atari800 (GPL-2+) as libatari800 in a800/, glue in atari800.cpp
   cores/unixpc/         PC 7300 / 3B1: FreeBee (GPL-3) + Musashi 68010, glue in unixpc.cpp
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/
