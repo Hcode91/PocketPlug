@@ -25,7 +25,7 @@ void M6502::interrupt(uint16_t vector, bool brk)
 void M6502::adc(uint8_t v)
 {
     int c = p & FC;
-    if (p & FD) {
+    if ((p & FD) && decimalEnabled) {
         int lo = (a & 0x0f) + (v & 0x0f) + c;
         int hi = (a & 0xf0) + (v & 0xf0);
         p &= ~(FN | FV | FZ | FC);
@@ -50,7 +50,7 @@ void M6502::sbc(uint8_t v)
 {
     int c = (p & FC) ? 0 : 1;
     int diff = a - v - c;
-    if (p & FD) {
+    if ((p & FD) && decimalEnabled) {
         int lo = (a & 0x0f) - (v & 0x0f) - c;
         int hi = (a & 0xf0) - (v & 0xf0);
         p &= ~(FN | FV | FZ | FC);
@@ -79,15 +79,16 @@ void M6502::cmp(uint8_t r, uint8_t v)
 
 int M6502::step()
 {
-    if (m_nmiPending) {
+    if (m_nmiPending && !m_nmiSkip) {
         m_nmiPending = false;
         interrupt(0xfffa, false);
         return 7;
     }
-    if (m_irqLine && !(p & FI)) {
+    if (m_irqLine && !(p & FI) && !m_irqSkip) {
         interrupt(0xfffe, false);
         return 7;
     }
+    m_nmiSkip = m_irqSkip = false;
 
     uint8_t op = rd(pc++);
     if (m_optable) op = m_optable[op];

@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -171,6 +171,16 @@ object Machines {
             roms = listOf(RomSpec("tamaang.bin", 0x4000L, 0x87bcb59fL)),
             skin = Skin.EGG_PET,
             badge = "angel",
+        ),
+        MachineDef(
+            id = "168pcase",
+            title = "168-in-1 Game Phone Case",
+            subtitle = "Phone case with a built-in NES-style console and colour screen (MAME set: 168pcase)",
+            chip = "VT369 (NES on a chip)",
+            region = "China",
+            year = "202x",
+            roms = listOf(RomSpec("25q32.u7", 0x400000L, 0x98e8e97aL)),
+            skin = Skin.PHONE_CASE,
         ),
         MachineDef(
             id = "oceanpet",

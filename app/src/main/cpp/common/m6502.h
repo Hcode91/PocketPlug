@@ -16,12 +16,17 @@ public:
 
     void setBus(void* ctx, ReadFn rd, WriteFn wr) { m_ctx = ctx; m_read = rd; m_write = wr; }
     void setOpcodeTable(const uint8_t* table) { m_optable = table; }
+    bool decimalEnabled = true;   // false for the NES-style RP2A03 core
 
     void reset();               // runs the reset sequence (reads 0xFFFC)
     int step();                 // executes one instruction (or interrupt entry), returns cycles
 
-    void setIrq(bool asserted) { m_irqLine = asserted; }
-    void pulseNmi() { m_nmiPending = true; }
+    void setIrq(bool asserted) { if (asserted && !m_irqLine) m_irqSkip = interruptDelay; m_irqLine = asserted; }
+    void pulseNmi() { m_nmiPending = true; m_nmiSkip = interruptDelay; }
+    // MAME-style interrupt sampling: an interrupt raised between instructions is
+    // only seen after one more instruction (the next opcode was already fetched).
+    bool interruptDelay = false;
+    bool m_irqSkip = false, m_nmiSkip = false;
 
     // registers (public for state saving / debugging)
     uint16_t pc = 0;

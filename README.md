@@ -12,6 +12,7 @@ controller.
 | Retro Dance Mat (110 song Super StepMania + 9-in-1 games) (PAL) | `110dance` | VT1682 | Boots, menus, songs and mini-games playable, sound working |
 | Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
 | Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock, egg, hatching and pet match MAME segment-for-segment over 10 min; lives in real time |
+| 168-in-1 Game Phone Case | `168pcase` | VT369 (NES-on-a-chip) | Menu and games match MAME pixel-for-pixel in every tested frame (Contra, Panda Adventure, Aether, 60+ others); NES APU sound |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
@@ -103,6 +104,13 @@ PocketPlug's own creatures and art. It follows the phone's clock.
 - **Classic** mode is as unforgiving as the original (poor discipline at a
   growth stage, repeated neglect sickness or a long untreated illness is
   fatal); **Gentle** mode (menu) never lets it die.
+
+### 168-in-1 Game Phone Case
+
+Import the MAME `168pcase` set (`25q32.u7`). The case is drawn as the real one:
+D-pad, red **A**/**B**, round **SELECT**/**START**, and two **TURBO** buttons
+(rapid-fire B / A). Tap the camera bump (or Back) for the menu. Gamepads: B/Y = A,
+A/X = B, Start/Select, D-pad or left stick; keyboard X/Z, Enter, Space, WASD.
 
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.

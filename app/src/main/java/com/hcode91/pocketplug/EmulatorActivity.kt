@@ -32,6 +32,8 @@ class EmulatorActivity : Activity() {
     private var mat: DanceMatView? = null
     private val pads = arrayOfNulls<ApvsControllerView>(2)
     private var pet: EggPetView? = null
+    private var phone: PhoneCaseView? = null
+    private var stickMask = 0
     // LCD pets keep living while the app is closed: the clock is fast-forwarded on return
     private var liveSavedAt = 0L
     @Volatile private var catchUpSeconds = 0.0
@@ -84,6 +86,15 @@ class EmulatorActivity : Activity() {
         }
 
         when (machine.skin) {
+            Skin.PHONE_CASE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = PhoneCaseView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                phone = v
+                setContentView(v)
+            }
             Skin.EGG_PET -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val p = EggPetView(this, petStyle()).apply {
@@ -300,7 +311,9 @@ class EmulatorActivity : Activity() {
         while (running) {
             if (paused) { Thread.sleep(16); next = SystemClock.elapsedRealtimeNanos(); continue }
             val n = synchronized(coreLock) { Native.runFrame(handle, touchInputs or keyInputs, pixels, audio) }
-            pet?.updateFrame(pixels) ?: tv.updateFrame(pixels)
+            if (pet != null) pet?.updateFrame(pixels)
+            else if (phone != null) phone?.updateFrame(pixels)
+            else tv.updateFrame(pixels)
             if (track != null && n > 0) {
                 // a blocking write paces emulation to the audio clock
                 track.write(audio, 0, n)
@@ -386,6 +399,7 @@ class EmulatorActivity : Activity() {
     private fun keyBit(code: Int): Int = when (machine.skin) {
         Skin.APVS_1292 -> apvsKeyBit(code)
         Skin.EGG_PET -> petKeyBit(code)
+        Skin.PHONE_CASE -> caseKeyBit(code)
         else -> danceKeyBit(code)
     }
 
@@ -430,6 +444,19 @@ class EmulatorActivity : Activity() {
     }
 
     override fun onGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (machine.skin == Skin.PHONE_CASE && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            // left stick and hat both drive the D-pad
+            val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            var m = 0
+            if (y < -0.5f) m = m or 0x10
+            if (y > 0.5f) m = m or 0x20
+            if (x < -0.5f) m = m or 0x40
+            if (x > 0.5f) m = m or 0x80
+            if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m }
+            return true
+        }
         if (machine.skin == Skin.APVS_1292 && event.action == android.view.MotionEvent.ACTION_MOVE &&
             (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
             Native.setAnalog(handle, 0, event.getAxisValue(android.view.MotionEvent.AXIS_X), event.getAxisValue(android.view.MotionEvent.AXIS_Y))
@@ -437,6 +464,19 @@ class EmulatorActivity : Activity() {
             return true
         }
         return super.onGenericMotionEvent(event)
+    }
+
+    // NES-style pad: A 0x01, B 0x02, Select 0x04, Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80
+    private fun caseKeyBit(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_X -> 0x01
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_Z -> 0x02
+        KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_SHIFT_RIGHT -> 0x04
+        KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER -> 0x08
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x10
+        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> 0x20
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> 0x40
+        KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> 0x80
+        else -> 0
     }
 
     private fun danceKeyBit(code: Int): Int = when (code) {
@@ -460,6 +500,7 @@ class EmulatorActivity : Activity() {
         keyInputs = keyInputs or b
         mat?.externalMask = keyInputs
         pet?.externalMask = keyInputs
+        phone?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }
@@ -471,6 +512,7 @@ class EmulatorActivity : Activity() {
         keyInputs = keyInputs and b.inv()
         mat?.externalMask = keyInputs
         pet?.externalMask = keyInputs
+        phone?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }

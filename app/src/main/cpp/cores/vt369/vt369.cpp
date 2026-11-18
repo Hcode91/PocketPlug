@@ -1,0 +1,1600 @@
+// PocketPlug - VT369 "NES-on-a-chip"
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Ported from MAME (see vt369.h for the original files and authors). Function
+// names follow MAME's so the two can be compared side by side.
+
+#include "vt369.h"
+#include <cstring>
+#include <cmath>
+#include <algorithm>
+
+#define BIT(x, n) (((x) >> (n)) & 1)
+static inline uint32_t rgb(int r, int g, int b) { return 0xff000000u | (r << 16) | (g << 8) | b; }
+
+enum { PPU_CONTROL0 = 0, PPU_CONTROL1, PPU_STATUS, PPU_SPRITE_ADDRESS, PPU_SPRITE_DATA, PPU_SCROLL, PPU_ADDRESS, PPU_DATA };
+enum {
+    PPU_CONTROL0_INC = 0x04, PPU_CONTROL0_SPR_SELECT = 0x08, PPU_CONTROL0_CHR_SELECT = 0x10, PPU_CONTROL0_SPRITE_SIZE = 0x20, PPU_CONTROL0_NMI = 0x80,
+    PPU_CONTROL1_DISPLAY_MONO = 0x01, PPU_CONTROL1_BACKGROUND_L8 = 0x02, PPU_CONTROL1_SPRITES_L8 = 0x04, PPU_CONTROL1_BACKGROUND = 0x08,
+    PPU_CONTROL1_SPRITES = 0x10, PPU_CONTROL1_COLOR_EMPHASIS = 0xe0,
+    PPU_STATUS_8SPRITES = 0x20, PPU_STATUS_SPRITE0_HIT = 0x40, PPU_STATUS_VBLANK = 0x80
+};
+static const int SCANLINES = 262, VBLANK_FIRST = 241, BOTTOM_VISIBLE = 239, W = 256;
+static const int DOTS_PER_LINE = 341;
+static const unsigned YUV444_COLOR = 0x40 * 8;
+static const int DOTS_PER_APU_SAMPLE = 12;      // APU stream runs at clock / 4
+
+static uint8_t cpu_rd(void* c, uint16_t a) { return ((Vt369Core*)c)->cpuRead(a); }
+static void cpu_wr(void* c, uint16_t a, uint8_t d) { ((Vt369Core*)c)->cpuWrite(a, d); }
+
+/*************************************************************************
+ Setup
+*************************************************************************/
+
+Vt369Core::Vt369Core(const Vt369Config& c) : m_cfg(c)
+{
+    std::memset(&m_s, 0, sizeof(m_s));
+    std::memset(m_out, 0, sizeof(m_out));
+    std::memset(m_bitmapBuf, 0, sizeof(m_bitmapBuf));
+    m_cpu.setBus(this, cpu_rd, cpu_wr);
+    m_cpu.decimalEnabled = false;     // RP2A03 core
+    m_cpu.interruptDelay = true;
+    initPalettes();
+    apuInit();
+}
+
+bool Vt369Core::load(const std::vector<RomFile>& roms, std::string& error)
+{
+    const RomFile* r = nullptr;
+    for (auto& f : roms) if (f.name == m_cfg.romName) r = &f;
+    if (!r && roms.size() == 1) r = &roms[0];
+    if (!r) { error = "Missing " + m_cfg.romName; return false; }
+    m_rom.assign(m_cfg.romSize, 0xff);
+    std::memcpy(m_rom.data(), r->data.data(), std::min(r->data.size(), (size_t)m_cfg.romSize));
+    reset();
+    return true;
+}
+
+void Vt369Core::reset()
+{
+    // power-on: RAM cleared (MAME default fill)
+    std::memset(&m_s, 0, sizeof(m_s));
+    m_s.initialE000 = 0xff;
+    m_s.clockMul = 1;
+    m_s.nmiAt = -1;
+    socReset();
+    ppuReset();
+    apuReset();
+    m_cpu.reset();
+    m_audio.clear();
+}
+
+/*************************************************************************
+ SoC: nes_vt02_vt03_soc_device / vt3xx_soc_base_device
+*************************************************************************/
+
+void Vt369Core::socReset()
+{
+    std::memset(m_s.r410x, 0, sizeof(m_s.r410x));
+    m_s.r410x[0x8] = 0x01;
+    m_s.r410x[0x9] = 0x02;
+    m_s.r411c = m_s.r411d = m_s.r4242 = 0;
+    m_s.relative[0] = m_s.relative[1] = 0;
+    m_s.newdma4024 = 0; m_s.vdmaCtrl = 0;
+    m_s.timerIrqEnabled = m_s.timerRunning = m_s.timerVal = 0;
+    updateBanks();
+    m_s.bank6000 = 0; m_s.bank6000Enable = 0; m_s.r411f = 0;
+    std::memset(m_s.alu, 0, sizeof(m_s.alu));
+}
+
+uint32_t Vt369Core::getBanks(uint8_t bnk) const
+{
+    const uint8_t* r = m_s.r410x;
+    switch (r[0xb] & 0x07) {
+    case 0: return ((r[0x0] & 0xF0) << 4) + ((r[0xa] & 0xC0) | (bnk & 0x3F));
+    case 1: return ((r[0x0] & 0xF0) << 4) + ((r[0xa] & 0xE0) | (bnk & 0x1F));
+    case 2: return ((r[0x0] & 0xF0) << 4) + ((r[0xa] & 0xF0) | (bnk & 0x0F));
+    case 3: return ((r[0x0] & 0xF0) << 4) + ((r[0xa] & 0xF8) | (bnk & 0x07));
+    case 4: return ((r[0x0] & 0xF0) << 4) + ((r[0xa] & 0xFC) | (bnk & 0x03));
+    case 5: return ((r[0x0] & 0xF0) << 4) + ((r[0xa] & 0xFE) | (bnk & 0x01));
+    case 6: return ((r[0x0] & 0xF0) << 4) + (r[0xa]);
+    case 7: return ((r[0x0] & 0xF0) << 4) + bnk;
+    }
+    return 0;
+}
+
+void Vt369Core::updateBanks()
+{
+    uint8_t* r = m_s.r410x;
+    uint8_t bank;
+    if ((r[0xb] & 0x40) != 0 || (r[0x5] & 0x40) == 0) bank = (r[0x5] & 0x40) == 0 ? r[0x7] : r[0x9];
+    else bank = 0xfe;
+    m_s.bankaddr[0] = getBanks(bank);
+    m_s.bankaddr[1] = getBanks(r[0x8]);
+    if ((r[0xb] & 0x40) != 0 || (r[0x5] & 0x40) != 0) bank = (r[0x5] & 0x40) == 0 ? r[0x9] : r[0x7];
+    else bank = 0xfe;
+    m_s.bankaddr[2] = getBanks(bank);
+    m_s.bankaddr[3] = getBanks(m_s.initialE000);
+}
+
+uint16_t Vt369Core::decodeNtAddr(uint16_t addr, bool singlePage)
+{
+    if (!(m_s.r410x[0x6] & 0x02) || !singlePage) {
+        bool vert = !(m_s.r410x[0x6] & 0x01);
+        int a11 = (addr >> 11) & 1, a10 = (addr >> 10) & 1;
+        return ((vert ? a10 : a11) << 10) | (addr & 0x3ff);
+    }
+    uint16_t base = addr & 0x3ff;
+    if (m_s.r410x[0x6] & 0x01) base |= 0x400;
+    return base;
+}
+
+void Vt369Core::w410x(int offset, uint8_t data)
+{
+    uint8_t* r = m_s.r410x;
+    switch (offset) {
+    case 0x0: r[0] = data; updateBanks(); break;
+    case 0x1: r[1] = data; m_s.timerRunning = 0; break;
+    case 0x2: r[2] = data; m_s.timerVal = r[1]; m_s.timerRunning = 1; break;
+    case 0x3: m_cpu.setIrq(false); r[3] = data; m_s.timerIrqEnabled = 0; break;
+    case 0x4: r[4] = data; m_s.timerIrqEnabled = 1; break;
+    case 0x5: r[5] = data; updateBanks(); break;
+    case 0x6: r[6] = data; break;
+    case 0x7: r[7] = data; updateBanks(); break;       // 'no scramble' configuration
+    case 0x8: r[8] = data; updateBanks(); break;
+    case 0x9: r[9] = data; updateBanks(); break;
+    case 0xa: r[0xa] = data; updateBanks(); break;
+    case 0xb: r[0xb] = data; updateBanks(); break;
+    }
+}
+
+// MMC3 compatibility (no scrambling)
+void Vt369Core::scrambled8000w(uint16_t offset, uint8_t data)
+{
+    static const uint8_t s8000[6] = { 4, 5, 0, 1, 2, 3 };
+    offset &= 0x7fff;
+    uint16_t addr = offset + 0x8000;
+    if (addr < 0xa000 && !(addr & 1)) {
+        m_s.addrLatch8000 = data & 7;
+        m_s.r410x[5] = data & ~(1 << 5);
+        updateBanks();
+    } else if (addr < 0xa000) {
+        int sel = m_s.r410x[5] & 7;
+        if (sel < 6) m_s.videobank0[s8000[sel]] = data;
+        else if (sel == 6) { m_s.r410x[7] = data; updateBanks(); }
+        else { m_s.r410x[8] = data; updateBanks(); }
+    } else if (addr < 0xc000 && !(addr & 1)) {
+        m_s.r410x[6] = (m_s.r410x[6] & 0xfe) | (data & 1);
+    } else if (addr < 0xc000) {
+        // PRG RAM control
+    } else if (addr < 0xe000 && !(addr & 1)) w410x(1, data);
+    else if (addr < 0xe000) w410x(2, data);
+    else if (!(addr & 1)) w410x(3, data);
+    else w410x(4, data);
+}
+
+int Vt369Core::va17va10(int addr)
+{
+    int sel = (addr & 0x1c00) | ((m_s.r410x[0x5] & 0x80) ? 0x2000 : 0x000);
+    int t = 0;
+    switch ((sel >> 10) & 0xf) {
+    case 0x0: case 0x1: case 0xc: case 0xd: t = (m_s.videobank0[4] & 0xfe) | ((addr & 0x400) ? 1 : 0); break;
+    case 0x2: case 0x3: case 0xe: case 0xf: t = (m_s.videobank0[5] & 0xfe) | ((addr & 0x400) ? 1 : 0); break;
+    case 0x4: case 0x8: t = m_s.videobank0[0]; break;
+    case 0x5: case 0x9: t = m_s.videobank0[1]; break;
+    case 0x6: case 0xa: t = m_s.videobank0[2]; break;
+    case 0x7: case 0xb: t = m_s.videobank0[3]; break;
+    }
+    uint8_t ex = m_s.videobank0Extra;
+    switch (ex & 7) {
+    case 0x0: return t;
+    case 0x1: return (t & 0x7f) | (ex & 0x80);
+    case 0x2: return (t & 0x3f) | (ex & 0xc0);
+    case 0x4: return (t & 0x1f) | (ex & 0xe0);
+    case 0x5: return (t & 0x0f) | (ex & 0xf0);
+    case 0x6: return (t & 0x07) | (ex & 0xf8);
+    default: return -1;
+    }
+}
+
+int Vt369Core::realVideoAddress(int addr, int readtype)
+{
+    int va34 = (addr & 0x6000) >> 13;
+    addr &= 0x1fff;
+    int v = va17va10(addr);
+    int alt_order = m_s.extModes & 0x40;
+    int extended = (readtype == 0) ? (m_s.extModes & 0x10) != 0 : (m_s.extModes & 0x08) != 0;
+    int finaladdr;
+    if (!extended) {
+        int is4bpp = (readtype == 0) ? (m_s.extModes & 0x02) : (m_s.extModes & 0x04);
+        int va20_va18 = (m_s.videobank1 & 0x70) >> 4;
+        finaladdr = ((m_s.r410x[0] & 0x0F) << 21) | (va20_va18 << 18) | (v << 10) | (addr & 0x03ff);
+        if (is4bpp) {
+            if (!alt_order) finaladdr = ((finaladdr & ~0xf) << 1) | ((va34 & 1) << 4) | (finaladdr & 0xf);
+            else finaladdr = (finaladdr << 1) | (va34 & 1);
+        }
+    } else {
+        int eva = 0, is4bpp = 0;
+        if (readtype == 0) {
+            is4bpp = m_s.extModes & 0x02;
+            eva |= m_s.readBg4Bg3;
+            if (m_s.extModes2 & 0x02) { if (m_s.r410x[0x6] & 1) eva |= 4; }
+            else if (m_s.videobank1 & 0x08) eva |= 4;
+        } else if (readtype == 1) {
+            is4bpp = m_s.extModes & 0x04;
+            eva |= m_s.extraSpriteBits;
+        }
+        finaladdr = ((m_s.r410x[0] & 0x0f) << 21) | (v << 13) | (eva << 10) | (addr & 0x03ff);
+        if (is4bpp) {
+            if (!alt_order) finaladdr = ((finaladdr & ~0xf) << 1) | ((va34 & 1) << 4) | (finaladdr & 0xf);
+            else finaladdr = (finaladdr << 1) | (va34 & 1);
+        }
+    }
+    return finaladdr;
+}
+
+uint8_t Vt369Core::chrR(int offset) { return progRead(relative() + realVideoAddress(offset, 0)); }
+uint8_t Vt369Core::sprR(int offset) { return progRead(relative() + realVideoAddress(offset, 1)); }
+
+void Vt369Core::chrW(int offset, uint8_t data)
+{
+    if (m_s.r4242 & 1 || m_s.r411d & 4) m_s.chrram[offset & 0x1fff] = data;
+    // otherwise a write to the ROM: ignored
+}
+
+void Vt369Core::videoIrq(bool hblank, int scanline, bool, bool blanked)
+{
+    if (((m_s.r410x[0xb] >> 7) & 1) == (hblank ? 1 : 0)) {
+        if (m_s.timerRunning && scanline < 0xe0) {
+            m_s.timerVal--;
+            if (m_s.timerVal < 0 && m_s.timerIrqEnabled && !blanked) m_cpu.setIrq(true);
+        }
+    }
+}
+
+void Vt369Core::doDma(uint8_t data, bool ntscBug)
+{
+    uint8_t mode = m_s.vdmaCtrl & 1;
+    uint8_t lenSel = (m_s.vdmaCtrl >> 1) & 7;
+    uint8_t nib = (m_s.vdmaCtrl >> 4) & 0x0f;
+    int length = 256;
+    switch (lenSel) { case 4: length = 16; break; case 5: length = 32; break; case 6: length = 64; break; case 7: length = 128; break; }
+    uint16_t src = (data << 8) | (nib << 4);
+    if (ntscBug && mode == 1 && (m_s.videomemAddr & 0xff00) == 0x3f00 && !(m_s.extModes2 & 0x80)) { length -= 1; src += 1; }
+    for (int i = 0; i < length; i++) {
+        uint8_t v = cpuRead((uint16_t)(src + i));
+        cpuWrite(mode ? 0x2007 : 0x2004, v);
+    }
+}
+
+void Vt369Core::vtDmaW(uint8_t data)
+{
+    // MAME's DMA takes no CPU time: don't let its bus accesses advance the clock
+    bool inInst = m_inInst;
+    m_inInst = false;
+    vtDmaWInner(data);
+    m_inInst = inInst;
+}
+
+void Vt369Core::vtDmaWInner(uint8_t data)
+{
+    if (m_s.bank6000Enable & 0x80) {
+        uint16_t src = m_s.newdma4024 | data << 8;
+        int length = (m_s.vdmaCtrl >> 1) & 7;
+        if (length == 0) length = 8;
+        length = 1 << length;
+        for (int i = 0; i < length; i++) {
+            uint8_t v = cpuRead((uint16_t)(src + i));
+            cpuWrite((m_s.vdmaCtrl & 1) ? 0x2007 : 0x2004, v);
+        }
+    } else {
+        doDma(data, false);     // force_bad_dma()
+    }
+}
+
+void Vt369Core::w4034(uint8_t data)
+{
+    m_s.vdmaCtrl = data;
+    if ((m_s.newvid1d & 0x01) == 0) m_s.newdma4024 = data & 0xf0;
+}
+
+void Vt369Core::aluW(int offset, uint8_t data)
+{
+    uint8_t* a = m_s.alu;
+    a[offset] = data;
+    if (offset == 5) {
+        uint32_t p1 = a[0] | (a[1] << 8), p2 = a[4] | (a[5] << 8);
+        uint32_t r = p1 * p2;
+        a[0] = r; a[1] = r >> 8; a[2] = r >> 16; a[3] = r >> 24;
+    } else if (offset == 7) {
+        uint32_t p1 = a[0] | (a[1] << 8) | (a[2] << 16) | ((uint32_t)a[3] << 24);
+        uint32_t p2 = a[6] | (a[7] << 8);
+        if (p2) {
+            uint32_t q = p1 / p2, m = p1 % p2;
+            a[0] = q; a[1] = q >> 8; a[2] = q >> 16; a[3] = q >> 24;
+            a[4] = m; a[5] = m >> 8;
+        }
+    }
+}
+
+/*************************************************************************
+ CPU address map (vt369_soc_introm_noswap_device::vt369_introm_map)
+*************************************************************************/
+
+uint8_t Vt369Core::cpuRead(uint16_t a)
+{
+    catchUp();
+    if (a < 0x1000) return m_s.ram[a];
+    if (a < 0x2000) return 0x00;                   // internal ROM (not dumped / not present)
+    if (a < 0x2008) { apuSync(); return ppuRead(a & 7); }
+    if (a >= 0x3000 && a < 0x4000) return m_s.ntram[decodeNtAddr(a - 0x3000, false)];
+    if (a >= 0x8000) {
+        int bank = (a & 0x6000) >> 13;
+        return progRead(relative() + m_s.bankaddr[bank] * 0x2000 + (a & 0x1fff));
+    }
+    if (a >= 0x6000) {
+        if (m_s.bank6000Enable & 0x40) return progRead(relative() + getBanks(m_s.bank6000) * 0x2000 + (a & 0x1fff));
+        return m_s.ram6000[a & 0x1fff];
+    }
+    if (a >= 0x4800 && a < 0x5000) return m_s.soundram[a & 0x7ff];
+    switch (a) {
+    case 0x2008: return m_s.spritehigh2008;
+    case 0x2010: return m_s.extModes;
+    case 0x2011: return m_s.extModes2;
+    case 0x2012: case 0x2013: case 0x2014: case 0x2015: case 0x2016: case 0x2017: return m_s.videobank0[a - 0x2012];
+    case 0x2018: return m_s.videobank1;
+    case 0x2019: return 0;
+    case 0x201a: return m_s.videobank0Extra;
+    case 0x201b: return 0;
+    case 0x201c: return m_s.newvid1c;
+    case 0x201d: return m_s.newvid1d;
+    case 0x201e: return m_s.newvid1e;
+    case 0x201f: return 0;
+    case 0x2020: case 0x2021: case 0x2022: case 0x2023: return m_s.tilebases[a & 3];
+    case 0x2024: return m_s.lightgun2024;
+    case 0x4015: apuSync(); return apuStatus();
+    case 0x4016: { uint8_t r = 0x40 | (m_s.latch0 & 1); m_s.latch0 >>= 1; return r; }
+    case 0x4017: { uint8_t r = 0x40 | (m_s.latch1 & 1); m_s.latch1 >>= 1; return r; }
+    case 0x4100: case 0x4101: case 0x4102: case 0x4103: case 0x4104: case 0x4105:
+    case 0x4106: case 0x4107: case 0x4108: case 0x4109: case 0x410a: case 0x410b: return m_s.r410x[a - 0x4100];
+    case 0x410e: case 0x410f: return 0;
+    case 0x4119: return 0;                         // NTSC, 60 Hz
+    case 0x411f: return m_s.r411f;
+    case 0x4144: case 0x4145: case 0x4146: case 0x4147: return m_s.gpio414x[4 + (a - 0x4144)];
+    case 0x4148: return m_s.dir414x;
+    case 0x414a: return (0 & ~m_s.dir414x) | (m_s.data414a & m_s.dir414x);
+    case 0x414b: return (0 & ~m_s.dir414x) | (m_s.data414b & m_s.dir414x);
+    case 0x414c: case 0x414d: case 0x414e: case 0x414f: return m_s.gpio414x[0xc + (a - 0x414c)];
+    case 0x4150: return m_s.dir415x;
+    case 0x4152: return (0xff & ~m_s.dir415x) | (m_s.data4152 & m_s.dir415x);
+    case 0x4153: return (0xff & ~m_s.dir415x) | (m_s.data4153 & m_s.dir415x);
+    case 0x4155: case 0x4156: case 0x4157: return m_s.gpio415x[5 + (a - 0x4155)];
+    case 0x415a: case 0x415b: return m_s.gpio415x[0xa + (a - 0x415a)];
+    case 0x415c: return 0xf0;
+    case 0x418a: return (uint8_t)rand();
+    case 0x4199: return 0x02;
+    case 0x41b7: return 0x04;
+    case 0x41e4: case 0x41e5: return m_s.gpio41ex[4 + (a - 0x41e4)];
+    case 0x41e6: return m_s.gpio41ex[6];
+    case 0x41e7: case 0x41e8: case 0x41e9: case 0x41ea: case 0x41eb: return m_s.gpio41ex[7 + (a - 0x41e7)];
+    case 0x4326: return 0x01;
+    }
+    if (a >= 0x4130 && a < 0x413e) {
+        int off = (a < 0x4138) ? a - 0x4130 : a - 0x4138;
+        if (off < 6) return m_s.alu[off];
+        return 0;
+    }
+    return 0;
+}
+
+#ifdef VT_DEBUG
+#include <cstdio>
+int g_vtLogFrame = -1, g_vtFrame = 0;
+#endif
+void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
+{
+    catchUp();
+#ifdef VT_DEBUG
+    if (g_vtFrame == g_vtLogFrame && ((a >= 0x2000 && a < 0x2030 && a != 0x2004 && a != 0x2007) || (a >= 0x4100 && a < 0x4120)))
+        printf("W %04x %02x scan=%d dot=%d\n", a, d, m_s.scanline, (int)(m_s.dot % 341));
+#endif
+    if (a < 0x1000) { m_s.ram[a] = d; return; }
+    if (a < 0x2000) return;
+    if (a < 0x2008) { apuSync(); ppuWrite(a & 7, d); return; }
+    if (a >= 0x3000 && a < 0x4000) { m_s.ntram[decodeNtAddr(a - 0x3000, false)] = d; return; }
+    if (a >= 0x8000) {
+        if (m_s.r410x[0xb] & 0x08) return;           // write to flash: ignored
+        scrambled8000w(a - 0x8000, d);
+        return;
+    }
+    if (a >= 0x6000) { if (!(m_s.bank6000Enable & 0x40)) m_s.ram6000[a & 0x1fff] = d; return; }
+    if (a >= 0x4800 && a < 0x5000) { m_s.soundram[a & 0x7ff] = d; return; }
+    if (a >= 0x4000 && a <= 0x4013) { apuSync(); apuWrite(a - 0x4000, d); return; }
+    switch (a) {
+    case 0x2008: m_s.spritehigh2008 = d; return;
+    case 0x2010: m_s.extModes = d; return;
+    case 0x2011: m_s.extModes2 = d; return;
+    case 0x2012: case 0x2013: case 0x2014: case 0x2015: case 0x2016: case 0x2017: m_s.videobank0[a - 0x2012] = d; return;
+    case 0x2018: m_s.videobank1 = d; return;
+    case 0x201a: m_s.videobank0Extra = d; return;
+    case 0x201c: m_s.newvid1c = d; return;
+    case 0x201d: m_s.newvid1d = d; return;
+    case 0x201e: m_s.newvid1e = d; return;
+    case 0x201f: m_s.ext201f = d; return;
+    case 0x2020: case 0x2021: case 0x2022: case 0x2023: m_s.tilebases[a & 3] = d; return;
+    case 0x2024: m_s.lightgun2024 = d; return;
+    case 0x2050: m_s.lcdc2050 = d; return;
+    case 0x4014: vtDmaW(d); return;
+    case 0x4015: apuSync(); apuWrite(0x15, d); return;
+    case 0x4016:
+        if ((d & 1) != (m_s.prevPort0 & 1) && (d & 1)) { m_s.latch0 = (uint8_t)m_inputs; m_s.latch1 = 0; }
+        m_s.prevPort0 = d;
+        return;
+    case 0x4017: apuSync(); apuWrite(0x17, d); return;
+    case 0x4024: m_s.newdma4024 = d; return;
+    case 0x4034: w4034(d); return;
+    case 0x4112: m_s.bank6000 = d; return;
+    case 0x411c: m_s.bank6000Enable = d; m_s.clockMul = (d & 0x80) ? 3 : 1; return;
+    case 0x411d: m_s.r411d = d; updateBanks(); return;
+    case 0x411f: m_s.r411f = d; return;
+    case 0x4144: case 0x4145: case 0x4146: case 0x4147: m_s.gpio414x[4 + (a - 0x4144)] = d; return;
+    case 0x4148: m_s.dir414x = d; return;
+    case 0x414a: m_s.data414a = d; return;
+    case 0x414b: m_s.data414b = d; return;
+    case 0x414c: case 0x414d: case 0x414e: case 0x414f: m_s.gpio414x[0xc + (a - 0x414c)] = d; return;
+    case 0x4150: m_s.dir415x = d; return;
+    case 0x4152: m_s.data4152 = d; return;
+    case 0x4153: m_s.data4153 = d; return;
+    case 0x4155: case 0x4156: case 0x4157: m_s.gpio415x[5 + (a - 0x4155)] = d; return;
+    case 0x415a: case 0x415b: m_s.gpio415x[0xa + (a - 0x415a)] = d; return;
+    case 0x4160: case 0x4161: m_s.relative[a - 0x4160] = d; return;
+    case 0x41e4: case 0x41e5: m_s.gpio41ex[4 + (a - 0x41e4)] = d; return;
+    case 0x41e6: m_s.gpio41ex[6] = d; return;
+    case 0x41e7: case 0x41e8: case 0x41e9: case 0x41ea: case 0x41eb: m_s.gpio41ex[7 + (a - 0x41e7)] = d; return;
+    case 0x4201: {
+        bool inInst = m_inInst;
+        m_inInst = false;
+        for (int i = 0; i < 0x200; i++) m_s.spriteram[i] = cpuRead((uint16_t)((d << 8) + i));
+        m_inInst = inInst;
+        return;
+    }
+    }
+    if (a >= 0x4100 && a <= 0x410b) { w410x(a - 0x4100, d); return; }
+    if (a >= 0x2040 && a <= 0x2049) { lcdcRegsW(a - 0x2040, d); return; }
+    if (a >= 0x4130 && a < 0x413e) { aluW((a < 0x4138) ? a - 0x4130 : a - 0x4138, d); return; }
+}
+
+/*************************************************************************
+ PPU (ppu2c0x + ppu_vt03 + ppu_vt3xx)
+*************************************************************************/
+
+void Vt369Core::initPalettes()
+{
+    // ppu2c0x_device::init_palette_tables (NTSC)
+    const double tint = 0.22, hue = 287.0, Kr = 0.2989, Kb = 0.1145, Ku = 2.029, Kv = 1.140;
+    static const double brightness[3][4] = { { 0.50, 0.75, 1.0, 1.0 }, { 0.29, 0.45, 0.73, 0.9 }, { 0, 0.24, 0.47, 0.77 } };
+    static const double rgb_mod[8][3] = {
+        { 1.0, 1.0, 1.0 }, { 1.24, 0.915, 0.743 }, { 0.794, 1.09, 0.882 }, { 0.905, 1.03, 1.28 },
+        { 0.741, 0.987, 1.0 }, { 1.02, 0.908, 0.979 }, { 1.02, 0.98, 0.653 }, { 0.75, 0.75, 0.75 } };
+    int entry = 0;
+    for (int emp = 0; emp < 8; emp++)
+        for (int inten = 0; inten < 4; inten++)
+            for (int num = 0; num < 16; num++) {
+                double sat, y, rad;
+                switch (num) {
+                case 0: sat = 0; rad = 0; y = brightness[0][inten]; break;
+                case 13: sat = 0; rad = 0; y = brightness[2][inten]; break;
+                case 14: case 15: sat = 0; rad = 0; y = 0; break;
+                default: sat = tint; rad = (num * 30 + hue) * M_PI / 180.0; y = brightness[1][inten]; break;
+                }
+                double u = sat * cos(rad), v = sat * sin(rad);
+                double R = (y + Kv * v) * 255.0;
+                double G = (y - (Kb * Ku * u + Kr * Kv * v) / (1 - Kb - Kr)) * 255.0;
+                double B = (y + Ku * u) * 255.0;
+                R = std::clamp(R * rgb_mod[emp][0], 0.0, 255.0);
+                G = std::clamp(G * rgb_mod[emp][1], 0.0, 255.0);
+                B = std::clamp(B * rgb_mod[emp][2], 0.0, 255.0);
+                m_pens[entry++] = rgb((int)floor(R + .5), (int)floor(G + .5), (int)floor(B + .5));
+            }
+    // ppu_vt03_device::init_vt03_palette_tables(0)
+    entry = 0;
+    for (int emp = 0; emp < 8; emp++)
+        for (int palval = 0; palval < 0x1000; palval++) {
+            int nPhase = palval & 0xF, nLuma = (palval >> 4) & 0xF, nChroma = (palval >> 8) & 0xF;
+            float phaseOffset = -11.0;
+            if (nLuma < (nChroma + 1) >> 1 || nLuma > 15 - (nChroma >> 1)) {
+                static const unsigned char altPhases[16] = { 13, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 0, 14, 15 };
+                static const float altPhaseOffset[16] = { -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, 0, -5, -5, -5 };
+                phaseOffset += altPhaseOffset[nPhase];
+                nPhase = altPhases[nPhase];
+                nChroma = 16 - nChroma;
+                nLuma = (nLuma - 8) & 0xF;
+            }
+            float fLuma = (nLuma - 4) / 9.625f;
+            float fChroma = nChroma / 18.975f;
+            const float fPhase = ((nPhase - 2) * 30.0f + phaseOffset) * (float)M_PI / 180.0f;
+            float Y = fLuma, C = fChroma;
+            if (nPhase == 0 || nPhase > 12) C = 0.0;
+            if (nPhase == 0) Y += fChroma;
+            if (nPhase == 13) Y -= fChroma;
+            if (nPhase >= 14) Y = 0.0;
+            const float V = sinf(fPhase) * C * 1.05f, U = cosf(fPhase) * C * 1.05f;
+            float R = Y + 1.1400f * V, G = Y - 0.5807f * V - 0.3940f * U, B = Y + 2.0290f * U;
+            R = std::clamp(R, 0.0f, 1.0f); G = std::clamp(G, 0.0f, 1.0f); B = std::clamp(B, 0.0f, 1.0f);
+            m_pens[YUV444_COLOR + entry++] = rgb((int)(R * 255.0), (int)(G * 255.0), (int)(B * 255.0));
+        }
+    entry = 0;
+    for (int emp = 0; emp < 8; emp++)
+        for (int palval = 0; palval < 0x8000; palval++)
+            m_rgb555[entry++] = rgb((palval & 0x7C00) >> 7, (palval & 0x3e0) >> 2, (palval & 0x001f) << 3);
+    entry = 0;
+    for (int emp = 0; emp < 8; emp++)
+        for (int palval = 0; palval < 0x1000; palval++)
+            m_rgb444[entry++] = rgb((palval & 0x000f) << 4, palval & 0x0f0, (palval & 0xf00) >> 4);
+}
+
+void Vt369Core::ppuReset()
+{
+    // most fields were zeroed by reset(); these are the non-zero ones
+    m_s.add = 1;
+    m_s.scanline = 0;
+    m_s.visMinX = 0; m_s.visMaxX = 255; m_s.visMinY = 0; m_s.visMaxY = 239;
+}
+
+uint32_t Vt369Core::apply_grayscale_and_emphasis(uint8_t color)
+{
+    uint32_t palval = color;
+    palval &= (m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_DISPLAY_MONO) ? 0x30 : 0x3f;
+    palval |= (m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_COLOR_EMPHASIS) << 1;
+    return palval;
+}
+
+// --- PPU address space ---
+uint8_t Vt369Core::paletteRead(int offset)
+{
+    // ppu_vt03_device::palette_read
+    if (offset < 0x20) {
+        if (m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_DISPLAY_MONO) return m_s.paletteRam[offset & 0x1f] & 0x30;
+        return m_s.paletteRam[offset & 0x1f];
+    }
+    return m_s.paletteRam[offset & 0xff];
+}
+
+void Vt369Core::paletteWrite(int offset, uint8_t data)
+{
+    if (offset < 0x20) {
+        data &= 0x3f;
+        if (offset & 0x3) m_s.paletteRam[offset & 0x1f] = data;
+        else {
+            if (0 == (offset & 0xf)) m_s.backColor = data;
+            m_s.paletteRam[offset & 0xf] = m_s.paletteRam[(offset & 0xf) + 0x10] = data;
+        }
+    } else m_s.paletteRam[offset & 0xff] = data;
+}
+
+uint8_t Vt369Core::vt3xxPaletteR(int offset)
+{
+    if (m_s.newvid1e) return m_s.vt3xxPalette[offset & 0x3ff];
+    if (offset < 0x300) return ntR(offset + 0x3c00);
+    return paletteRead(offset - 0x300);
+}
+
+void Vt369Core::vt3xxPaletteW(int offset, uint8_t data)
+{
+    if (m_s.newvid1e) { m_s.vt3xxPalette[offset & 0x3ff] = data; return; }
+    if (offset < 0x300) ntW(offset + 0x3c00, data);
+    else paletteWrite(offset - 0x300, data);
+}
+
+uint8_t Vt369Core::ppuReadbyte(uint32_t address)
+{
+    address &= 0x1ffff;
+    if (address < 0x2000) return chrR(address);
+    if (address < 0x3c00) return ntR(address - 0x2000);
+    if (address < 0x4000) return vt3xxPaletteR(address - 0x3c00);
+    return 0;
+}
+
+void Vt369Core::ppuWritebyte(uint32_t address, uint8_t data)
+{
+    address &= 0x1ffff;
+    if (address < 0x2000) chrW(address, data);
+    else if (address < 0x3c00) ntW(address - 0x2000, data);
+    else if (address < 0x4000) vt3xxPaletteW(address - 0x3c00, data);
+}
+
+// --- registers ---
+uint8_t Vt369Core::ppuRead(int offset)
+{
+    switch (offset & 7) {
+    case PPU_STATUS:
+        m_s.dataLatch = m_s.regs[PPU_STATUS] | (m_s.dataLatch & 0x1f);
+        m_s.toggle = 0;
+        if (m_s.dataLatch & PPU_STATUS_VBLANK) m_s.regs[PPU_STATUS] &= 0x60;
+        break;
+    case PPU_SPRITE_DATA:
+        m_s.dataLatch = m_s.spriteram[m_s.regs[PPU_SPRITE_ADDRESS]];
+        break;
+    case PPU_DATA:
+        if (m_s.videomemAddr >= 0x3f00) {
+            m_s.dataLatch = ppuReadbyte(m_s.videomemAddr);
+            m_s.bufferedData = ppuReadbyte(m_s.videomemAddr & 0x2fff);
+        } else {
+            m_s.dataLatch = m_s.bufferedData;
+            m_s.bufferedData = ppuReadbyte(m_s.videomemAddr);
+        }
+        m_s.videomemAddr += m_s.add;
+        break;
+    }
+    return m_s.dataLatch;
+}
+
+void Vt369Core::writeSpriteramWithIncrement(uint8_t data)
+{
+    if (!m_s.newvid1e) {
+        if (m_s.scanline > BOTTOM_VISIBLE || !(m_s.regs[PPU_CONTROL1] & (PPU_CONTROL1_BACKGROUND | PPU_CONTROL1_SPRITES))) {
+            m_s.spriteram[m_s.regs[PPU_SPRITE_ADDRESS]] = data;
+            m_s.regs[PPU_SPRITE_ADDRESS] = (m_s.regs[PPU_SPRITE_ADDRESS] + 1) & 0xff;
+        }
+    } else {
+        m_s.spriteram[m_s.regs[PPU_SPRITE_ADDRESS] | (m_s.spritehigh2008 & 1) << 8] = data;
+        m_s.regs[PPU_SPRITE_ADDRESS] = (m_s.regs[PPU_SPRITE_ADDRESS] + 1) & 0xff;
+        if (m_s.regs[PPU_SPRITE_ADDRESS] == 0) m_s.spritehigh2008 ^= 1;
+    }
+}
+
+void Vt369Core::ppuWriteBase(int offset, uint8_t data)
+{
+    switch (offset & 7) {
+    case PPU_CONTROL0:
+        m_s.regs[PPU_CONTROL0] = data;
+        m_s.refreshLatch &= 0x73ff;
+        m_s.refreshLatch |= (data & 3) << 10;
+        m_s.tilePage = (data & PPU_CONTROL0_CHR_SELECT) >> 2;
+        m_s.spritePage = (data & PPU_CONTROL0_SPR_SELECT) >> 1;
+        m_s.add = (data & PPU_CONTROL0_INC) ? 32 : 1;
+        break;
+    case PPU_CONTROL1: m_s.regs[PPU_CONTROL1] = data; break;
+    case PPU_SPRITE_ADDRESS: m_s.regs[PPU_SPRITE_ADDRESS] = data; break;
+    case PPU_SPRITE_DATA: writeSpriteramWithIncrement(data); break;
+    case PPU_SCROLL:
+        if (m_s.toggle) {
+            m_s.refreshLatch &= 0x0c1f;
+            m_s.refreshLatch |= (data & 0xf8) << 2;
+            m_s.refreshLatch |= (data & 0x07) << 12;
+        } else {
+            m_s.refreshLatch &= (0xffe0 & 0x7fff);
+            m_s.refreshLatch |= (data & 0xf8) >> 3;
+            m_s.xFine = data & 7;
+        }
+        m_s.toggle = !m_s.toggle;
+        break;
+    case PPU_ADDRESS:
+        if (m_s.toggle) {
+            m_s.refreshLatch &= (0xff00 & 0x7fff);
+            m_s.refreshLatch |= data;
+            m_s.refreshData = m_s.refreshLatch;
+            m_s.videomemAddr = m_s.refreshLatch;
+        } else {
+            m_s.refreshLatch &= 0x00ff;
+            m_s.refreshLatch |= (data & (0x3fff >> 8)) << 8;
+        }
+        m_s.toggle = !m_s.toggle;
+        break;
+    case PPU_DATA: {
+        const int tempAddr = m_s.videomemAddr & 0x3fff;
+        ppuWritebyte(tempAddr, data);
+        m_s.videomemAddr += m_s.add;
+        break;
+    }
+    }
+    m_s.dataLatch = data;
+}
+
+void Vt369Core::ppuWrite(int offset, uint8_t data)
+{
+    // ppu_vt3xx_device::write
+    const bool mode12090f = (m_s.newvid1c == 0x12) && (m_s.newvid1d == 0x09) && (m_s.newvid1e == 0x0f);
+    if (((offset & 7) == PPU_ADDRESS) && mode12090f) {
+        if (m_s.toggle) m_s.dmaVramTarget = (m_s.dmaVramTarget & 0xff00) | data;
+        else m_s.dmaVramTarget = (m_s.dmaVramTarget & 0x00ff) | ((data & 0x3f) << 8);
+    }
+    const bool wasRendering = (m_s.regs[PPU_CONTROL1] & (PPU_CONTROL1_BACKGROUND | PPU_CONTROL1_SPRITES)) != 0;
+    ppuWriteBase(offset, data);
+    if (((offset & 7) == PPU_CONTROL1) && mode12090f) {
+        const bool isRendering = (m_s.regs[PPU_CONTROL1] & (PPU_CONTROL1_BACKGROUND | PPU_CONTROL1_SPRITES)) != 0;
+        if (!wasRendering && isRendering) m_s.refreshData = m_s.refreshLatch;
+    }
+}
+
+void Vt369Core::lcdcRegsW(int offset, uint8_t data)
+{
+    m_s.screenregs204x[offset] = data;
+    struct vid_mode { int min_x, max_x, min_y, max_y; uint8_t regvals[0xa]; };
+    static const vid_mode modes[] = {
+        { 0, 159, 0, 127, { 0xa0, 0xff, 0x00, 0x40, 0xff, 0x04, 0x00, 0xa8, 0x04, 0x0f } },
+        { 0, 199, 0, 199, { 0xdc, 0xff, 0x00, 0x58, 0xff, 0x04, 0x10, 0xa8, 0x04, 0x00 } },
+        { 0, 127, 0, 159, { 0x80, 0x80, 0x00, 0x50, 0xff, 0x04, 0x00, 0xaa, 0x08, 0x00 } },
+        { 0, 127, 0, 159, { 0x80, 0xff, 0x00, 0x50, 0xff, 0x04, 0x00, 0xa6, 0x04, 0x00 } },
+        { 0, 127, 0, 159, { 0x80, 0x3f, 0x00, 0x50, 0xff, 0x69, 0x00, 0x54, 0x08, 0x00 } },
+        { 0, 127, 0, 159, { 0x80, 0xfe, 0x00, 0x50, 0xff, 0x04, 0x00, 0xa8, 0x04, 0x00 } },
+        { 0, 255, 0, 239, { 0x40, 0xa1, 0x00, 0x78, 0xff, 0x04, 0x0a, 0xd8, 0x0a, 0x00 } },
+        { 0, 255, 0, 239, { 0xa0, 0x57, 0x09, 0x40, 0x93, 0x04, 0x00, 0x83, 0x08, 0x00 } },
+        { 0, 255, 0, 239, { 0x40, 0xa1, 0x00, 0x78, 0xff, 0x69, 0x0a, 0x69, 0x26, 0x00 } },
+        { 0, 255, 0, 239, { 0x40, 0xa1, 0x00, 0x78, 0xff, 0x04, 0x0a, 0xd4, 0x0a, 0x00 } },
+        { 0, 255, 0, 239, { 0xdc, 0xe1, 0x00, 0x58, 0xbf, 0x04, 0x10, 0x93, 0x04, 0x00 } },
+    };
+    if (offset == 9) {
+        int nx0 = 0, nx1 = 255, ny0 = 0, ny1 = 239;
+        for (auto& m : modes)
+            if (!memcmp(m.regvals, m_s.screenregs204x, 0xa)) { nx0 = m.min_x; nx1 = m.max_x; ny0 = m.min_y; ny1 = m.max_y; }
+        m_s.visMinX = nx0; m_s.visMaxX = nx1; m_s.visMinY = ny0; m_s.visMaxY = ny1;
+    }
+}
+
+// --- scanline events ---
+void Vt369Core::hblankTick()
+{
+    const bool blanked = (m_s.regs[PPU_CONTROL1] & (PPU_CONTROL1_BACKGROUND | PPU_CONTROL1_SPRITES)) == 0;
+    const bool vblank = (m_s.scanline >= VBLANK_FIRST - 1) && (m_s.scanline < SCANLINES - 1);
+    if (!blanked && ((m_s.scanline <= BOTTOM_VISIBLE) || (m_s.scanline == SCANLINES - 1)))
+        m_s.regs[PPU_SPRITE_ADDRESS] = 0;
+    m_s.renderAtHblank = !blanked;
+    videoIrq(true, m_s.scanline, vblank, blanked);
+}
+
+void Vt369Core::scanlineTick()
+{
+    const bool blanked = (m_s.regs[PPU_CONTROL1] & (PPU_CONTROL1_BACKGROUND | PPU_CONTROL1_SPRITES)) == 0;
+    const bool vblank = (m_s.scanline >= VBLANK_FIRST - 1) && (m_s.scanline < SCANLINES - 1);
+    videoIrq(false, m_s.scanline, vblank, blanked);
+    updateScanline();
+    m_s.scanline++;
+    if (m_s.scanline == VBLANK_FIRST) {
+        m_s.regs[PPU_STATUS] |= PPU_STATUS_VBLANK;
+        if (m_s.regs[PPU_CONTROL0] & PPU_CONTROL0_NMI) {
+            // fire the NMI a few CPU cycles into vblank (B-Wings), as MAME
+            m_s.nmiAt = m_s.lineStart + 4 * (3 / m_s.clockMul);
+        }
+    }
+    if (m_s.scanline == SCANLINES - 1) {
+        m_s.regs[PPU_STATUS] &= ~(PPU_STATUS_VBLANK | PPU_STATUS_SPRITE0_HIT | PPU_STATUS_8SPRITES);
+    } else if (m_s.scanline == SCANLINES) {
+        if (!blanked) m_s.refreshData = m_s.refreshLatch;
+        m_s.scanline = 0;
+    }
+}
+
+void Vt369Core::updateScanline()
+{
+    if (m_s.scanline > BOTTOM_VISIBLE) return;
+    if (m_s.renderAtHblank) {
+        // update_visible_enabled_scanline
+        m_s.refreshData &= ~0x041f;
+        m_s.refreshData |= m_s.refreshLatch & 0x041f;
+        renderScanline();
+        scanlineIncrementFineY();
+    } else {
+        uint32_t backPen = m_s.backColor;
+        if (m_s.videomemAddr >= 0x3f00) backPen = m_s.paletteRam[m_s.videomemAddr & 0x1f];
+        for (int i = 0; i < W; i++) drawBackPen(pix(m_s.scanline, i), backPen);
+    }
+}
+
+void Vt369Core::scanlineIncrementFineY()
+{
+    m_s.refreshData += 0x1000;
+    if (m_s.refreshData & 0x8000) {
+        const uint16_t tmp = (m_s.refreshData & 0x03e0) + 0x20;
+        m_s.refreshData &= 0x7c1f;
+        if (tmp == 0x03c0) m_s.refreshData ^= 0x0800;
+        else m_s.refreshData |= tmp & 0x03e0;
+    }
+}
+
+void Vt369Core::renderScanline()
+{
+    uint8_t lp[W + 32];
+    memset(lp, 0, sizeof(lp));
+    if (m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_BACKGROUND) drawBackground(lp);
+    else drawBackgroundPen();
+    drawSprites(lp);
+}
+
+void Vt369Core::drawBackgroundPen()
+{
+    for (int i = 0; i < W; i++) drawBackPen(pix(m_s.scanline, i), m_s.backColor);
+}
+
+void Vt369Core::drawBackPen(uint32_t* dst, int backPen)
+{
+    if (m_s.extModes & 0x80) drawTilePixelInner(0, dst);
+    else *dst = m_pens[backPen & 0x1ff];
+}
+
+// ppu_vt03 / ppu_vt3xx read_tile_plane_data
+void Vt369Core::readTilePlaneDataVt03(int address, int color)
+{
+    const bool is4bpp = BIT(m_s.extModes, 1);
+    m_s.whichpixel = 0;
+    m_s.readBg4Bg3 = (m_s.extModes & 0x10) ? color : 0;
+    if (is4bpp) {
+        m_s.planebuf[0] = chrR((address + 0) & 0x1fff);
+        m_s.planebuf[1] = chrR((address + 8) & 0x1fff);
+        m_s.planebuf[2] = chrR(((address + 0) & 0x1fff) | 0x2000);
+        m_s.planebuf[3] = chrR(((address + 8) & 0x1fff) | 0x2000);
+    } else {
+        m_s.planebuf[0] = chrR(address & 0x1fff);
+        m_s.planebuf[1] = chrR((address + 8) & 0x1fff);
+    }
+}
+
+uint32_t Vt369Core::recalc8x8x4(int address, int va34)
+{
+    int finaladdr = (m_s.tilebases[0] | (m_s.tilebases[1] << 8)) * 0x2000;
+    int tileline = address & 7, tileplane = address & 8, tilenum = address & 0x0ff0;
+    int finaloffset = (tilenum << 1) | (tileline << 2) | (tileplane >> 2) | va34;
+    finaloffset += m_s.readBg4Bg3 * 0x2000;
+    return finaladdr + finaloffset;
+}
+
+uint32_t Vt369Core::recalc8x8x8(int address, int va34)
+{
+    int finaladdr = (m_s.tilebases[0] | (m_s.tilebases[1] << 8)) * 0x2000;
+    int tileline = address & 7, tileplane = address & 8;
+    const bool m = (m_s.newvid1c == 0x12) && (m_s.newvid1d == 0x09) && (m_s.newvid1e == 0x0f);
+    int tilenum = address & (m ? 0xfff0 : 0x0ff0);
+    int finaloffset = (tilenum << 2) | (tileline << 3) | (tileplane >> 1) | va34;
+    finaloffset += m_s.readBg4Bg3 * 0x4000;
+    return finaladdr + finaloffset;
+}
+
+uint32_t Vt369Core::recalc16x16x8(int address, int va34)
+{
+    int finaladdr = (m_s.tilebases[0] | (m_s.tilebases[1] << 8)) * 0x2000;
+    int tileline = address & 7, tileplane = address & 8, tilenum = (address & 0x0ff0) >> 4;
+    int finaloffset = tilenum * 0x100 + tileline * 0x20 + va34 + tileplane;
+    finaloffset += m_s.readBg4Bg3 * 0x10000;
+    return finaladdr + finaloffset;
+}
+
+void Vt369Core::readTilePlaneData(int address, int color)
+{
+    if (!m_s.newvid1e) { readTilePlaneDataVt03(address, color); return; }
+    m_s.readBg4Bg3 = color;
+    m_s.whichpixel = 0;
+    if (m_s.newvid1c & 0x04) {
+        for (int i = 0; i < 8; i++) {
+            m_s.planebuf[i * 2] = onespaceRel(recalc16x16x8((address + 0) & 0x1fff, i));
+            m_s.planebuf[i * 2 + 1] = onespaceRel(recalc16x16x8((address + 8) & 0x1fff, i));
+        }
+    } else if ((m_s.newvid1c & 0x03) == 0x02) {
+        const bool wide = (m_s.newvid1c == 0x12) && (m_s.newvid1d == 0x09) && (m_s.newvid1e == 0x0f);
+        const int a0 = wide ? (address + 0) : ((address + 0) & 0x1fff);
+        const int a8 = wide ? (address + 8) : ((address + 8) & 0x1fff);
+        for (int i = 0; i < 4; i++) {
+            m_s.planebuf[i * 2] = onespaceRel(recalc8x8x8(a0, i));
+            m_s.planebuf[i * 2 + 1] = onespaceRel(recalc8x8x8(a8, i));
+        }
+    } else {
+        m_s.planebuf[0] = onespaceRel(recalc8x8x4((address + 0) & 0x1fff, 0));
+        m_s.planebuf[1] = onespaceRel(recalc8x8x4((address + 8) & 0x1fff, 0));
+        m_s.planebuf[2] = onespaceRel(recalc8x8x4((address + 0) & 0x1fff, 1));
+        m_s.planebuf[3] = onespaceRel(recalc8x8x4((address + 8) & 0x1fff, 1));
+    }
+}
+
+void Vt369Core::shiftTilePlaneDataVt03(uint8_t& p)
+{
+    const bool is4bpp = BIT(m_s.extModes, 1);
+    int b = ~m_s.whichpixel & 7;
+    p = BIT(m_s.planebuf[0], b) | (BIT(m_s.planebuf[1], b) << 1);
+    if (is4bpp) p |= (BIT(m_s.planebuf[2], b) << 5) | (BIT(m_s.planebuf[3], b) << 6);
+    m_s.whichpixel++;
+}
+
+void Vt369Core::shiftTilePlaneData(uint8_t& p)
+{
+    if (!m_s.newvid1e) { shiftTilePlaneDataVt03(p); return; }
+    int w = m_s.whichpixel;
+    if (m_s.newvid1c & 0x04) p = m_s.planebuf[((w & 3) << 2) | BIT(w, 2)];
+    else if ((m_s.newvid1c & 0x03) == 0x02) p = m_s.planebuf[(BIT(w, 1) << 2) | (BIT(w, 0) << 1) | BIT(w, 2)];
+    else p = (m_s.planebuf[(BIT(w, 1) << 1) | BIT(w, 2)] >> (BIT(w, 0) << 2)) & 0x0f;
+    m_s.whichpixel++;
+}
+
+void Vt369Core::drawTilePixelInner(uint8_t pen, uint32_t* dest)
+{
+    if (m_s.newvid1e) {
+        uint16_t pal0 = ppuReadbyte(((pen & 0xff) * 2) + 0x3c00);
+        pal0 |= ppuReadbyte(((pen & 0xff) * 2) + 0x3c01) << 8;
+        *dest = rgb(((pal0 >> 10) & 0x1f) << 3, ((pal0 >> 5) & 0x1f) << 3, (pal0 & 0x1f) << 3);
+    } else if (BIT(m_s.extModes, 7)) {
+        // PAL_MODE_NEW_RGB
+        uint32_t palval = (m_s.paletteRam[pen & 0x7f] & 0xff) | ((m_s.paletteRam[(pen & 0x7f) + 0x80] & 0x7f) << 8);
+        palval |= ((m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_COLOR_EMPHASIS) << 10);
+        *dest = m_rgb555[palval & 0x3ffff];
+    } else {
+        uint16_t palval = m_s.paletteRam[pen & 0x7f] & 0x3f;
+        if (m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_DISPLAY_MONO) palval &= 0x30;
+        palval |= ((m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_COLOR_EMPHASIS) << 1);
+        *dest = m_pens[palval & 0x1ff];
+    }
+}
+
+void Vt369Core::drawTilePixel(uint8_t p, int color, uint32_t backPen, uint32_t* dest)
+{
+    if (m_s.newvid1e) { drawTilePixelInner(p, dest); return; }
+    if (!BIT(m_s.extModes, 1)) {
+        const uint16_t palval = p ? m_s.paletteRam[((4 * color) + p) & 0x1f] : backPen;
+        *dest = m_pens[apply_grayscale_and_emphasis(palval)];
+    } else {
+        int basepen = (m_s.extModes & 0x10) ? 0 : 4 * color;
+        drawTilePixelInner(p ? p + basepen : 0, dest);
+    }
+}
+
+void Vt369Core::drawTile(uint8_t* lp, int colorByte, int colorBits, int address, int startX, uint32_t backPen, uint32_t*& dest)
+{
+    const int color = (colorByte >> colorBits) & 0x03;
+    readTilePlaneData(address, color);
+    for (int i = 0; i < 8; i++) {
+        uint8_t p;
+        shiftTilePlaneData(p);
+        if ((startX + i) >= 0 && (startX + i) < W) {
+            drawTilePixel(p, color, backPen, dest);
+            if (p) lp[startX + i] |= 0x02;
+        }
+        dest++;
+    }
+}
+
+void Vt369Core::drawBackgroundBase(uint8_t* lp)
+{
+    const uint8_t sxc = m_s.refreshData & 0x001f;
+    const uint8_t syc = (m_s.refreshData & 0x03e0) >> 5;
+    const uint16_t nametable = m_s.refreshData & 0x0c00;
+    const uint8_t syf = (m_s.refreshData & 0x7000) >> 12;
+    int x = sxc;
+    int tileIndex = (nametable | 0x2000) + syc * 32;
+    int startX = (m_s.xFine ^ 0x07) - 7;
+    uint32_t* dest = pix(m_s.scanline, startX);
+    m_s.tilecount = 0;
+    while (m_s.tilecount < 34) {
+        const int index1 = tileIndex + x;
+        const int page2 = ppuReadbyte(index1);
+        const int pos = ((index1 & 0x380) >> 4) | ((index1 & 0x1f) >> 2);
+        const int page = (index1 & 0x0c00) >> 10;
+        int address = 0x3c0 + pos;
+        const int colorByte = ppuReadbyte((((page * 0x400) + address) & 0xfff) + 0x2000);
+        const int colorBits = ((index1 & 0x40) >> 4) + (index1 & 0x02);
+        if (startX < W) {
+            address = (m_s.tilePage ? 0x1000 : 0) + (page2 * 16) + syf;
+            drawTile(lp, colorByte, colorBits, address, startX, m_s.backColor, dest);
+            startX += 8;
+            x++;
+            if (x > 31) { x = 0; tileIndex ^= 0x400; }
+        }
+        m_s.tilecount++;
+    }
+    if (!(m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_BACKGROUND_L8)) {
+        dest = pix(m_s.scanline, 0);
+        for (int i = 0; i < 8; i++) { drawBackPen(dest, m_s.backColor); dest++; lp[i] ^= 0x02; }
+    }
+}
+
+void Vt369Core::drawBackground(uint8_t* lp)
+{
+    const bool names64 = (m_s.newvid1c == 0x12) && (m_s.newvid1d == 0x09) && (m_s.newvid1e == 0x0f)
+        && BIT(m_s.tilebases[0], 4) && (m_s.tilebases[2] == 0x08);
+    if (!names64) { drawBackgroundBase(lp); return; }
+    const uint8_t sxc = m_s.refreshData & 0x001f;
+    const uint8_t syc = (m_s.refreshData & 0x03e0) >> 5;
+    const uint16_t nametable = m_s.refreshData & 0x0c00;
+    const uint8_t syf = (m_s.refreshData & 0x7000) >> 12;
+    int x = sxc;
+    const uint8_t srcY = (syc + (BIT(nametable, 11) ? 30 : 0)) & 0x1f;
+    int tileIndex = 0x2000 + srcY * 64;
+    int startX = (m_s.xFine ^ 0x07) - 7;
+    uint32_t* dest = pix(m_s.scanline, startX);
+    m_s.tilecount = 0;
+    while (m_s.tilecount < 34) {
+        const int index1 = tileIndex + x * 2;
+        const int page2 = ppuReadbyte(index1) | (ppuReadbyte(index1 + 1) << 8);
+        if (startX < W) {
+            readTilePlaneData((m_s.tilePage ? 0x1000 : 0) + (page2 * 16) + syf, 0);
+            for (int i = 0; i < 8; i++) {
+                uint8_t p;
+                shiftTilePlaneData(p);
+                if ((startX + i) >= 0 && (startX + i) < W) {
+                    drawTilePixel(p, 0, m_s.backColor, dest);
+                    if (p) lp[startX + i] |= 0x02;
+                }
+                dest++;
+            }
+            startX += 8;
+            x++;
+            if (x > 31) x = 0;
+        }
+        m_s.tilecount++;
+    }
+    if (!(m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_BACKGROUND_L8)) {
+        dest = pix(m_s.scanline, 0);
+        for (int i = 0; i < 8; i++) { drawBackPen(dest, m_s.backColor); dest++; lp[i] ^= 0x02; }
+    }
+}
+
+// --- sprites ---
+void Vt369Core::readSpritePlaneData(int address)
+{
+    m_s.planebuf[0] = sprR((address + 0) & 0x1fff);
+    m_s.planebuf[1] = sprR((address + 8) & 0x1fff);
+    if (BIT(m_s.extModes, 2)) {
+        m_s.planebuf[2] = sprR(((address + 0) & 0x1fff) | 0x2000);
+        m_s.planebuf[3] = sprR(((address + 8) & 0x1fff) | 0x2000);
+    }
+}
+
+void Vt369Core::makeSpritePixelData(uint8_t& pd, bool flipx)
+{
+    if (flipx) {
+        pd = (m_s.planebuf[0] & 1) | ((m_s.planebuf[1] & 1) << 1);
+        m_s.planebuf[0] >>= 1; m_s.planebuf[1] >>= 1;
+    } else {
+        pd = BIT(m_s.planebuf[0], 7) | (BIT(m_s.planebuf[1], 7) << 1);
+        m_s.planebuf[0] <<= 1; m_s.planebuf[1] <<= 1;
+    }
+    const bool is4bpp = BIT(m_s.extModes, 2), is16pix = BIT(m_s.extModes, 0);
+    if (is4bpp) {
+        if (flipx) {
+            pd |= ((m_s.planebuf[2] & 1) << 5) | ((m_s.planebuf[3] & 1) << 6);
+            m_s.planebuf[2] >>= 1; m_s.planebuf[3] >>= 1;
+            if (is16pix) {
+                const uint8_t p0 = pd & 3, p1 = (pd >> 5) & 3;
+                pd = p1 | (p0 << 5);
+            }
+        } else {
+            pd |= (((m_s.planebuf[2] >> 7) & 1) << 5) | (((m_s.planebuf[3] >> 7) & 1) << 6);
+            m_s.planebuf[2] <<= 1; m_s.planebuf[3] <<= 1;
+        }
+    }
+}
+
+void Vt369Core::drawSpritePixel(int xpos, int color, int pixel, uint8_t pd)
+{
+    const bool is4bpp = BIT(m_s.extModes, 2), is16pix = BIT(m_s.extModes, 0);
+    if (is4bpp) {
+        if (!is16pix) drawTilePixelInner(pd + (4 * color), pix(m_s.scanline, xpos + pixel));
+        else {
+            if (pd & 3) drawTilePixelInner((pd & 3) + (4 * color), pix(m_s.scanline, xpos + pixel));
+            if ((pd >> 5) & 3) drawTilePixelInner(((pd >> 5) & 3) + (4 * color), pix(m_s.scanline, xpos + pixel + 8));
+        }
+    } else {
+        const uint16_t palval = m_s.paletteRam[((4 * color) | pd) & 0x1f];
+        *pix(m_s.scanline, xpos + pixel) = m_pens[apply_grayscale_and_emphasis(palval)];
+    }
+}
+
+void Vt369Core::drawSpritePixelLow(int pd, int pixel, int xpos, int color, int idx, uint8_t* lp)
+{
+    if (pd) {
+        if ((xpos + pixel) < W) {
+            if (!lp[xpos + pixel]) drawSpritePixel(xpos, color, pixel, pd);
+            lp[xpos + pixel] |= 0x01;
+        }
+    }
+    if (idx == 0 && (pd & 3) && ((xpos + pixel) < 255) && (lp[xpos + pixel] & 0x02)) m_s.regs[PPU_STATUS] |= PPU_STATUS_SPRITE0_HIT;
+}
+
+void Vt369Core::drawSpritePixelHigh(int pd, int pixel, int xpos, int color, int idx, uint8_t* lp)
+{
+    if (pd) {
+        if ((xpos + pixel) < W) {
+            if (BIT(~lp[xpos + pixel], 0)) {
+                drawSpritePixel(xpos, color, pixel, pd);
+                lp[xpos + pixel] |= 0x01;
+            }
+        }
+    }
+    if (idx == 0 && (pd & 3) && ((xpos + pixel) < 255) && (lp[xpos + pixel] & 0x02)) m_s.regs[PPU_STATUS] |= PPU_STATUS_SPRITE0_HIT;
+}
+
+void Vt369Core::drawSpritesBase(uint8_t* lp)
+{
+    int count = 0;
+    int size = (m_s.regs[PPU_CONTROL0] & PPU_CONTROL0_SPRITE_SIZE) ? 16 : 8;
+    int firstPixel = (m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_SPRITES_L8) ? 0 : 8;
+    for (int si = 0; si < 0x100; si += 4) {
+        int ypos = m_s.spriteram[si] + 1;
+        int xpos = m_s.spriteram[si + 3];
+        if (si == 0 && xpos == 254) {
+            ypos--;
+            if (ypos <= m_s.scanline && m_s.scanline < ypos + size && (lp[xpos] & 0x02)) m_s.regs[PPU_STATUS] |= PPU_STATUS_SPRITE0_HIT;
+        }
+        if ((ypos + size <= m_s.scanline) || (ypos > m_s.scanline)) continue;
+        int tile = m_s.spriteram[si + 1];
+        const int color = (m_s.spriteram[si + 2] & 0x03) + 4;
+        const bool pri = BIT(m_s.spriteram[si + 2], 5);
+        const bool flipx = BIT(m_s.spriteram[si + 2], 6);
+        const bool flipy = BIT(m_s.spriteram[si + 2], 7);
+        m_s.extraSpriteBits = (m_s.spriteram[si + 2] & 0x1c) >> 2;
+        if (size == 16 && BIT(tile, 0)) { tile &= ~1; tile |= 0x100; }
+        int line = m_s.scanline - ypos;
+        if (flipy) line = (size - 1) - line;
+        if (size == 16 && line > 7) { tile++; line -= 8; }
+        int index1 = tile * 16;
+        if (size == 8) index1 += m_s.spritePage == 0 ? 0 : 0x1000;
+        readSpritePlaneData(index1 + line);
+        if (count == 8) { m_s.regs[PPU_STATUS] |= PPU_STATUS_8SPRITES; break; }
+        count++;
+        if (!(m_s.regs[PPU_CONTROL1] & PPU_CONTROL1_SPRITES)) continue;
+        for (int p = 0; p < 8; p++) {
+            uint8_t pd;
+            makeSpritePixelData(pd, flipx);
+            if (xpos + p >= firstPixel) {
+                if (pri) drawSpritePixelLow(pd, p, xpos, color, si, lp);
+                else drawSpritePixelHigh(pd, p, xpos, color, si, lp);
+            }
+        }
+    }
+}
+
+uint32_t Vt369Core::getPenValue(int pd, int bpp, int pal)
+{
+    uint8_t pen = (bpp == 4) ? (pd | pal << 4) : pd;
+    uint16_t pal0 = ppuReadbyte(((pen & 0xff) * 2) + 0x3e00);
+    pal0 |= ppuReadbyte(((pen & 0xff) * 2) + 0x3e01) << 8;
+    return rgb(((pal0 >> 10) & 0x1f) << 3, ((pal0 >> 5) & 0x1f) << 3, (pal0 & 0x1f) << 3);
+}
+
+void Vt369Core::drawSpritesHighRes(uint8_t*)
+{
+    for (int n = 0; n < 0x40; n++) {
+        const uint8_t* s = &m_s.spriteram[n * 8];
+        int ypos = s[0];
+        int tilenum = s[1] | (s[2] << 8);
+        int bpp = (s[3] & 0x80) ? 8 : 4;
+        int width = 4 << ((s[3] & 0x30) >> 4);
+        int height = 4 << ((s[3] & 0x0c) >> 2);
+        int pal = s[6] & 0x3f;
+        int xpos = s[7];
+        if ((ypos + height <= m_s.scanline) || (ypos > m_s.scanline)) continue;
+        const int line = m_s.scanline - ypos;
+        int off = (bpp == 4) ? tilenum * (2 * height * width) + line * (2 * width) : tilenum * (4 * height * width) + line * (4 * width);
+        off += (m_s.tilebases[2] | (m_s.tilebases[3] << 8)) * 0x2000;
+        for (int p = 0; p < width; p++) {
+            uint8_t pd = (bpp == 4) ? (onespaceRel(off + p) & 0xf) : onespaceRel(off + p * 2);
+            if (xpos + p >= 0 && pd && (xpos + p) < W) *pix(m_s.scanline, xpos + p) = getPenValue(pd, bpp, pal);
+        }
+    }
+}
+
+void Vt369Core::drawSpritesStandardRes(uint8_t* lp)
+{
+    for (int n = 0; n < 0x80; n++) {
+        const bool newFormat = m_s.newvid1e & 0x04;
+        int ypT = 0x000, xpT = 0x003, tnT = 0x001, exT = 0x002, step = 4;
+        if (newFormat) { ypT = 0x000; xpT = 0x180; tnT = 0x080; exT = 0x100; step = 1; }
+        const int o = n * step;
+        int pri = 0;
+        int ypos = m_s.spriteram[ypT + o];
+        int xpos = m_s.spriteram[xpT + o];
+        int tilenum = m_s.spriteram[tnT + o];
+        uint8_t ex = m_s.spriteram[exT + o];
+        tilenum |= (ex & 0x1c) << 6;
+        int pal = ex & 0x03;
+        if (m_s.newvid1d & 0x08) {
+            pal |= (ex & 0x20) >> 3;
+            if (ex & 0x40) xpos = -0x100 + xpos;
+            if (ex & 0x80) ypos = -0x100 + ypos;
+        } else pri = (ex & 0x20) >> 5;
+        int height, width, bpp;
+        bool alt16 = false;
+        if (newFormat) {
+            height = 16; width = 8; bpp = 8;
+            if (m_s.newvid1d & 0x02) { width = 16; bpp = 4; }
+            if ((!(m_s.newvid1d & 0x04)) && (m_s.newvid1c & 0x10)) { alt16 = true; bpp = 4; }
+        } else {
+            height = (m_s.regs[PPU_CONTROL0] & PPU_CONTROL0_SPRITE_SIZE) ? 16 : 8;
+            width = 8; bpp = 8;
+            if ((m_s.newvid1c == 0x12) && (m_s.newvid1d == 0x0f) && (m_s.newvid1e == 0x0b)) { bpp = 4; width = 16; height = 16; }
+        }
+        if ((ypos + height <= m_s.scanline) || (ypos > m_s.scanline)) continue;
+        const int line = m_s.scanline - ypos;
+        int index1 = (bpp == 4) ? (alt16 ? tilenum * 32 : tilenum * 128) : tilenum * 64;
+        int off = alt16 ? index1 + line * 4 : index1 + line * 8;
+        off += (m_s.tilebases[2] | (m_s.tilebases[3] << 8)) * 0x2000;
+        uint8_t buf[8];
+        for (int i = 0; i < 8; i++) buf[i] = onespaceRel(off + i);
+        for (int p = 0; p < width; p++) {
+            uint8_t pd;
+            if (bpp == 4) { pd = buf[p >> 1]; pd = (p & 1) ? (pd >> 4) : (pd & 0xf); }
+            else pd = buf[p];
+            if (xpos + p < 0 || !pd || (xpos + p) >= W) continue;
+            if (pri) {
+                if (!lp[xpos + p]) { *pix(m_s.scanline, xpos + p) = getPenValue(pd, bpp, pal); lp[xpos + p] |= 0x01; }
+            } else {
+                if (BIT(~lp[xpos + p], 0)) { *pix(m_s.scanline, xpos + p) = getPenValue(pd, bpp, pal); lp[xpos + p] |= 0x01; }
+            }
+        }
+    }
+}
+
+void Vt369Core::drawSprites(uint8_t* lp)
+{
+    if (!m_s.newvid1e) drawSpritesBase(lp);
+    else if (m_s.newvid1c & 0x04) drawSpritesHighRes(lp);
+    else drawSpritesStandardRes(lp);
+}
+
+/*************************************************************************
+ APU (nes_apu.cpp)
+*************************************************************************/
+
+static const uint8_t vbl_length[32] = {
+    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14,
+    12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30 };
+static const int freq_limit[8] = { 0x3FF, 0x555, 0x666, 0x71C, 0x787, 0x7C1, 0x7E0, 0x7F0 };
+static const int noise_freq[16] = { 4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068 };
+static const int dpcm_clocks[16] = { 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106, 84, 72, 54 };
+static const int duty_lut[4] = { 0b01000000, 0b01100000, 0b01111000, 0b10011111 };
+
+void Vt369Core::apuInit()
+{
+    const uint32_t frameClocks = 29830;
+    m_sampsPerSync = frameClocks / 4;
+    for (int i = 0; i < 0x20; i++) {
+        m_vblTimes[i] = vbl_length[i] * m_sampsPerSync / 2;
+        m_syncTimes1[i] = m_sampsPerSync * (i + 1);
+    }
+    for (int i = 0; i < 0x80; i++) m_syncTimes2[i] = (m_sampsPerSync * i) >> 2;
+    for (int i = 0; i < 31; i++) m_squareLut[i] = (i == 0) ? 0.0f : (float)(95.88 / ((8128.0 / i) + 100.0));
+    for (int t = 0; t < 16; t++)
+        for (int n = 0; n < 16; n++)
+            for (int d = 0; d < 128; d++) {
+                double o = (t / 8227.0) + (n / 12241.0) + (d / 22638.0);
+                m_tndLut[t][n][d] = (float)((o == 0.0) ? 0.0 : 159.79 / ((1.0 / o) + 100.0));
+            }
+}
+
+static const int64_t FRAME_TIMER_DOTS = 29830 * 3;   // m_frame_period (APU clock = CPU clock = 3 dots)
+
+void Vt369Core::apuReset()
+{
+    m_s.stepMode = 4;
+    m_s.frameIrqEnabled = 1;
+    m_s.frameTimerAt = m_s.dot + FRAME_TIMER_DOTS;
+    m_s.noi.lfsr = 1;
+    apuWrite(0x15, 0x00);
+    m_s.tri.adder = 0;
+}
+
+void Vt369Core::apuSquare(State::Square* chan)
+{
+    if (!chan->enabled) { chan->output = 0; return; }
+    int env_delay = m_syncTimes1[chan->regs[0] & 0x0f];
+    chan->env_phase -= 4;
+    while (chan->env_phase < 0) {
+        chan->env_phase += env_delay;
+        if (chan->regs[0] & 0x20) chan->env_vol = (chan->env_vol + 1) & 15;
+        else if (chan->env_vol < 15) chan->env_vol++;
+    }
+    if (chan->vbl_length > 0 && !(chan->regs[0] & 0x20)) chan->vbl_length--;
+    if (!chan->vbl_length) { chan->output = 0; return; }
+    if ((chan->regs[1] & 0x80) && (chan->regs[1] & 7)) {
+        int sweep_delay = m_syncTimes1[(chan->regs[1] >> 4) & 7];
+        chan->sweep_phase -= 2;
+        while (chan->sweep_phase < 0) {
+            chan->sweep_phase += sweep_delay;
+            if (chan->regs[1] & 8) chan->freq -= chan->freq >> (chan->regs[1] & 7);
+            else chan->freq += chan->freq >> (chan->regs[1] & 7);
+        }
+    }
+    if ((!(chan->regs[1] & 8) && (chan->freq >> 16) > freq_limit[chan->regs[1] & 7]) || (chan->freq >> 16) < 4) { chan->output = 0; return; }
+    chan->phaseacc -= 4;
+    while (chan->phaseacc < 0) { chan->phaseacc += (chan->freq >> 16); chan->adder = (chan->adder + 1) & 0x0f; }
+    chan->output = (chan->regs[0] & 0x10) ? (chan->regs[0] & 0x0f) : (0x0f - chan->env_vol);
+    int bit = ((chan->adder >> 1) & 7);
+    chan->output *= BIT(duty_lut[chan->regs[0] >> 6], 7 - bit);
+}
+
+void Vt369Core::apuTriangle(State::Triangle* chan)
+{
+    if (!chan->enabled) return;
+    bool not_held = !BIT(chan->regs[0], 7);
+    if (!chan->counter_started && not_held) {
+        if (chan->write_latency) chan->write_latency--;
+        if (!chan->write_latency) chan->counter_started = 1;
+    }
+    if (chan->counter_started) {
+        if (chan->linear_reload) chan->linear_length = m_syncTimes2[chan->regs[0] & 0x7f];
+        else if (chan->linear_length > 0) chan->linear_length--;
+        if (not_held) chan->linear_reload = 0;
+        if (chan->vbl_length && not_held) chan->vbl_length--;
+    }
+    if (!(chan->linear_length && chan->vbl_length)) return;
+    int freq = ((chan->regs[3] & 7) << 8) + chan->regs[2] + 1;
+    if (freq < 2) return;
+    chan->phaseacc -= 4;
+    while (chan->phaseacc < 0) {
+        chan->phaseacc += freq;
+        chan->adder++;
+        chan->output = chan->adder & 0xf;
+        if (!BIT(chan->adder, 4)) chan->output ^= 0xf;
+    }
+}
+
+void Vt369Core::apuNoise(State::Noise* chan)
+{
+    if (!chan->enabled) { chan->output = 0; return; }
+    int env_delay = m_syncTimes1[chan->regs[0] & 0x0f];
+    chan->env_phase -= 4;
+    while (chan->env_phase < 0) {
+        chan->env_phase += env_delay;
+        if (chan->regs[0] & 0x20) chan->env_vol = (chan->env_vol + 1) & 15;
+        else if (chan->env_vol < 15) chan->env_vol++;
+    }
+    if (!(chan->regs[0] & 0x20) && chan->vbl_length > 0) chan->vbl_length--;
+    if (!chan->vbl_length) { chan->output = 0; return; }
+    int freq = noise_freq[chan->regs[2] & 0x0f];
+    chan->phaseacc -= 4;
+    while (chan->phaseacc < 0) {
+        chan->phaseacc += freq;
+        // nesapu_device::update_lfsr (the VT APU is NES_APU, not APU_2A03)
+        chan->lfsr |= (BIT(chan->lfsr, 0) ^ BIT(chan->lfsr, (chan->regs[2] & 0x80) ? 6 : 1)) << 15;
+        chan->lfsr >>= 1;
+    }
+    if (BIT(chan->lfsr, 0)) { chan->output = 0; return; }
+    chan->output = (chan->regs[0] & 0x10) ? (chan->regs[0] & 0x0f) : (0x0f - chan->env_vol);
+}
+
+void Vt369Core::dpcmReset(State::Dpcm* chan)
+{
+    chan->address = 0xc000 + (uint16_t)(chan->regs[2] << 6);
+    chan->length = (uint16_t)(chan->regs[3] << 4) + 1;
+    chan->bits_left = chan->length << 3;
+    chan->enabled = 1;
+}
+
+void Vt369Core::apuDpcm(State::Dpcm* chan)
+{
+    if (chan->enabled) {
+        int freq = dpcm_clocks[chan->regs[0] & 0x0f];
+        chan->phaseacc -= 4;
+        while (chan->phaseacc < 0) {
+            chan->phaseacc += freq;
+            if (!chan->length) {
+                chan->enabled = 0;
+                if (chan->regs[0] & 0x40) dpcmReset(chan);
+                else { if (chan->regs[0] & 0x80) chan->irq_occurred = 1; break; }
+            }
+            chan->bits_left--;
+            int bit_pos = 7 - (chan->bits_left & 7);
+            if (bit_pos == 7) {
+                chan->cur_byte = 0x00;      // apu_read_mem is a TODO in MAME's VT SoC
+                chan->address++;
+                chan->length--;
+            }
+            if ((chan->cur_byte & (1 << bit_pos)) && (chan->vol <= 125)) chan->vol += 2;
+            else if (chan->vol >= 2) chan->vol -= 2;
+        }
+    }
+    chan->output = (uint8_t)chan->vol;
+}
+
+void Vt369Core::apuWrite(int offset, uint8_t value)
+{
+    State& s = m_s;
+    int chan = BIT(offset, 2);
+    switch (offset) {
+    case 0x00: case 0x04: s.squ[chan].regs[0] = value; break;
+    case 0x01: case 0x05: s.squ[chan].regs[1] = value; break;
+    case 0x02: case 0x06:
+        s.squ[chan].regs[2] = value;
+        if (s.squ[chan].enabled) s.squ[chan].freq = ((((s.squ[chan].regs[3] & 7) << 8) + value) + 1) << 16;
+        break;
+    case 0x03: case 0x07:
+        s.squ[chan].regs[3] = value;
+        if (s.squ[chan].enabled) {
+            s.squ[chan].vbl_length = m_vblTimes[value >> 3];
+            s.squ[chan].env_vol = 0;
+            s.squ[chan].freq = ((((value & 7) << 8) + s.squ[chan].regs[2]) + 1) << 16;
+        }
+        break;
+    case 0x08:
+        s.tri.regs[0] = value;
+        if (s.tri.enabled && !s.tri.counter_started) s.tri.linear_length = m_syncTimes2[value & 0x7f];
+        break;
+    case 0x0a: s.tri.regs[2] = value; break;
+    case 0x0b:
+        s.tri.regs[3] = value;
+        s.tri.write_latency = (m_sampsPerSync + 239) / 240;
+        if (s.tri.enabled) {
+            s.tri.counter_started = 0;
+            s.tri.vbl_length = m_vblTimes[value >> 3];
+            s.tri.linear_length = m_syncTimes2[s.tri.regs[0] & 0x7f];
+            s.tri.linear_reload = 1;
+        }
+        break;
+    case 0x0c: s.noi.regs[0] = value; break;
+    case 0x0e: s.noi.regs[2] = value; break;
+    case 0x0f:
+        s.noi.regs[3] = value;
+        if (s.noi.enabled) { s.noi.vbl_length = m_vblTimes[value >> 3]; s.noi.env_vol = 0; }
+        break;
+    case 0x10:
+        s.dpcm.regs[0] = value;
+        if (!(value & 0x80)) s.dpcm.irq_occurred = 0;
+        break;
+    case 0x11: s.dpcm.regs[1] = value & 0x7f; s.dpcm.vol = s.dpcm.regs[1]; break;
+    case 0x12: s.dpcm.regs[2] = value; break;
+    case 0x13: s.dpcm.regs[3] = value; break;
+    case 0x17:
+        s.stepMode = (value & 0x80) ? 5 : 4;
+        s.frameIrqEnabled = !BIT(value, 6);
+        if (s.frameIrqEnabled) s.frameTimerAt = s.dot + FRAME_TIMER_DOTS;
+        else { s.frameIrqOccurred = 0; s.frameTimerAt = -1; }
+        break;
+    case 0x15:
+        if (value & 1) s.squ[0].enabled = 1; else { s.squ[0].enabled = 0; s.squ[0].vbl_length = 0; }
+        if (value & 2) s.squ[1].enabled = 1; else { s.squ[1].enabled = 0; s.squ[1].vbl_length = 0; }
+        if (value & 4) s.tri.enabled = 1;
+        else { s.tri.enabled = 0; s.tri.vbl_length = 0; s.tri.linear_length = 0; s.tri.counter_started = 0; s.tri.write_latency = 0; }
+        if (value & 8) s.noi.enabled = 1; else { s.noi.enabled = 0; s.noi.vbl_length = 0; }
+        if (value & 0x10) { if (!s.dpcm.enabled) { s.dpcm.enabled = 1; dpcmReset(&s.dpcm); } }
+        else s.dpcm.enabled = 0;
+        s.dpcm.irq_occurred = 0;
+        break;
+    }
+}
+
+uint8_t Vt369Core::apuStatus()
+{
+    uint8_t r = 0;
+    if (m_s.squ[0].vbl_length > 0) r |= 0x01;
+    if (m_s.squ[1].vbl_length > 0) r |= 0x02;
+    if (m_s.tri.vbl_length > 0) r |= 0x04;
+    if (m_s.noi.vbl_length > 0) r |= 0x08;
+    if (m_s.dpcm.enabled) r |= 0x10;
+    if (m_s.frameIrqOccurred) r |= 0x40;
+    if (m_s.dpcm.irq_occurred) r |= 0x80;
+    m_s.frameIrqOccurred = 0;
+    return r;
+}
+
+void Vt369Core::apuSample()
+{
+    apuSquare(&m_s.squ[0]);
+    apuSquare(&m_s.squ[1]);
+    apuTriangle(&m_s.tri);
+    apuNoise(&m_s.noi);
+    apuDpcm(&m_s.dpcm);
+    float acc = m_squareLut[m_s.squ[0].output + m_s.squ[1].output];
+    acc += m_tndLut[m_s.tri.output][m_s.noi.output][m_s.dpcm.output];
+    // box-filter down to 44.1 kHz
+    m_s.resampleSum += acc;
+    m_s.resampleN++;
+    m_s.resampleAcc += 44100.0;
+    const double apuRate = 21477272.0 / 12.0 / 4.0;
+    if (m_s.resampleAcc >= apuRate) {
+        m_s.resampleAcc -= apuRate;
+        double v = m_s.resampleSum / m_s.resampleN;
+        m_s.resampleSum = 0; m_s.resampleN = 0;
+        // DC blocker (the NES mix is unipolar), then the level MAME routes (0.5)
+        double y = v - m_s.dcPrevIn + 0.995 * m_s.dcPrevOut;
+        m_s.dcPrevIn = v; m_s.dcPrevOut = y;
+        int sv = (int)(y * 32767.0 * 0.6);
+        m_audio.push_back((int16_t)std::clamp(sv, -32768, 32767));
+    }
+}
+
+void Vt369Core::apuSync()
+{
+    // frame_timer_cb (its IRQ output isn't connected on the VT SoC, but $4015 bit 6 is readable)
+    while (m_s.frameTimerAt >= 0 && m_s.frameTimerAt <= m_s.dot) {
+        if (m_s.stepMode == 4 && m_s.frameIrqEnabled) m_s.frameIrqOccurred = 1;
+        m_s.frameTimerAt += FRAME_TIMER_DOTS;
+    }
+    while (m_s.apuDot + DOTS_PER_APU_SAMPLE <= m_s.dot) {
+        m_s.apuDot += DOTS_PER_APU_SAMPLE;
+        apuSample();
+    }
+}
+
+size_t Vt369Core::readAudio(int16_t* out, size_t maxSamples)
+{
+    size_t n = std::min(maxSamples, m_audio.size());
+    std::memcpy(out, m_audio.data(), n * sizeof(int16_t));
+    m_audio.erase(m_audio.begin(), m_audio.begin() + n);
+    return n;
+}
+
+/*************************************************************************
+ Frame loop
+*************************************************************************/
+
+int64_t Vt369Core::nextEventDot() const
+{
+    // hblank_tick: cycles_to_attotime(260) / 3 into the line (depends on the CPU clock)
+    int64_t ev = m_s.evPhase == 0 ? m_s.lineStart + 260 / m_s.clockMul : m_s.lineStart + DOTS_PER_LINE;
+    if (m_s.nmiAt >= 0 && m_s.nmiAt < ev) ev = m_s.nmiAt;
+    return ev;
+}
+
+void Vt369Core::fireEvent()
+{
+    int64_t ev = m_s.evPhase == 0 ? m_s.lineStart + 260 / m_s.clockMul : m_s.lineStart + DOTS_PER_LINE;
+    if (m_s.nmiAt >= 0 && m_s.nmiAt <= ev) {
+        m_s.nmiAt = -1;
+        m_cpu.pulseNmi();
+    } else if (m_s.evPhase == 0) {
+        m_s.evPhase = 1;
+        hblankTick();
+    } else {
+        m_s.evPhase = 0;
+        m_s.lineStart += DOTS_PER_LINE;
+        scanlineTick();
+        if (m_s.scanline == 0) m_frameDone = true;
+    }
+    // raised in the middle of an instruction: seen at the end of it
+    if (m_inInst) m_cpu.m_irqSkip = m_cpu.m_nmiSkip = false;
+}
+
+void Vt369Core::runFrame()
+{
+#ifdef VT_DEBUG
+    g_vtFrame++;
+#endif
+    // one full PPU frame (262 lines), ending after the last scanline
+    m_frameDone = false;
+    while (!m_frameDone) {
+        while (m_s.dot < nextEventDot()) {
+            m_instStart = m_s.dot;
+            m_access = 0;
+            m_inInst = true;
+            int cyc = m_cpu.step();
+            m_inInst = false;
+            m_s.dot += cyc * (3 / m_s.clockMul);
+        }
+        while (!m_frameDone && nextEventDot() <= m_s.dot) fireEvent();
+    }
+    apuSync();
+    if (m_audio.size() > 44100) m_audio.erase(m_audio.begin(), m_audio.end() - 4096);
+    // copy the finished picture
+    for (int y = 0; y < 240; y++) std::memcpy(&m_out[y * 256], pix(y, 0), 256 * 4);
+}
+
+/*************************************************************************
+ Save state
+*************************************************************************/
+
+bool Vt369Core::saveState(std::vector<uint8_t>& out)
+{
+    out.clear();
+    uint32_t magic = 0x39335456;   // 'VT39'
+    auto put = [&](const void* p, size_t n) { const uint8_t* b = (const uint8_t*)p; out.insert(out.end(), b, b + n); };
+    put(&magic, 4);
+    put(&m_s, sizeof(m_s));
+    put(&m_cpu.pc, 2); put(&m_cpu.a, 1); put(&m_cpu.x, 1); put(&m_cpu.y, 1); put(&m_cpu.s, 1); put(&m_cpu.p, 1);
+    uint8_t lines = (m_cpu.m_irqLine ? 1 : 0) | (m_cpu.m_nmiPending ? 2 : 0);
+    put(&lines, 1);
+    put(m_bitmapBuf, sizeof(m_bitmapBuf));
+    return true;
+}
+
+bool Vt369Core::loadState(const std::vector<uint8_t>& in)
+{
+    size_t need = 4 + sizeof(m_s) + 8 + 1 + sizeof(m_bitmapBuf);
+    if (in.size() != need) return false;
+    uint32_t magic; memcpy(&magic, in.data(), 4);
+    if (magic != 0x39335456) return false;
+    const uint8_t* p = in.data() + 4;
+    memcpy(&m_s, p, sizeof(m_s)); p += sizeof(m_s);
+    memcpy(&m_cpu.pc, p, 2); p += 2;
+    m_cpu.a = *p++; m_cpu.x = *p++; m_cpu.y = *p++; m_cpu.s = *p++; m_cpu.p = *p++;
+    uint8_t lines = *p++;
+    m_cpu.m_irqLine = lines & 1; m_cpu.m_nmiPending = (lines & 2) != 0;
+    memcpy(m_bitmapBuf, p, sizeof(m_bitmapBuf));
+    m_audio.clear();
+    return true;
+}

@@ -8,6 +8,7 @@
 #include "cores/vc4000/vc4000.h"
 #include "cores/tama/tama.h"
 #include "cores/ocean/ocean.h"
+#include "cores/vt369/vt369.h"
 
 Core* createCore(const std::string& id)
 {
@@ -37,6 +38,12 @@ Core* createCore(const std::string& id)
         c.variant = 1;
         c.osc3 = 1000000;
         return new TamaCore(c);
+    }
+    if (id == "168pcase") {   // Diier-D-10 168-in-1 phone case (VT369)
+        Vt369Config c;
+        c.romName = "25q32.u7";
+        c.romSize = 0x400000;
+        return new Vt369Core(c);
     }
     if (id == "oceanpet")    // built-in original game, no ROM
         return new OceanPetCore();
