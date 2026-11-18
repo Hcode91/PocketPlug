@@ -102,15 +102,16 @@ class MainActivity : Activity() {
             setPadding(0, dp(4), 0, dp(10))
         })
         c.addView(TextView(this).apply {
-            text = if (ready) "● ROM ready" else "○ ROM needed: ${m.roms.joinToString { it.name }}"
+            text = if (m.roms.isEmpty()) "● Built in - no ROM needed"
+                else if (ready) "● ROM ready" else "○ ROM needed: ${m.roms.joinToString { it.name }}"
             textSize = 13f
             setTextColor(if (ready) 0xFF6CF0A8.toInt() else 0xFFFFB86B.toInt())
             setPadding(0, 0, 0, dp(12))
         })
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END }
-        row.addView(button(if (ready) "Re-import" else "Import ROM", false) { startImport(m) })
+        if (m.roms.isNotEmpty()) row.addView(button(if (ready) "Re-import" else "Import ROM", false) { startImport(m) })
         if (ready) {
-            row.addView(View(this), LinearLayout.LayoutParams(dp(10), 1))
+            if (m.roms.isNotEmpty()) row.addView(View(this), LinearLayout.LayoutParams(dp(10), 1))
             row.addView(button("▶  Play", true) {
                 startActivity(Intent(this, EmulatorActivity::class.java).putExtra("machine", m.id))
             })

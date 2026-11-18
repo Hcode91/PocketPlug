@@ -47,6 +47,11 @@ public:
     // Real-time machines (LCD pets): fast-forward the emulated clock by this
     // much wall time, silently. Returns false if the core doesn't do this.
     virtual bool advanceTime(double seconds) { (void)seconds; return false; }
+    // Machines with a built-in real-time clock that follows the phone:
+    // local time as seconds since 1970-01-01 00:00 (time zone applied).
+    virtual void setWallClock(int64_t localSeconds) { (void)localSeconds; }
+    // Machine-specific settings (e.g. 1 = gentle mode for the ocean pet).
+    virtual void setOption(int id, int value) { (void)id; (void)value; }
 
     // Save states
     virtual bool saveState(std::vector<uint8_t>& out) = 0;

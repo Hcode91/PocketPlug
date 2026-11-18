@@ -12,6 +12,7 @@ controller.
 | Retro Dance Mat (110 song Super StepMania + 9-in-1 games) (PAL) | `110dance` | VT1682 | Boots, menus, songs and mini-games playable, sound working |
 | Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
 | Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock, egg, hatching and pet match MAME segment-for-segment over 10 min; lives in real time |
+| Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
 ## Using it
@@ -76,6 +77,32 @@ Gamepad/keyboard: X / Left / 1 / Z = A, A / Enter / 2 / X = B, B / Right / 3 / C
 
 The Angel has a vibration sensor: shake the phone, touch either wing, or press
 gamepad Y / Up / 4 / S. Its menu opens from the ball chain (or Back).
+
+Gen 1 can also wear a deep-sea reef shell: menu → "Shell".
+
+### Egg Pet - Ocean (original)
+
+A built-in game - no ROM - modelled on how the 1998 ocean egg played, with
+PocketPlug's own creatures and art. It follows the phone's clock.
+
+- Icons (top): meal/snack, lights, treasure game, medicine;
+  (bottom): flush, meter, discipline, attention.
+- **A** moves through the icons, **B** picks, **C** goes back. B with no
+  icon shows the clock.
+- The water gets murky over time and with meals: the meter shows four
+  skulls. Flush it; once the water turns black it takes four flushes, and
+  murky water left too long makes the pet sick.
+- Treasure game: guess the left (A) or right (B) chest, five rounds, three
+  right to win - unless an octopus jumps out and inks the water.
+- Around 1-3 pm it naps, and predators may come: tap the shell (or shake
+  the phone, or use discipline) within 90 seconds or it gets hurt.
+- It calls for discipline now and then; answer within 15 minutes.
+- Care decides what it grows into: Speck → Jello → Finlet or Puffo → one of
+  Hippa (seahorse), Stripes (clownfish), Clammy (clam), Bluey (whale),
+  Skippy (mudskipper), and a secret one.
+- **Classic** mode is as unforgiving as the original (poor discipline at a
+  growth stage, repeated neglect sickness or a long untreated illness is
+  fatal); **Gentle** mode (menu) never lets it die.
 
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.

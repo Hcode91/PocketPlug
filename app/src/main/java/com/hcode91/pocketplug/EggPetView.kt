@@ -20,8 +20,17 @@ import kotlin.math.*
  * a white window-pane grid and holographic bubbles, wings beside a star-shaped
  * bezel, icons printed on the LCD, pale blue buttons and a ball chain. Touching
  * a wing works the shake sensor (as does shaking the phone).
+ *
+ * Styles: "gen1" (teal 1996 egg), "reef" (deep-sea reef shell for the same
+ * game), "angel" (1997 angel) and "umino" (clear 1998-style ocean egg with
+ * blue waves, used by the built-in ocean pet; tapping the shell works its
+ * touch sensor, e.g. to scare off a predator).
  */
-class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
+class EggPetView(ctx: Context, private val style: String = "gen1") : View(ctx) {
+    private val angel = style == "angel"
+    private val reef = style == "reef"
+    private val umino = style == "umino"
+    private val centred = angel || umino
 
     var onInput: ((Int) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -59,10 +68,10 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
         // egg body: ~ 0.78 x 0.92 aspect; key ring above it
-        val ew = if (angel) min(w * 0.80f, h * 0.84f / 1.15f) else min(w * 0.84f, h * 0.64f / 1.2f)
-        val eh = if (angel) ew * 1.15f else ew * 1.2f
-        val cx = if (angel) w / 2f - ew * 0.04f else w / 2f
-        val top = if (angel) (h - eh) / 2f + h * 0.02f else h - eh - h * 0.03f
+        val ew = if (centred) min(w * 0.80f, h * 0.84f / 1.15f) else min(w * 0.84f, h * 0.64f / 1.2f)
+        val eh = if (centred) ew * 1.15f else ew * 1.2f
+        val cx = if (angel) w / 2f - ew * 0.04f else if (umino) w / 2f + ew * 0.04f else w / 2f
+        val top = if (centred) (h - eh) / 2f + h * 0.02f else h - eh - h * 0.03f
         eggBounds.set(cx - ew / 2, top, cx + ew / 2, top + eh)
         egg.reset()
         // egg: narrower top, fuller bottom (superellipse-ish via cubic curves)
@@ -84,7 +93,7 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
         btn[2].set(cx + ew * 0.19f, by - eh * 0.012f)
         ringR = min(ew * 0.22f, (top - h * 0.02f) * 0.30f).coerceAtLeast(ew * 0.08f)
         ring.set(cx + ew * 0.05f, max(ringR * 1.15f, top * 0.30f))
-        if (angel) {
+        if (centred) {
             val sa = ew * 0.48f
             lcd.set(cx - sa / 2, t + eh * 0.33f, cx + sa / 2, t + eh * 0.33f + sa)
             btnR = ew * 0.065f
@@ -97,7 +106,59 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
             wingR.set(lcd.right + ew * 0.075f, wy - sa * 0.42f, r - ew * 0.02f, wy + sa * 0.22f)
             ring.set(-1000f, -1000f); ringR = 0f
         }
-        backdrop = if (angel) makeAngelBackdrop(lcd.width().toInt().coerceAtLeast(16)) else makeBackdrop(s.toInt().coerceAtLeast(16))
+        if (reef) { ring.set(-1000f, -1000f); ringR = 0f }
+        val bs = lcd.width().toInt().coerceAtLeast(16)
+        backdrop = when {
+            angel -> makeAngelBackdrop(bs)
+            reef -> makeSwirlBackdrop(bs)
+            umino -> makeWaveBackdrop(bs)
+            else -> makeBackdrop(bs)
+        }
+    }
+
+    /** Yellow and sea-blue marbled swirl (reef shell). */
+    private fun makeSwirlBackdrop(size: Int): Bitmap {
+        val bm = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bm)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        c.drawColor(0xFFE3D77A.toInt())
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = size * 0.07f
+        p.color = 0xFF7FB2BC.toInt()
+        for (k in 0 until 7) {
+            val path = Path()
+            val y0 = size * (k / 6f)
+            path.moveTo(-size * 0.1f, y0)
+            var x = -size * 0.1f
+            while (x < size * 1.1f) {
+                val y = y0 + (sin(x / size * 9.0 + k * 1.3) * size * 0.07).toFloat() + (sin(x / size * 3.0 + k) * size * 0.05).toFloat()
+                path.lineTo(x, y); x += size / 40f
+            }
+            c.drawPath(path, p)
+        }
+        return bm
+    }
+
+    /** Pale aqua with thin white and blue wavy lines (clear ocean egg). */
+    private fun makeWaveBackdrop(size: Int): Bitmap {
+        val bm = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bm)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        c.drawColor(0xFFBFE2D6.toInt())
+        p.style = Paint.Style.STROKE
+        for (k in 0 until 9) {
+            p.color = if (k % 3 == 0) 0xAA4C7FD0.toInt() else 0xCCF8FFFC.toInt()
+            p.strokeWidth = size * (if (k % 3 == 0) 0.006f else 0.012f)
+            val path = Path()
+            val y0 = size * (0.05f + k * 0.11f)
+            var x = 0f
+            path.moveTo(0f, y0)
+            while (x <= size) {
+                path.lineTo(x, y0 + (sin(x / size * 7.0 + k * 2.1) * size * 0.05).toFloat()); x += size / 50f
+            }
+            c.drawPath(path, p)
+        }
+        return bm
     }
 
     private fun makeAngelBackdrop(size: Int): Bitmap {
@@ -189,7 +250,12 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF0B0814.toInt())
-        if (angel) { drawAngelShell(c); drawBallChain(c) } else { drawKeyChain(c); drawShell(c) }
+        when {
+            angel -> { drawAngelShell(c); drawBallChain(c, 1) }
+            umino -> { drawUminoShell(c); drawBallChain(c, -1) }
+            reef -> { drawBallChain(c, 0); drawReefShell(c) }
+            else -> { drawKeyChain(c); drawShell(c) }
+        }
         drawLcd(c)
         drawButtons(c)
     }
@@ -276,16 +342,24 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
         paint.shader = null
     }
 
-    private fun drawBallChain(c: Canvas) {
+    /** Ball chain: side 1 = over the right shoulder, -1 = left, 0 = a loop straight up. */
+    private fun drawBallChain(c: Canvas, side: Int) {
         val b = eggBounds
-        // from the top loop, over the right shoulder and down the side
         val pts = ArrayList<PointF>()
-        val x0 = b.centerX() - b.width() * 0.02f; val y0 = b.top + b.height() * 0.015f
+        val x0 = b.centerX() - b.width() * 0.02f * side; val y0 = b.top + b.height() * 0.015f
         val br = b.width() * 0.028f
         val path = Path().apply {
             moveTo(x0, y0)
-            cubicTo(b.right - b.width() * 0.05f, b.top - b.height() * 0.06f, b.right + b.width() * 0.10f, b.top + b.height() * 0.25f,
-                b.right + b.width() * 0.035f, b.top + b.height() * 0.78f)
+            if (side == 0) {
+                // a long loop up to a clasp above the egg
+                val top = max(br * 2, b.top * 0.12f)
+                cubicTo(x0 - b.width() * 0.16f, y0 - (y0 - top) * 0.3f, x0 - b.width() * 0.14f, top, x0, top)
+                cubicTo(x0 + b.width() * 0.14f, top, x0 + b.width() * 0.16f, y0 - (y0 - top) * 0.3f, x0 + br * 0.5f, y0)
+            } else {
+                val ex = if (side > 0) b.right else b.left
+                cubicTo(ex - b.width() * 0.05f * side, b.top - b.height() * 0.06f, ex + b.width() * 0.10f * side, b.top + b.height() * 0.25f,
+                    ex + b.width() * 0.035f * side, b.top + b.height() * 0.78f)
+            }
         }
         val pm = PathMeasure(path, false)
         val len = pm.length
@@ -293,7 +367,7 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
         var d = br * 0.6f
         while (d < len) { pm.getPosTan(d, pos, null); pts += PointF(pos[0], pos[1]); d += br * 2.15f }
         for ((k, p) in pts.withIndex()) {
-            if (k == pts.size - 3) {
+            if ((side != 0 && k == pts.size - 3) || (side == 0 && k == pts.size / 2)) {
                 // the clasp
                 paint.color = Color.WHITE
                 paint.shader = LinearGradient(p.x - br, p.y, p.x + br, p.y, 0xFFF0F0F0.toInt(), 0xFF6E7076.toInt(), Shader.TileMode.CLAMP)
@@ -340,26 +414,120 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
         stroke.color = 0xFFA9B9EE.toInt(); stroke.strokeWidth = b.width() * 0.03f
         c.drawArc(b.centerX() - b.width() * 0.06f, b.top - b.width() * 0.035f, b.centerX() + b.width() * 0.06f, b.top + b.width() * 0.06f, 180f, 180f, false, stroke)
         // star-shaped bezel around the screen
+        drawStarBezel(c, 12, 0.76f, 0.62f, 0xFFA8BFF4.toInt(), 0xFF6E8FE0.toInt())
+        // wings either side of the bezel
+        drawWing(c, wingL, false); drawWing(c, wingR, true)
+        // glossy highlight
+        paint.color = Color.WHITE
+        paint.shader = LinearGradient(b.left, b.top, b.left + b.width() * 0.5f, b.top + b.height() * 0.5f, 0x55FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.save(); c.clipPath(egg)
+        c.drawOval(b.left + b.width() * 0.05f, b.top + b.height() * 0.04f, b.left + b.width() * 0.5f, b.top + b.height() * 0.45f, paint)
+        c.restore(); paint.shader = null
+    }
+
+    private fun drawStarBezel(c: Canvas, points: Int, outer: Float, inner: Float, c0: Int, c1: Int, rot: Double = 0.0) {
+        val b = eggBounds
         val star = Path()
         val cx = lcd.centerX(); val cy = lcd.centerY()
-        val ro = lcd.width() * 0.76f; val ri = lcd.width() * 0.62f
-        for (k in 0 until 24) {
-            val a = -PI / 2 + k * PI / 12
+        val ro = lcd.width() * outer; val ri = lcd.width() * inner
+        for (k in 0 until points * 2) {
+            val a = -PI / 2 + rot + k * PI / points
             val rr = if (k % 2 == 0) ro else ri
             val x = cx + (cos(a) * rr).toFloat(); val y = cy + (sin(a) * rr * 0.98f).toFloat()
             if (k == 0) star.moveTo(x, y) else star.lineTo(x, y)
         }
         star.close()
         paint.color = Color.WHITE
-        paint.shader = LinearGradient(cx - ro, cy - ro, cx + ro, cy + ro, 0xFFA8BFF4.toInt(), 0xFF6E8FE0.toInt(), Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(cx - ro, cy - ro, cx + ro, cy + ro, c0, c1, Shader.TileMode.CLAMP)
         c.drawPath(star, paint); paint.shader = null
         stroke.color = 0x88FFFFFF.toInt(); stroke.strokeWidth = b.width() * 0.005f
         c.drawPath(star, stroke)
-        // wings either side of the bezel
-        drawWing(c, wingL, false); drawWing(c, wingR, true)
-        // glossy highlight
+    }
+
+    /** 2024-style deep-sea shell: teal to green, reef plants, bubbles, pink star bezel. */
+    private fun drawReefShell(c: Canvas) {
+        val b = eggBounds
         paint.color = Color.WHITE
-        paint.shader = LinearGradient(b.left, b.top, b.left + b.width() * 0.5f, b.top + b.height() * 0.5f, 0x55FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(0f, b.top, 0f, b.bottom,
+            intArrayOf(0xFF2A93B8.toInt(), 0xFF1D6F96.toInt(), 0xFF1F7A6A.toInt(), 0xFF2B8A5A.toInt()), floatArrayOf(0f, 0.45f, 0.7f, 1f), Shader.TileMode.CLAMP)
+        c.drawPath(egg, paint); paint.shader = null
+        c.save(); c.clipPath(egg)
+        // bubbles
+        stroke.color = 0x99BFEFFF.toInt(); stroke.strokeWidth = b.width() * 0.006f
+        val rnd = java.util.Random(5)
+        repeat(14) {
+            val x = b.left + b.width() * (0.12f + rnd.nextFloat() * 0.76f)
+            val y = b.top + b.height() * (0.06f + rnd.nextFloat() * 0.22f)
+            c.drawCircle(x, y, b.width() * (0.008f + rnd.nextFloat() * 0.02f), stroke)
+        }
+        // reef: anemones, sea plants and corals around the lower half
+        val cols = intArrayOf(0xFFF08A5D.toInt(), 0xFFF4C542.toInt(), 0xFFB57AD8.toInt(), 0xFFF2A3B8.toInt(), 0xFF6FD3C6.toInt())
+        for (k in 0 until 16) {
+            val left = k % 2 == 0
+            val fx = if (left) 0.04f + rnd.nextFloat() * 0.2f else 0.76f + rnd.nextFloat() * 0.2f
+            val fy = 0.42f + rnd.nextFloat() * 0.5f
+            val x = b.left + b.width() * fx; val y = b.top + b.height() * fy
+            val r = b.width() * (0.025f + rnd.nextFloat() * 0.03f)
+            paint.color = cols[k % cols.size]
+            when (k % 3) {
+                0 -> for (j in 0 until 7) { val a = j * 2 * PI / 7; c.drawCircle(x + (cos(a) * r).toFloat(), y + (sin(a) * r).toFloat(), r * 0.45f, paint) }
+                1 -> { stroke.color = paint.color; stroke.strokeWidth = r * 0.35f
+                       for (j in -2..2) c.drawLine(x, y + r * 2, x + j * r * 0.5f, y - r * 1.2f, stroke) }
+                else -> c.drawOval(x - r * 0.6f, y - r * 1.5f, x + r * 0.6f, y + r * 1.5f, paint)
+            }
+        }
+        // sea floor
+        paint.color = 0x553A9A6A
+        c.drawRect(b.left, b.top + b.height() * 0.88f, b.right, b.bottom, paint)
+        c.restore()
+        stroke.color = 0xFF125A73.toInt(); stroke.strokeWidth = b.width() * 0.012f
+        c.drawPath(egg, stroke)
+        // top loop
+        stroke.color = 0xFF2B9FC6.toInt(); stroke.strokeWidth = b.width() * 0.03f
+        c.drawArc(b.centerX() - b.width() * 0.06f, b.top - b.width() * 0.035f, b.centerX() + b.width() * 0.06f, b.top + b.width() * 0.06f, 180f, 180f, false, stroke)
+        drawStarBezel(c, 8, 0.70f, 0.60f, 0xFFF7B9BC.toInt(), 0xFFE58F98.toInt(), PI / 8)
+        paint.color = Color.WHITE
+        paint.shader = LinearGradient(b.left, b.top, b.left + b.width() * 0.5f, b.top + b.height() * 0.5f, 0x44FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.save(); c.clipPath(egg)
+        c.drawOval(b.left + b.width() * 0.05f, b.top + b.height() * 0.04f, b.left + b.width() * 0.5f, b.top + b.height() * 0.45f, paint)
+        c.restore(); paint.shader = null
+    }
+
+    /** Clear grey 1998-style ocean egg with blue wave decals and a blue star bezel. */
+    private fun drawUminoShell(c: Canvas) {
+        val b = eggBounds
+        paint.color = Color.WHITE
+        paint.shader = RadialGradient(b.centerX() - b.width() * 0.1f, b.top + b.height() * 0.4f, b.height() * 0.75f,
+            intArrayOf(0xFFD8DADC.toInt(), 0xFFB9BCBF.toInt(), 0xFF8E9296.toInt()), floatArrayOf(0f, 0.7f, 1f), Shader.TileMode.CLAMP)
+        c.drawPath(egg, paint); paint.shader = null
+        c.save(); c.clipPath(egg)
+        // the circuit board faintly visible through the clear plastic
+        paint.color = 0x2A2E6B3A
+        c.drawRect(b.left + b.width() * 0.08f, b.top + b.height() * 0.22f, b.left + b.width() * 0.2f, b.top + b.height() * 0.72f, paint)
+        c.drawRect(b.right - b.width() * 0.22f, b.top + b.height() * 0.3f, b.right - b.width() * 0.1f, b.top + b.height() * 0.62f, paint)
+        stroke.color = 0x3A2B4E36; stroke.strokeWidth = b.width() * 0.004f
+        for (k in 0 until 6) { val y = b.top + b.height() * (0.25f + k * 0.08f); c.drawLine(b.left + b.width() * 0.1f, y, b.left + b.width() * 0.19f, y, stroke) }
+        // blue wave decals with white edges
+        fun wave(x: Float, y: Float, w: Float, h: Float, flip: Boolean) {
+            val p = Path()
+            val dir = if (flip) -1 else 1
+            p.moveTo(x, y)
+            p.cubicTo(x + dir * w * 0.3f, y - h, x + dir * w * 0.6f, y + h, x + dir * w, y - h * 0.2f)
+            stroke.color = 0xFFFFFFFF.toInt(); stroke.strokeWidth = b.width() * 0.05f; c.drawPath(p, stroke)
+            stroke.color = 0xFF2F63CF.toInt(); stroke.strokeWidth = b.width() * 0.032f; c.drawPath(p, stroke)
+        }
+        wave(b.left + b.width() * 0.1f, b.top + b.height() * 0.2f, b.width() * 0.3f, b.height() * 0.05f, false)
+        wave(b.right - b.width() * 0.08f, b.top + b.height() * 0.24f, b.width() * 0.3f, b.height() * 0.05f, true)
+        wave(b.left + b.width() * 0.04f, b.top + b.height() * 0.78f, b.width() * 0.22f, b.height() * 0.05f, false)
+        wave(b.right - b.width() * 0.04f, b.top + b.height() * 0.72f, b.width() * 0.2f, b.height() * 0.05f, true)
+        c.restore()
+        stroke.color = 0xFF7C8085.toInt(); stroke.strokeWidth = b.width() * 0.012f
+        c.drawPath(egg, stroke)
+        stroke.color = 0xFFA9ADB1.toInt(); stroke.strokeWidth = b.width() * 0.03f
+        c.drawArc(b.centerX() - b.width() * 0.06f, b.top - b.width() * 0.035f, b.centerX() + b.width() * 0.06f, b.top + b.width() * 0.06f, 180f, 180f, false, stroke)
+        drawStarBezel(c, 8, 0.74f, 0.60f, 0xFF4E84E6.toInt(), 0xFF2550B8.toInt(), PI / 8)
+        paint.color = Color.WHITE
+        paint.shader = LinearGradient(b.left, b.top, b.left + b.width() * 0.5f, b.top + b.height() * 0.5f, 0x66FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
         c.save(); c.clipPath(egg)
         c.drawOval(b.left + b.width() * 0.05f, b.top + b.height() * 0.04f, b.left + b.width() * 0.5f, b.top + b.height() * 0.45f, paint)
         c.restore(); paint.shader = null
@@ -393,7 +561,7 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
     private fun drawLcd(c: Canvas) {
         val s = lcd.width()
         // bezel
-        paint.color = if (angel) 0xFF7E98DE.toInt() else 0xFF9AA39C.toInt()
+        paint.color = when { angel -> 0xFF7E98DE.toInt(); umino -> 0xFF2D5CC4.toInt(); reef -> 0xFFE58F98.toInt(); else -> 0xFF9AA39C.toInt() }
         val bz = s * 0.035f
         c.drawRect(lcd.left - bz, lcd.top - bz, lcd.right + bz, lcd.bottom + bz, paint)
         backdrop?.let { c.drawBitmap(it, null, lcd, null) }
@@ -415,6 +583,7 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
             val cx = lcd.left + s * (0.125f + (i % 4) * 0.25f)
             val cy = if (i < 4) lcd.top + band * 0.5f else lcd.bottom - band * 0.5f
             if (angel) drawAngelIcon(c, i, cx, cy, isz, if (icons[i]) 0xF0141414.toInt() else 0x40303A40)
+            else if (umino) drawOceanIcon(c, i, cx, cy, isz, if (icons[i]) 0xF0141414.toInt() else 0x22000000)
             else drawIcon(c, i, cx, cy, isz, if (icons[i]) 0xF0141414.toInt() else 0x10000000)
         }
         // glass sheen
@@ -496,6 +665,38 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
         }
     }
 
+    /** The ocean pet's icons: meal, sun/moon, treasure chest, medicine / flush, meter, discipline, attention. */
+    private fun drawOceanIcon(c: Canvas, i: Int, x: Float, y: Float, sz: Float, col: Int) {
+        val h = sz / 2
+        paint.color = col; stroke.color = col; stroke.strokeWidth = sz * 0.09f; stroke.shader = null
+        when (i) {
+            1 -> { // sun and moon
+                c.drawCircle(x - h * 0.35f, y, h * 0.35f, paint)
+                for (k in 0 until 8) { val a = k * PI / 4; c.drawLine(x - h * 0.35f + (cos(a) * h * 0.5f).toFloat(), y + (sin(a) * h * 0.5f).toFloat(), x - h * 0.35f + (cos(a) * h * 0.7f).toFloat(), y + (sin(a) * h * 0.7f).toFloat(), stroke) }
+                c.drawArc(x + h * 0.1f, y - h * 0.6f, x + h * 0.95f, y + h * 0.6f, -90f, 180f, false, stroke)
+            }
+            2 -> { // treasure chest
+                c.drawRect(x - h * 0.8f, y - h * 0.1f, x + h * 0.8f, y + h * 0.7f, stroke)
+                c.drawArc(x - h * 0.8f, y - h * 0.7f, x + h * 0.8f, y + h * 0.5f, 180f, 180f, false, stroke)
+                c.drawRect(x - h * 0.15f, y - h * 0.1f, x + h * 0.15f, y + h * 0.3f, paint)
+            }
+            4 -> { // flush: a wave
+                val p = Path(); p.moveTo(x - h, y + h * 0.3f)
+                p.cubicTo(x - h * 0.5f, y - h * 0.9f, x + h * 0.1f, y - h * 0.4f, x - h * 0.05f, y + h * 0.05f)
+                p.cubicTo(x + h * 0.4f, y - h * 0.2f, x + h * 0.6f, y + h * 0.2f, x + h, y + h * 0.3f)
+                c.drawPath(p, stroke)
+                c.drawLine(x - h, y + h * 0.7f, x + h, y + h * 0.7f, stroke)
+            }
+            6 -> { // discipline: a pointing hand / exclamation
+                c.drawLine(x - h * 0.3f, y - h * 0.8f, x - h * 0.3f, y + h * 0.3f, stroke)
+                c.drawCircle(x - h * 0.3f, y + h * 0.7f, sz * 0.06f, paint)
+                c.drawLine(x + h * 0.3f, y - h * 0.8f, x + h * 0.3f, y + h * 0.3f, stroke)
+                c.drawCircle(x + h * 0.3f, y + h * 0.7f, sz * 0.06f, paint)
+            }
+            else -> drawIcon(c, if (i == 5) 5 else i, x, y, sz, col)
+        }
+    }
+
     /** Simple pictograms for the eight LCD icons (meal, light, play, medicine / bathroom, meter, discipline, attention). */
     private fun drawIcon(c: Canvas, i: Int, x: Float, y: Float, sz: Float, col: Int) {
         val h = sz / 2
@@ -546,6 +747,21 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
 
     private fun drawButtons(c: Canvas) {
         val held = touchMask or externalMask
+        if (reef || umino) {
+            for (i in 0 until 3) {
+                val p = btn[i]; val down = held and (1 shl i) != 0
+                paint.color = if (umino) 0x669AA0A6 else 0x55000000
+                c.drawCircle(p.x, p.y, btnR * 1.25f, paint)
+                paint.color = Color.WHITE
+                paint.shader = RadialGradient(p.x - btnR * 0.3f, p.y - btnR * 0.35f, btnR * 1.3f,
+                    if (umino) (if (down) intArrayOf(0xFFD8D8D2.toInt(), 0xFFB4B4AE.toInt()) else intArrayOf(0xFFFFFFFA.toInt(), 0xFFE2E2DA.toInt()))
+                    else (if (down) intArrayOf(0xFFE68C96.toInt(), 0xFFC8707C.toInt()) else intArrayOf(0xFFFFC3C8.toInt(), 0xFFF0939E.toInt())),
+                    null, Shader.TileMode.CLAMP)
+                c.drawCircle(p.x, p.y + (if (down) btnR * 0.06f else 0f), btnR * (if (down) 0.94f else 1f), paint)
+                paint.shader = null
+            }
+            return
+        }
         if (angel) {
             for (i in 0 until 3) {
                 val p = btn[i]; val down = held and (1 shl i) != 0
@@ -585,8 +801,9 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val x = e.getX(idx); val y = e.getY(idx)
-                val chain = angel && x > eggBounds.right - eggBounds.width() * 0.06f
-                if ((!angel && hypot(x - ring.x, y - ring.y) < ringR * 1.3f) || y < eggBounds.top || chain) {
+                val chain = (angel && x > eggBounds.right - eggBounds.width() * 0.06f) ||
+                    (umino && x < eggBounds.left + eggBounds.width() * 0.06f)
+                if ((!centred && !reef && hypot(x - ring.x, y - ring.y) < ringR * 1.3f) || y < eggBounds.top || chain) {
                     if (e.actionMasked == MotionEvent.ACTION_DOWN) { onMenu?.invoke(); return true }
                 }
                 if (angel && (wingL.contains(x, y) || wingR.contains(x, y))) {
@@ -594,6 +811,11 @@ class EggPetView(ctx: Context, private val angel: Boolean = false) : View(ctx) {
                     performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 }
                 val b = hitButton(x, y)
+                if (umino && b < 0 && eggBounds.contains(x, y)) {
+                    // touching the shell: the ocean pet's touch sensor
+                    pointerBtn[e.getPointerId(idx)] = 3
+                    performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                }
                 if (b >= 0) {
                     pointerBtn[e.getPointerId(idx)] = b
                     performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)

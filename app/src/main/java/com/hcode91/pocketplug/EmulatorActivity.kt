@@ -86,7 +86,7 @@ class EmulatorActivity : Activity() {
         when (machine.skin) {
             Skin.EGG_PET -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val p = EggPetView(this, machine.badge == "angel").apply {
+                val p = EggPetView(this, petStyle()).apply {
                     onInput = { setTouch(0, it) }
                     onMenu = { showMenu() }
                 }
@@ -201,7 +201,7 @@ class EmulatorActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (handle != 0L) start()
-        if (machine.badge == "angel") {
+        if (machine.badge == "angel" || machine.badge == "umino") {
             val sm = getSystemService(SENSOR_SERVICE) as SensorManager
             sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { sm.registerListener(shakeListener, it, SensorManager.SENSOR_DELAY_GAME) }
         }
@@ -249,6 +249,24 @@ class EmulatorActivity : Activity() {
         pet?.status = null
     }
 
+    /** Built-in pets keep the phone's local time and the chosen difficulty. */
+    private fun syncPetClock() {
+        if (machine.id != "oceanpet") return
+        val now = System.currentTimeMillis()
+        val local = (now + java.util.TimeZone.getDefault().getOffset(now)) / 1000
+        synchronized(coreLock) {
+            Native.setWallClock(handle, local)
+            Native.setOption(handle, 1, if (gentle()) 1 else 0)
+        }
+    }
+
+    private fun gentle() = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("gentle_${machine.id}", false)
+
+    private fun petStyle(): String = when (machine.badge) {
+        "angel", "umino" -> machine.badge
+        else -> getSharedPreferences("settings", MODE_PRIVATE).getString("shell_${machine.id}", "gen1") ?: "gen1"
+    }
+
     private fun formatSpan(sec: Double): String {
         val s = sec.toLong()
         return when {
@@ -275,6 +293,7 @@ class EmulatorActivity : Activity() {
         }.getOrNull()
 
         if (catchUpSeconds > 1.0) catchUp()
+        syncPetClock()
 
         val frameNs = (1_000_000_000.0 / refresh).toLong()
         var next = SystemClock.elapsedRealtimeNanos()
@@ -320,6 +339,21 @@ class EmulatorActivity : Activity() {
                     .setNegativeButton("Cancel") { _, _ -> paused = false }
                     .setOnCancelListener { paused = false }
                     .show()
+            }
+            if (machine.id == "tama") {
+                items += (if (petStyle() == "reef") "Shell: deep-sea reef" else "Shell: classic teal") to {
+                    prefs.edit().putString("shell_${machine.id}", if (petStyle() == "reef") "gen1" else "reef").apply()
+                    saveLive()
+                    recreate()
+                }
+            }
+            if (machine.id == "oceanpet") {
+                items += (if (gentle()) "Mode: gentle (never dies)" else "Mode: classic (can die)") to {
+                    prefs.edit().putBoolean("gentle_${machine.id}", !gentle()).apply()
+                    synchronized(coreLock) { Native.setOption(handle, 1, if (gentle()) 1 else 0) }
+                    Toast.makeText(this, if (gentle()) "Gentle: neglect makes it sad or sick, but it never dies"
+                        else "Classic: like the original, neglect can be fatal", Toast.LENGTH_LONG).show()
+                }
             }
             items += (if (realTime()) "While closed: time keeps running" else "While closed: time stops") to {
                 prefs.edit().putBoolean("realtime_${machine.id}", !realTime()).apply()

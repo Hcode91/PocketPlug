@@ -18,4 +18,6 @@ object Native {
     @JvmStatic external fun loadState(handle: Long, path: String): Boolean
     /** Real-time machines: fast-forward the clock silently. False if unsupported. */
     @JvmStatic external fun advanceTime(handle: Long, seconds: Double): Boolean
+    @JvmStatic external fun setWallClock(handle: Long, localSeconds: Long)
+    @JvmStatic external fun setOption(handle: Long, id: Int, value: Int)
 }

@@ -172,6 +172,18 @@ object Machines {
             skin = Skin.EGG_PET,
             badge = "angel",
         ),
+        MachineDef(
+            id = "oceanpet",
+            title = "Egg Pet - Ocean (original)",
+            subtitle = "Built-in sea pet in the spirit of the 1998 ocean egg: water to flush, a treasure-chest game, "
+                + "predators while it naps, seven sea creatures to raise. Lives in real time.",
+            chip = "PocketPlug original",
+            region = "Built in",
+            year = "2026",
+            roms = emptyList(),
+            skin = Skin.EGG_PET,
+            badge = "umino",
+        ),
     )
 
     fun byId(id: String) = all.firstOrNull { it.id == id }

@@ -7,6 +7,7 @@
 #include "cores/vt1682/vt1682.h"
 #include "cores/vc4000/vc4000.h"
 #include "cores/tama/tama.h"
+#include "cores/ocean/ocean.h"
 
 Core* createCore(const std::string& id)
 {
@@ -37,5 +38,7 @@ Core* createCore(const std::string& id)
         c.osc3 = 1000000;
         return new TamaCore(c);
     }
+    if (id == "oceanpet")    // built-in original game, no ROM
+        return new OceanPetCore();
     return nullptr;
 }

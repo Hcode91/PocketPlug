@@ -145,3 +145,15 @@ Java_com_hcode91_pocketplug_Native_advanceTime(JNIEnv*, jclass, jlong h, jdouble
 {
     return (h && ((Core*)(intptr_t)h)->advanceTime(seconds)) ? JNI_TRUE : JNI_FALSE;
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_hcode91_pocketplug_Native_setWallClock(JNIEnv*, jclass, jlong h, jlong localSeconds)
+{
+    if (h) ((Core*)(intptr_t)h)->setWallClock((int64_t)localSeconds);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_hcode91_pocketplug_Native_setOption(JNIEnv*, jclass, jlong h, jint id, jint value)
+{
+    if (h) ((Core*)(intptr_t)h)->setOption(id, value);
+}
