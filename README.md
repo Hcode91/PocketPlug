@@ -205,6 +205,9 @@ reset and the scanline toggle.
   drivers for them, and testing needs 386-era CTOS / BTOS II system disks
   (ImageDisk dumps), which we don't have yet. The 80186 NGEN is done.
 - NGEN speaker sound (how the speaker is driven is still unknown).
+- Left out on purpose: MAME's generic 386 PC motherboards (`386sc`, `386sc2c`,
+  `386schg`, `386sxvhcom`). They're plain IBM PC/AT clones (DOS / Windows 3.x),
+  better served by a PC emulator such as 86Box.
 
 ## Layout
 
