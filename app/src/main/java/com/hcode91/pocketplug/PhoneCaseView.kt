@@ -15,13 +15,22 @@ import kotlin.math.*
  * small round SELECT / START buttons, two slanted TURBO buttons, a speaker grille
  * and the camera bump (tap it for the menu).
  *
+ * With classic = true it is drawn as the 36-in-1 type instead: a handheld-style
+ * face with small ON/OFF and RESET buttons under the screen, square red A/B keys
+ * on a slanted panel, slanted S/P (start/pause) and SOUND keys, a slotted
+ * speaker and a vertical camera bump (tap it for the menu).
+ *
  * Input bits follow the VT369 controller: A 0x01, B 0x02, Select 0x04, Start 0x08,
  * Up 0x10, Down 0x20, Left 0x40, Right 0x80.
  */
-class PhoneCaseView(ctx: Context) : View(ctx) {
+class PhoneCaseView(ctx: Context, private val classic: Boolean = false) : View(ctx) {
 
     var onInput: ((Int) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
+    var onReset: (() -> Unit)? = null
+    /** classic case: SOUND key toggles mute (true = sound on) */
+    var onSound: ((Boolean) -> Unit)? = null
+    var soundOn = true
     var externalMask = 0
         set(v) { field = v; postInvalidate() }
 
@@ -40,6 +49,8 @@ class PhoneCaseView(ctx: Context) : View(ctx) {
     private val turboB = RectF(); private val turboA = RectF()
     private val camera = RectF()
     private val grille = RectF()
+    private val btnPower = PointF(); private val btnReset = PointF()
+    private val keySP = RectF(); private val keySound = RectF()
     private var texture: Bitmap? = null
 
     // pointer id -> held bits
@@ -86,6 +97,25 @@ class PhoneCaseView(ctx: Context) : View(ctx) {
         turboA.set(l + cw * 0.56f, py - cw * 0.035f, l + cw * 0.68f, py + cw * 0.035f)
         camera.set(l + cw * 0.58f, case.bottom - cw * 0.42f, case.right - cw * 0.06f, case.bottom - cw * 0.05f)
         grille.set(l + cw * 0.08f, case.bottom - cw * 0.30f, l + cw * 0.28f, case.bottom - cw * 0.10f)
+        if (classic) {
+            // screen sits in a raised frame; controls follow the 36-in-1 case
+            val sw2 = cw * 0.74f
+            val sh2 = sw2 * 240f / 256f
+            screen.set(case.centerX() - sw2 / 2 - cw * 0.02f, t + cw * 0.14f, case.centerX() + sw2 / 2 - cw * 0.02f, t + cw * 0.14f + sh2)
+            smallR = cw * 0.035f
+            btnPower.set(l + cw * 0.40f, screen.bottom + cw * 0.12f)
+            btnReset.set(l + cw * 0.53f, screen.bottom + cw * 0.12f)
+            abR = cw * 0.06f
+            btnB.set(l + cw * 0.82f, screen.bottom + cw * 0.15f)
+            btnA.set(l + cw * 0.68f, screen.bottom + cw * 0.28f)
+            dpadR = cw * 0.15f
+            dpad.set(l + cw * 0.24f, screen.bottom + cw * 0.40f)
+            val ky = screen.bottom + cw * 0.50f
+            keySP.set(l + cw * 0.40f, ky - cw * 0.035f, l + cw * 0.54f, ky + cw * 0.035f)
+            keySound.set(l + cw * 0.56f, ky - cw * 0.035f, l + cw * 0.70f, ky + cw * 0.035f)
+            camera.set(case.right - cw * 0.24f, case.bottom - cw * 0.62f, case.right - cw * 0.07f, case.bottom - cw * 0.22f)
+            grille.set(l + cw * 0.10f, case.bottom - cw * 0.26f, l + cw * 0.30f, case.bottom - cw * 0.08f)
+        }
         texture = makeTexture(max(8, (cw / 6).toInt()))
     }
 
@@ -132,6 +162,7 @@ class PhoneCaseView(ctx: Context) : View(ctx) {
         c.drawRect(screen, paint); paint.shader = null
 
         val held = touchMask or externalMask or (if (turboPhase) turboMask else 0)
+        if (classic) { drawClassic(c, cw, held); return }
         drawDpad(c, held)
         // A / B on a slanted dark panel
         c.save()
@@ -158,6 +189,83 @@ class PhoneCaseView(ctx: Context) : View(ctx) {
         c.drawText("TURBO A", turboA.centerX(), turboA.bottom + cw * 0.06f, text)
         drawGrille(c)
         drawCamera(c)
+    }
+
+    private fun drawClassic(c: Canvas, cw: Float, held: Int) {
+        drawDpad(c, held)
+        // ON/OFF and RESET
+        drawRound(c, btnPower, smallR, false, 0xFF9C9FA6.toInt(), 0xFF5E6168.toInt())
+        drawRound(c, btnReset, smallR, false, 0xFF9C9FA6.toInt(), 0xFF5E6168.toInt())
+        text.textSize = cw * 0.026f
+        c.drawText("ON/OFF", btnPower.x, btnPower.y + smallR * 2.3f, text)
+        c.drawText("RESET", btnReset.x, btnReset.y + smallR * 2.3f, text)
+        // slanted grey panel with square red A / B keys
+        c.save()
+        c.rotate(-38f, (btnA.x + btnB.x) / 2, (btnA.y + btnB.y) / 2)
+        val pw = hypot(btnA.x - btnB.x, btnA.y - btnB.y) + abR * 3.0f
+        val pcx = (btnA.x + btnB.x) / 2; val pcy = (btnA.y + btnB.y) / 2
+        paint.color = 0xFF2C2E33.toInt()
+        c.drawRoundRect(pcx - pw / 2, pcy - abR * 1.45f, pcx + pw / 2, pcy + abR * 1.45f, abR * 0.9f, abR * 0.9f, paint)
+        c.restore()
+        drawSquareKey(c, btnB, abR, held and 0x02 != 0)
+        drawSquareKey(c, btnA, abR, held and 0x01 != 0)
+        c.drawText("B", btnB.x + abR * 1.4f, btnB.y + abR * 1.9f, text)
+        c.drawText("A", btnA.x + abR * 1.4f, btnA.y + abR * 1.9f, text)
+        // slanted S/P and SOUND keys in a dark recess
+        paint.color = 0xFF24262B.toInt()
+        c.drawRoundRect(keySP.left - cw * 0.03f, keySP.top - cw * 0.05f, keySound.right + cw * 0.03f, keySound.bottom + cw * 0.05f, cw * 0.07f, cw * 0.07f, paint)
+        drawSlantKey(c, keySP, held and 0x08 != 0)
+        drawSlantKey(c, keySound, !soundOn)
+        c.drawText("S/P", keySP.centerX(), keySP.bottom + cw * 0.075f, text)
+        c.drawText("SOUND", keySound.centerX(), keySound.bottom + cw * 0.075f, text)
+        // slotted speaker
+        stroke.color = 0xFF050506.toInt(); stroke.strokeWidth = grille.width() * 0.06f
+        stroke.strokeCap = Paint.Cap.ROUND
+        for (k in 0 until 6) {
+            val x = grille.left + grille.width() * (0.1f + k * 0.16f)
+            c.drawLine(x + grille.width() * 0.12f, grille.top + grille.height() * 0.15f, x, grille.bottom - grille.height() * 0.15f, stroke)
+        }
+        stroke.strokeCap = Paint.Cap.BUTT
+        drawCameraBump(c)
+    }
+
+    private fun drawSquareKey(c: Canvas, p: PointF, r: Float, down: Boolean) {
+        val rr = RectF(p.x - r, p.y - r, p.x + r, p.y + r)
+        paint.color = 0x88000000.toInt()
+        c.drawRoundRect(rr.left, rr.top + r * 0.14f, rr.right, rr.bottom + r * 0.14f, r * 0.45f, r * 0.45f, paint)
+        paint.color = Color.WHITE
+        paint.shader = LinearGradient(0f, rr.top, 0f, rr.bottom,
+            if (down) intArrayOf(0xFFA92A24.toInt(), 0xFFA92A24.toInt()) else intArrayOf(0xFFF0544A.toInt(), 0xFFB8302A.toInt()), null, Shader.TileMode.CLAMP)
+        if (down) rr.offset(0f, r * 0.08f)
+        c.drawRoundRect(rr, r * 0.45f, r * 0.45f, paint)
+        paint.shader = null
+    }
+
+    private fun drawSlantKey(c: Canvas, r: RectF, down: Boolean) {
+        c.save()
+        c.rotate(-55f, r.centerX(), r.centerY())
+        val w = r.width() * 0.75f; val h = r.height() * 0.95f
+        paint.color = if (down) 0xFF6E7178.toInt() else 0xFF9EA1A8.toInt()
+        c.drawRoundRect(r.centerX() - w / 2, r.centerY() - h / 2, r.centerX() + w / 2, r.centerY() + h / 2, h / 2, h / 2, paint)
+        c.restore()
+    }
+
+    private fun drawCameraBump(c: Canvas) {
+        val r = camera.width() * 0.45f
+        paint.color = 0xFF0A0B0D.toInt()
+        c.drawRoundRect(camera, r, r, paint)
+        stroke.color = 0xFF2A2C31.toInt(); stroke.strokeWidth = camera.width() * 0.05f
+        c.drawRoundRect(camera, r, r, stroke)
+        val lr = camera.width() * 0.26f
+        for (fy in listOf(0.25f, 0.75f)) {
+            val x = camera.centerX(); val y = camera.top + camera.height() * fy
+            paint.color = 0xFF2B2E33.toInt(); c.drawCircle(x, y, lr * 1.15f, paint)
+            paint.color = Color.WHITE
+            paint.shader = RadialGradient(x - lr * 0.3f, y - lr * 0.3f, lr, intArrayOf(0xFF8FA6FF.toInt(), 0xFF2A3A8C.toInt(), 0xFF0E1230.toInt()), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+            c.drawCircle(x, y, lr, paint); paint.shader = null
+        }
+        paint.color = 0xFFF2C24A.toInt()
+        c.drawCircle(camera.centerX(), camera.centerY(), lr * 0.35f, paint)
     }
 
     private fun drawRound(c: Canvas, p: PointF, r: Float, down: Boolean, top: Int, bottom: Int) {
@@ -237,6 +345,12 @@ class PhoneCaseView(ctx: Context) : View(ctx) {
 
     // ---- touch ----
     private fun hit(x: Float, y: Float): Int {
+        if (classic) {
+            if (hypot(x - btnPower.x, y - btnPower.y) < smallR * 2.2f) return 0x1000
+            if (hypot(x - btnReset.x, y - btnReset.y) < smallR * 2.2f) return 0x2000
+            if (RectF(keySP).apply { inset(-keySP.width() * 0.1f, -keySP.height()) }.contains(x, y)) return 0x08
+            if (RectF(keySound).apply { inset(-keySound.width() * 0.1f, -keySound.height()) }.contains(x, y)) return 0x4000
+        }
         val ddx = x - dpad.x; val ddy = y - dpad.y
         if (hypot(ddx, ddy) < dpadR * 1.25f) {
             if (hypot(ddx, ddy) < dpadR * 0.18f) return 0
@@ -272,7 +386,12 @@ class PhoneCaseView(ctx: Context) : View(ctx) {
                 if (camera.contains(x, y) && e.actionMasked == MotionEvent.ACTION_DOWN) { onMenu?.invoke(); return true }
                 val b = hit(x, y)
                 if (b != 0) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-                pointers[e.getPointerId(i)] = b
+                when (b) {
+                    0x1000 -> onMenu?.invoke()
+                    0x2000 -> onReset?.invoke()
+                    0x4000 -> { soundOn = !soundOn; onSound?.invoke(soundOn) }
+                    else -> pointers[e.getPointerId(i)] = b
+                }
             }
             MotionEvent.ACTION_MOVE -> {
                 for (i in 0 until e.pointerCount) {

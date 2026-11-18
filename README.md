@@ -13,6 +13,7 @@ controller.
 | Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
 | Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock, egg, hatching and pet match MAME segment-for-segment over 10 min; lives in real time |
 | 168-in-1 Game Phone Case | `168pcase` | VT369 (NES-on-a-chip) | Menu and games match MAME pixel-for-pixel in every tested frame (Contra, Panda Adventure, Aether, 60+ others); NES APU sound |
+| 36-in-1 Classic Games Phone Case | `36pcase` | VT369 + sound CPU, scrambled opcodes, internal ROM, serial protection chip | Language select, menu and games match MAME pixel-for-pixel in every tested frame; sound matches MAME's level |
 | 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
 | 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
@@ -31,6 +32,9 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Egg Pet - Angel | `tamaang` | `tamaang.bin` | 16 KB (16,384 bytes) | `87bcb59f` |
 | Egg Pet - Ocean (original) | - | Nothing (built in) | - | - |
 | 168-in-1 Game Phone Case | `168pcase` | `25q32.u7` | 4 MB (4,194,304 bytes) | `98e8e97a` |
+| 36-in-1 Classic Games Phone Case | `36pcase` | `25q16.ic3` | 2 MB (2,097,152 bytes) | `a8edb73e` |
+| | | `internal.bin` | 4 KB (4,096 bytes) | `da5850f0` |
+| | | `serial-rom.bin` | 256 bytes | `877fb90b` |
 | 240-in-1 Mini Arcade | `240in1ar` | `mw-106-2g.u3` | 128 MB (134,217,728 bytes) | `c46d2ca9` |
 | 265-in-1 Handheld | `265games` | `265games.bin` | 256 MB (268,435,456 bytes) | `761c92cb` |
 
@@ -131,6 +135,14 @@ Import the MAME `168pcase` set (`25q32.u7`). The case is drawn as the real one:
 D-pad, red **A**/**B**, round **SELECT**/**START**, and two **TURBO** buttons
 (rapid-fire B / A). Tap the camera bump (or Back) for the menu. Gamepads: B/Y = A,
 A/X = B, Start/Select, D-pad or left stick; keyboard X/Z, Enter, Space, WASD.
+
+### 36-in-1 Classic Games Phone Case
+
+Import the MAME `36pcase` zip (all three files). Drawn like the black
+handheld-style case: D-pad, square red **A**/**B**, **S/P** (start/pause),
+**SOUND** (mute on/off, remembered), **RESET**, and **ON/OFF** or the camera bump
+for the menu. Gamepads use the 168-in-1 mapping, so Select is on the pad's
+Select button.
 
 ### 240-in-1 Mini Arcade
 

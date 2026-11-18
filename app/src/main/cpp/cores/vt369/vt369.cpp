@@ -26,6 +26,8 @@ enum {
 };
 static const int SCANLINES = 262, VBLANK_FIRST = 241, BOTTOM_VISIBLE = 239, W = 256;
 static const int DOTS_PER_LINE = 341;
+static const int64_t DOTS_PER_FRAME = 341 * 262;          // one 60.0988 Hz screen frame
+static const int64_t OAM_DMA_DELAY_DOTS = 10739;          // 2 ms at 21.477 MHz / 4
 static const unsigned YUV444_COLOR = 0x40 * 8;
 static const int DOTS_PER_APU_SAMPLE = 12;      // APU stream runs at clock / 4
 
@@ -79,6 +81,12 @@ bool Vt369Core::load(const std::vector<RomFile>& roms, std::string& error)
         m_rom.assign(m_cfg.romSize, 0xff);
         std::memcpy(m_rom.data(), r->data.data(), std::min(r->data.size(), (size_t)m_cfg.romSize));
     }
+    for (auto& f : roms) {
+        if (!m_cfg.internalRomName.empty() && f.name == m_cfg.internalRomName) m_internal = f.data;
+        if (!m_cfg.protRomName.empty() && f.name == m_cfg.protRomName) m_protRom = f.data;
+    }
+    if (!m_cfg.protRomName.empty() && m_protRom.size() < 0x100) { error = "Missing " + m_cfg.protRomName; return false; }
+    if (!m_cfg.internalRomName.empty() && m_internal.size() < 0x1000) { error = "Missing " + m_cfg.internalRomName; return false; }
     reset();
     return true;
 }
@@ -91,6 +99,8 @@ void Vt369Core::reset()
     m_s.clockMul = 1;
     m_s.nmiAt = -1;
     m_s.spuTimerNext = -1;
+    m_s.lcdcNmiAt = m_s.oamDmaAt = -1;
+    m_s.gpioWriteHistory[0] = m_s.gpioWriteHistory[1] = 0xff;
     socReset();
     ppuReset();
     apuReset();
@@ -313,13 +323,103 @@ void Vt369Core::vtDmaWInner(uint8_t data)
         int length = (m_s.vdmaCtrl >> 1) & 7;
         if (length == 0) length = 8;
         length = 1 << length;
-        for (int i = 0; i < length; i++) {
-            uint8_t v = cpuRead((uint16_t)(src + i));
-            cpuWrite((m_s.vdmaCtrl & 1) ? 0x2007 : 0x2004, v);
+        if (m_cfg.case36 && (m_s.vdmaCtrl & 1)) {
+            uint16_t dest = m_s.dmaVramTarget;
+            for (int i = 0; i < length; i++) {
+                ppuWritebyte(dest & 0x3fff, cpuRead((uint16_t)(src + i)));
+                dest = (dest + 1) & 0x3fff;
+            }
+            m_s.dmaVramTarget = dest;
+        } else if (m_cfg.case36) {
+            // OAM DMA is queued and copied 2 ms after the last request
+            if (m_s.oamDmaCount < 4) {
+                int slot = m_s.oamDmaCount++;
+                m_s.oamDmaSrc[slot] = src;
+                m_s.oamDmaDst[slot] = m_s.oamDmaNext & 0x1ff;
+                m_s.oamDmaLen[slot] = length & 0xff;
+                m_s.oamDmaNext = (m_s.oamDmaNext + length) & 0x1ff;
+                m_s.oamDmaAt = m_s.dot + OAM_DMA_DELAY_DOTS;
+            }
+        } else {
+            for (int i = 0; i < length; i++) {
+                uint8_t v = cpuRead((uint16_t)(src + i));
+                cpuWrite((m_s.vdmaCtrl & 1) ? 0x2007 : 0x2004, v);
+            }
         }
     } else {
         doDma(data, false);     // force_bad_dma()
     }
+}
+
+void Vt369Core::flushOamDma()
+{
+    bool inInst = m_inInst;
+    m_inInst = false;
+    for (int r = 0; r < m_s.oamDmaCount; r++) {
+        int len = m_s.oamDmaLen[r] ? m_s.oamDmaLen[r] : 0x100;
+        for (int i = 0; i < len; i++)
+            m_s.spriteram[(m_s.oamDmaDst[r] + i) & 0x1ff] = cpuRead((uint16_t)(m_s.oamDmaSrc[r] + i));
+    }
+    m_s.oamDmaCount = 0;
+    m_s.oamDmaNext = 0;
+    m_inInst = inInst;
+}
+
+void Vt369Core::gpioBusW()
+{
+    m_s.gpioWriteHistory[0] = m_s.gpioWriteHistory[1];
+    m_s.gpioWriteHistory[1] = gpioBusLatch();
+    if (m_s.gpioWriteHistory[0] == 0x00 && m_s.gpioWriteHistory[1] == 0x00) {
+        // the menu waits for this two-byte answer before applying its LCD/GPIO table
+        m_s.gpioResponse[0] = 0x93;
+        m_s.gpioResponse[1] = 0x35;
+        m_s.gpioResponsePos = 0;
+        m_s.gpioResponseLen = 2;
+    }
+}
+
+// vt_menu_protection_device (David Haywood, BSD-3-Clause)
+void Vt369Core::protWriteEnable(int state)
+{
+    if ((bool)state != (bool)m_s.protInEnable) {
+        if (!state) { m_s.protState = 1; m_s.protCommandBits = 8; }
+        else m_s.protState = 0;
+    }
+    m_s.protInEnable = state;
+}
+
+void Vt369Core::protWriteClock(int state)
+{
+    if ((bool)state != (bool)m_s.protInClock && state) {
+        if (m_s.protState == 1) {
+            m_s.protCommand = (m_s.protCommand << 1) | (m_s.protInData ? 1 : 0);
+            if (--m_s.protCommandBits == 0) {
+                if (m_s.protCommand == 0x30 || m_s.protCommand == 0x20) {
+                    m_s.protState = 2;
+                    m_s.protReadPos = m_cfg.protStartByte * 8;
+                } else if (m_cfg.case36 && m_s.protCommand == 0x10) {
+                    m_s.protState = 3; m_s.protCommand = 0; m_s.protCommandBits = 8;
+                } else m_s.protState = 0;
+            }
+        } else if (m_s.protState == 2) {
+            uint8_t b = m_protRom[(m_s.protReadPos >> 3) & 0xff];
+            m_s.protLatch = (b >> (~m_s.protReadPos & 7)) & 1;
+            m_s.protReadPos++;
+        } else if (m_s.protState == 3) {
+            m_s.protCommand = (m_s.protCommand << 1) | (m_s.protInData ? 1 : 0);
+            if (--m_s.protCommandBits == 0) {
+                uint8_t r = 0;
+                switch (m_s.protCommand) { case 0x02: r = 0x01; break; case 0x4a: r = 0x00; break; case 0x6d: r = 0x1e; break; case 0xb2: r = 0x02; break; }
+                m_s.protLateResponse = r;
+                m_s.protLateResponsePos = 0;
+                m_s.protState = 4;
+            }
+        } else if (m_s.protState == 4) {
+            m_s.protLatch = (m_s.protLateResponse >> (~m_s.protLateResponsePos & 7)) & 1;
+            if (++m_s.protLateResponsePos == 8) m_s.protState = 0;
+        }
+    }
+    m_s.protInClock = state;
 }
 
 void Vt369Core::w4034(uint8_t data)
@@ -355,7 +455,7 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
 {
     catchUp();
     if (a < 0x1000) return m_s.ram[a];
-    if (a < 0x2000) return 0x00;                   // internal ROM (not dumped / not present)
+    if (a < 0x2000) return m_internal.empty() ? 0x00 : m_internal[a & 0xfff];   // internal ROM
     if (a < 0x2008) { apuSync(); return ppuRead(a & 7); }
     if (a >= 0x3000 && a < 0x4000) return m_s.ntram[decodeNtAddr(a - 0x3000, false)];
     if (a >= 0x8000) {
@@ -394,10 +494,17 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
     case 0x4148: return m_s.dir414x;
     case 0x414a: return (0 & ~m_s.dir414x) | (m_s.data414a & m_s.dir414x);
     case 0x414b: return (0 & ~m_s.dir414x) | (m_s.data414b & m_s.dir414x);
-    case 0x414c: case 0x414d: case 0x414e: case 0x414f: return m_s.gpio414x[0xc + (a - 0x414c)];
+    case 0x414f:
+        if (m_cfg.case36) return (m_s.gpio414x[0x0f] & 0xe0) | (gpioBusR() & 0x1f);
+        return m_s.gpio414x[0x0f];
+    case 0x414c: case 0x414d: case 0x414e: return m_s.gpio414x[0xc + (a - 0x414c)];
     case 0x4150: return m_s.dir415x;
     case 0x4152: return (0xff & ~m_s.dir415x) | (m_s.data4152 & m_s.dir415x);
-    case 0x4153: return (0xff & ~m_s.dir415x) | (m_s.data4153 & m_s.dir415x);
+    case 0x4153: {
+        // gtct885_prot_r: the serial protection chip answers on bit 5
+        uint8_t in = m_protRom.empty() ? 0xff : (m_s.protLatch ? 0x20 : 0x00);
+        return (in & ~m_s.dir415x) | (m_s.data4153 & m_s.dir415x);
+    }
     case 0x4155: case 0x4156: case 0x4157: return m_s.gpio415x[5 + (a - 0x4155)];
     case 0x415a: case 0x415b: return m_s.gpio415x[0xa + (a - 0x415a)];
     case 0x415c: return 0xf0;
@@ -410,7 +517,10 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
     case 0x41b7: return 0x04;
     case 0x41e4: case 0x41e5: return m_s.gpio41ex[4 + (a - 0x41e4)];
     case 0x41e6: return m_s.gpio41ex[6];
-    case 0x41e7: case 0x41e8: case 0x41e9: case 0x41ea: case 0x41eb: return m_s.gpio41ex[7 + (a - 0x41e7)];
+    case 0x41e7:
+        if (m_cfg.case36) return (m_s.gpio41ex[7] & 0xe3) | ((gpioBusR() >> 3) & 0x1c);
+        return m_s.gpio41ex[7];
+    case 0x41e8: case 0x41e9: case 0x41ea: case 0x41eb: return m_s.gpio41ex[7 + (a - 0x41e7)];
     case 0x4326: return 0x01;
     }
     if (a >= 0x4130 && a < 0x413e) {
@@ -457,7 +567,18 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
     case 0x201f: m_s.ext201f = d; return;
     case 0x2020: case 0x2021: case 0x2022: case 0x2023: m_s.tilebases[a & 3] = d; return;
     case 0x2024: m_s.lightgun2024 = d; return;
-    case 0x2050: m_s.lcdc2050 = d; return;
+    case 0x2050:
+        m_s.lcdc2050 = d;
+        if (m_cfg.case36) {
+            if (d & 1) {
+                // frame_period() + time_until_pos(240, 120) on the 256-wide MAME screen
+                const int64_t frameStart = m_s.lineStart - (int64_t)m_s.scanline * DOTS_PER_LINE;
+                int64_t t = frameStart + 240 * DOTS_PER_LINE + 120 * DOTS_PER_LINE / 256;
+                while (t <= m_s.dot) t += DOTS_PER_FRAME;
+                m_s.lcdcNmiAt = t + DOTS_PER_FRAME;
+            } else m_s.lcdcNmiAt = -1;
+        }
+        return;
     case 0x4014: vtDmaW(d); return;
     case 0x4015: apuSync(); apuWrite(0x15, d); return;
     case 0x4016:
@@ -471,13 +592,23 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
     case 0x411c: m_s.bank6000Enable = d; m_s.clockMul = (d & 0x80) ? 3 : 1; return;
     case 0x411d: m_s.r411d = d; updateBanks(); return;
     case 0x411f: m_s.r411f = d; return;
-    case 0x4144: case 0x4145: case 0x4146: case 0x4147: m_s.gpio414x[4 + (a - 0x4144)] = d; return;
+    case 0x4147:
+        if (m_cfg.case36 && !(m_s.gpio414x[7] & 0x20) && (d & 0x20)) { m_s.gpio414x[7] = d; gpioBusW(); return; }
+        m_s.gpio414x[7] = d; return;
+    case 0x4144: case 0x4145: case 0x4146: m_s.gpio414x[4 + (a - 0x4144)] = d; return;
     case 0x4148: m_s.dir414x = d; return;
     case 0x414a: m_s.data414a = d; return;
     case 0x414b: m_s.data414b = d; return;
     case 0x414c: case 0x414d: case 0x414e: case 0x414f: m_s.gpio414x[0xc + (a - 0x414c)] = d; return;
     case 0x4150: m_s.dir415x = d; return;
-    case 0x4152: m_s.data4152 = d; return;
+    case 0x4152:
+        m_s.data4152 = d;
+        if (!m_protRom.empty()) {   // gtct885_prot_w
+            m_s.protInData = (d >> 5) & 1;
+            protWriteEnable((d >> 4) & 1);
+            protWriteClock((d >> 3) & 1);
+        }
+        return;
     case 0x4153: m_s.data4153 = d; return;
     case 0x4155: case 0x4156: case 0x4157: m_s.gpio415x[5 + (a - 0x4155)] = d; return;
     case 0x415a: case 0x415b: m_s.gpio415x[0xa + (a - 0x415a)] = d; return;
@@ -487,7 +618,11 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
         m_s.gpio41ex[6] = d;
         if (m_cfg.bank41e6) m_s.ahigh = (uint32_t)(d & 0x03) << 25;   // extbank_red5mam_w
         return;
-    case 0x41e7: case 0x41e8: case 0x41e9: case 0x41ea: case 0x41eb: m_s.gpio41ex[7 + (a - 0x41e7)] = d; return;
+    case 0x41eb:
+        if (m_cfg.case36 && !(m_s.gpio41ex[0xb] & 0x10) && (d & 0x10) && m_s.gpioResponsePos < m_s.gpioResponseLen)
+            m_s.gpioResponsePos++;
+        m_s.gpio41ex[0xb] = d; return;
+    case 0x41e7: case 0x41e8: case 0x41e9: case 0x41ea: m_s.gpio41ex[7 + (a - 0x41e7)] = d; return;
     case 0x4162: spuControl(d); return;
     case 0x4169:                                    // encryption_4169_w
         if (m_cfg.crypt >= 0) { if (d == 0x01) setEncryption(false); else if (d == 0x00) setEncryption(true); }
@@ -543,7 +678,8 @@ uint8_t Vt369Core::spuRead(uint16_t a)
         if (off == 4 || off == 5) return m_s.soundram[0x7f8 + (off & 1)];
         return m_s.soundram[0x7fa + off];
     }
-    return 0;                     // 4000-4fff internal ROM: not present
+    if (a >= 0x4000 && a < 0x5000 && !m_internal.empty()) return m_internal[a & 0xfff];
+    return 0;                     // 4000-4fff internal ROM
 }
 
 static const int16_t s_adpcmSteps[16][16] = {   // vt369_adpcm.h (NewRisingSun, GPL-2.0+)
@@ -1694,6 +1830,8 @@ int64_t Vt369Core::nextEventDot() const
     // hblank_tick: cycles_to_attotime(260) / 3 into the line (depends on the CPU clock)
     int64_t ev = m_s.evPhase == 0 ? m_s.lineStart + 260 / m_s.clockMul : m_s.lineStart + DOTS_PER_LINE;
     if (m_s.nmiAt >= 0 && m_s.nmiAt < ev) ev = m_s.nmiAt;
+    if (m_s.lcdcNmiAt >= 0 && m_s.lcdcNmiAt < ev) ev = m_s.lcdcNmiAt;
+    if (m_s.oamDmaAt >= 0 && m_s.oamDmaAt < ev) ev = m_s.oamDmaAt;
     return ev;
 }
 
@@ -1703,6 +1841,12 @@ void Vt369Core::fireEvent()
     if (m_s.nmiAt >= 0 && m_s.nmiAt <= ev) {
         m_s.nmiAt = -1;
         m_cpu.pulseNmi();
+    } else if (m_s.lcdcNmiAt >= 0 && m_s.lcdcNmiAt <= ev) {   // assert_36pcase_lcdc_nmi
+        m_s.lcdcNmiAt += DOTS_PER_FRAME;
+        m_cpu.pulseNmi();
+    } else if (m_s.oamDmaAt >= 0 && m_s.oamDmaAt <= ev) {     // flush_36pcase_deferred_oam_dma
+        m_s.oamDmaAt = -1;
+        flushOamDma();
     } else if (m_s.evPhase == 0) {
         m_s.evPhase = 1;
         hblankTick();
@@ -1748,7 +1892,7 @@ void Vt369Core::runFrame()
 bool Vt369Core::saveState(std::vector<uint8_t>& out)
 {
     out.clear();
-    uint32_t magic = 0x41335456;   // 'VT3A'
+    uint32_t magic = 0x42335456;   // 'VT3B'
     auto put = [&](const void* p, size_t n) { const uint8_t* b = (const uint8_t*)p; out.insert(out.end(), b, b + n); };
     put(&magic, 4);
     put(&m_s, sizeof(m_s));
@@ -1766,7 +1910,7 @@ bool Vt369Core::loadState(const std::vector<uint8_t>& in)
     size_t need = 4 + sizeof(m_s) + 8 + 1 + sizeof(m_bitmapBuf);
     if (in.size() != need) return false;
     uint32_t magic; memcpy(&magic, in.data(), 4);
-    if (magic != 0x41335456) return false;
+    if (magic != 0x42335456) return false;
     const uint8_t* p = in.data() + 4;
     memcpy(&m_s, p, sizeof(m_s)); p += sizeof(m_s);
     memcpy(&m_cpu.pc, p, 2); p += 2;

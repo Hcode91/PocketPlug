@@ -17,6 +17,10 @@ struct Vt369Config {
     uint32_t romSize = 0x400000;
     int crypt = -1;            // opcode bitswap (MAME which_crypt), -1 = none
     bool bank41e6 = false;     // 41e6 bits 0-1 select a 32 MB ROM bank (red5mam style)
+    std::string internalRomName;   // VT3XX_INTERNAL_* (4 KB, 0x1000 main / 0x4000 sound)
+    std::string protRomName;       // vt_menu_protection serial ROM (4152/4153)
+    int protStartByte = 0;
+    bool case36 = false;           // enable_36pcase_gpio + 36pcase late protection protocol
 };
 
 class Vt369Core : public Core {
@@ -45,6 +49,14 @@ private:
     std::vector<uint8_t> m_rom;     // 4 MB SPI flash image
     M6502 m_cpu;
     M6502 m_spu;                    // sound CPU (runs at the 21.47 MHz master clock)
+    std::vector<uint8_t> m_internal;    // internal ROM (empty = not present)
+    std::vector<uint8_t> m_protRom;     // serial protection ROM
+    uint8_t gpioBusLatch() const { return (m_s.gpio414x[0x0f] & 0x1f) | ((m_s.gpio41ex[0x07] & 0x1c) << 3); }
+    uint8_t gpioBusR() const { return m_s.gpioResponsePos < m_s.gpioResponseLen ? m_s.gpioResponse[m_s.gpioResponsePos] : gpioBusLatch(); }
+    void gpioBusW();
+    void protWriteClock(int state);
+    void protWriteEnable(int state);
+    void flushOamDma();
     uint8_t m_cryptTable[256];
     uint32_t m_inputs = 0;
     uint32_t m_out[256 * 240];
@@ -131,6 +143,16 @@ private:
         uint8_t adderAddr[2], adderResult[2], adpcmAddr[2], adpcmResult[2], dac[4];
         int16_t dacOut[2];
         struct SpuRegs { uint16_t pc; uint8_t a, x, y, s, p, databank, irq; } spuRegs;
+        // 36pcase GPIO handshake, LCDC NMI and deferred OAM DMA (vt3xx_soc_base_device)
+        uint8_t gpioWriteHistory[2], gpioResponse[2], gpioResponsePos, gpioResponseLen;
+        uint16_t oamDmaSrc[4], oamDmaDst[4];
+        uint8_t oamDmaLen[4], oamDmaCount;
+        uint16_t oamDmaNext;
+        int64_t lcdcNmiAt, oamDmaAt;
+        // vt_menu_protection_device
+        uint8_t protCommand, protCommandBits, protState, protLatch, protLateResponse, protLateResponsePos;
+        uint16_t protReadPos;
+        uint8_t protInData, protInEnable, protInClock;
     } m_s;
 
     // ---------------- helpers ----------------

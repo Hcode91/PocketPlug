@@ -58,6 +58,17 @@ Core* createCore(const std::string& id)
         c.romPatches.push_back(0x4821e25u); c.romPatchValues.push_back(0xffff);  // gym dancing
         return new Spg2xxCore(c);
     }
+    if (id == "36pcase") {    // 36-in-1 classic games phone case (VT369, altswap, internal ROM + serial protection)
+        Vt369Config c;
+        c.romName = "25q16.ic3";
+        c.romSize = 0x200000;
+        c.crypt = 1;
+        c.internalRomName = "internal.bin";
+        c.protRomName = "serial-rom.bin";
+        c.protStartByte = 1;
+        c.case36 = true;
+        return new Vt369Core(c);
+    }
     if (id == "240in1ar") {   // 240-in-1 mini arcade cabinet (VT369, scrambled opcodes, 128 MB)
         Vt369Config c;
         c.romName = "mw-106-2g.u3";

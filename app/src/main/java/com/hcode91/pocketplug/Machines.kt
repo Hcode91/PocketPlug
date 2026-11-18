@@ -183,6 +183,20 @@ object Machines {
             skin = Skin.PHONE_CASE,
         ),
         MachineDef(
+            id = "36pcase",
+            title = "36-in-1 Classic Games Phone Case",
+            subtitle = "Black handheld-style phone case with 36 NES classics and a colour screen (MAME set: 36pcase)",
+            chip = "VT369 (NES on a chip, sound CPU)",
+            region = "Worldwide",
+            year = "202x",
+            roms = listOf(
+                RomSpec("25q16.ic3", 0x200000L, 0xa8edb73eL),
+                RomSpec("internal.bin", 0x1000L, 0xda5850f0L),
+                RomSpec("serial-rom.bin", 0x100L, 0x877fb90bL),
+            ),
+            skin = Skin.PHONE_CASE,
+        ),
+        MachineDef(
             id = "240in1ar",
             title = "240-in-1 Mini Arcade",
             subtitle = "Palm-sized upright arcade cabinet with joystick and sampled-music games (MAME set: 240in1ar)",

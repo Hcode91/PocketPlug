@@ -93,10 +93,18 @@ class EmulatorActivity : Activity() {
         when (machine.skin) {
             Skin.PHONE_CASE -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val v = PhoneCaseView(this).apply {
+                val classic = machine.id == "36pcase"
+                val v = PhoneCaseView(this, classic).apply {
                     onInput = { setTouch(0, it) }
                     onMenu = { showMenu() }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    soundOn = prefs.getBoolean("sound_${machine.id}", true)
+                    onSound = { on ->
+                        volume = if (on) 1f else 0f
+                        prefs.edit().putBoolean("sound_${machine.id}", on).apply()
+                    }
                 }
+                if (classic) volume = if (v.soundOn) 1f else 0f
                 phone = v
                 setContentView(v)
             }
