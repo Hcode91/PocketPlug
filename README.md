@@ -17,6 +17,7 @@ controller.
 | 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
 | 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
 | NGEN CP-001 Workstation (Convergent NGEN / Burroughs B26) | `ngen` | Intel 80186 + 8259 / 8254 / 8251, MC6845 text video, WD2797 floppy, WD1010 winchester | Boots BTOS 4.0 from floppy, installs it onto the emulated 10 MB hard disk and boots from there (MAME's driver does not boot) |
+| PC 7300 / 3B1 Desktop (AT&T UNIX PC) | `3b1` | Motorola 68010 + MMU, 720x348 bitmap, WD2797 floppy, WD2010 hard disk, keyboard + mouse (FreeBee) | Installs the 3.51 Foundation set from floppies onto the emulated 64 MB hard disk, boots from it to the window manager; mouse and full keyboard |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
@@ -42,6 +43,9 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `72-00415_80186_cpu.bin` | 4 KB (4,096 bytes) | `a6dde7d9` |
 | | | `72-00422_10mb_disk.bin` | 4 KB (4,096 bytes) | `f5b046b6` |
 | | | Plus your own BTOS / CTOS system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
+| PC 7300 / 3B1 Desktop | `3b1` | `72-00616.14c` | 8 KB (8,192 bytes) | `c61f7ae0` |
+| | | `72-00617.15c` | 8 KB (8,192 bytes) | `4e93ff40` |
+| | | Plus your own 3B1 system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
 
 MAME artwork, samples, BIOS files and parent sets are not needed.
 
@@ -195,6 +199,41 @@ for the next key when tapped on their own; the LOCK and OVERTYPE keys light up.
 
 The machine has no clock chip: type the date at the sign-on screen.
 
+### PC 7300 / 3B1 Desktop
+
+Import the MAME `3b1` zip. Drawn as the desktop: the beige monitor with its green
+tube on the system unit (floppy drive at the right of the front, power switch at
+the left), a three-button mouse in front, and the long keyboard folded for an
+upright phone: the office keys (Exit, Msg, Help, Cancl, Suspd, Rsume, Opts, Cmd,
+Close/Open, Print, Clear/Rfrsh, Rstrt/Ref) and the editing keys (Clear Line,
+Creat, Save, Undo, Redo, Find, Rplac, Move, Copy, Dlete, Dlete Char, Slect Mark,
+Input Mode) are the two rows above F1-F8, and the cursor block (Beg, Home, End,
+Page, Prev, Next, the arrows / Roll, Num Lock) is the bottom row. SHIFT and CTRL
+latch for the next key when tapped on their own.
+
+- **The screen is the mouse pad**: drag on it to move the pointer, tap it to
+  click the left button. Hold the buttons on the drawn mouse for the middle and
+  right buttons, or to drag with the left one.
+- **Tap the floppy drive** for the disk menu (insert, swap, eject; save / load /
+  erase the hard disk). The hard disk is a 64 MB drive (1024 cylinders, 8 heads,
+  17 sectors) kept in the app's storage, written as you go; it starts empty.
+  Floppies changed by the machine are written back to the app's copy as raw images.
+- **Tap the power switch** (or Back) for reset and quit. There are no save
+  states: like the real machine, shut UNIX down and boot again.
+- **Installing UNIX 3.51** (about 15 minutes; use the replacement disk 8,
+  `08_Foundation_Set_Ver_3.51_no_phinit`, so it comes up to the login):
+  1. Insert `01_Diagnostic_Disk`, choose Reset, press a key at the configuration
+     screen, choose **2** (Initialize Hard Disk), **9** (Miniscribe 64 MB), **No**
+     (one user), **Yes** (initialize), then **No** to the surface test.
+  2. Insert `02_Floppy_Boot_Disk` and choose **7** (reboot). When asked, insert
+     `03_Floppy_File_System`, press a key and answer **yes**.
+  3. Insert `04_Hard_Disk_Boot` when asked and press Return, then disks 5 to 12
+     one by one, pressing Return after each.
+  4. It reboots from the hard disk and asks for the date and time (press Enter).
+- **A real keyboard** works too: Enter = Return, numeric-pad Enter = Enter,
+  Esc = Esc, F9 = Suspd, F10 = Exit, F11 = Cancl, F12 = Opts, Insert = Cmd,
+  Page Up = Help, Page Down = Page, Home / End, Break = Reset Break.
+
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.
 
@@ -211,9 +250,8 @@ reset and the scanline toggle.
 - Left out on purpose: the AT&T 3B2 minicomputers (`3b2_300`, `3b2_310`,
   `3b2_400`, `3b2_600`). Serial-terminal Unix servers with their own WE32100
   CPU and no screen or keyboard to recreate; SIMH already runs them well.
-- Next machine: the AT&T UNIX PC Model 3B1 (`3b1`), built by Convergent like the
-  NGEN. 68010 with a paged MMU, 720x348 mono bitmap screen, the same WD2797 /
-  WD1010 disk chips. Needs the MAME `3b1` boot ROMs and UNIX PC system disks.
+- 3B1: save states (they'd have to carry the whole hard disk), the serial port
+  and the modem / phone line. The dialer's beep and tones play.
 
 ## Layout
 
@@ -228,6 +266,7 @@ app/src/main/cpp/
   cores/spg2xx/         SunPlus SPG2xx (u'nSP CPU, tiles/sprites, 16-voice SPU)
   cores/ngen/           Convergent NGEN: 80186 (+ timers, DMA, interrupts), 8259, 8254,
                         8251, 6845 text video, WD2797 / WD1010 disk module
+  cores/unixpc/         PC 7300 / 3B1: FreeBee (GPL-3) + Musashi 68010, glue in unixpc.cpp
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/
   Machines.kt           machine list (ROM files, CRCs, skin)

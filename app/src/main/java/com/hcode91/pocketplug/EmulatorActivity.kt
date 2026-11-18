@@ -37,7 +37,11 @@ class EmulatorActivity : Activity() {
     private var phone: PhoneCaseView? = null
     private var arcade: ArcadeCabinetView? = null
     private var handheld: HandheldView? = null
-    private var workstation: WorkstationView? = null
+    private var workstation: DesktopSkin? = null
+    // 3B1 mouse: motion gathered between frames
+    private val mouseLock = Any()
+    private var mouseDx = 0f
+    private var mouseDy = 0f
     // computer keyboards: key events go to the core between frames
     private val keyQueue = java.util.concurrent.ConcurrentLinkedQueue<Int>()
     private var floppyFile: java.io.File? = null
@@ -118,6 +122,19 @@ class EmulatorActivity : Activity() {
                     onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
                     onMenu = { showMenu() }
                     onDisks = { showDiskMenu() }
+                }
+                workstation = v
+                setContentView(v)
+                attachDisks()
+            }
+            Skin.DESKTOP_3B1 -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = Desktop3b1View(this).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onDisks = { showDiskMenu() }
+                    onMouseMove = { dx, dy -> synchronized(mouseLock) { mouseDx += dx; mouseDy += dy } }
+                    onMouseButtons = { setTouch(0, it) }
                 }
                 workstation = v
                 setContentView(v)
@@ -282,7 +299,8 @@ class EmulatorActivity : Activity() {
     // ---- disks (computers) ----
     private fun diskDir() = java.io.File(filesDir, "disks/${machine.id}").apply { mkdirs() }
     private fun floppyDir() = java.io.File(diskDir(), "floppies").apply { mkdirs() }
-    private fun hardDiskFile() = java.io.File(diskDir(), "harddisk.ngenhd")
+    private fun hardDiskExt() = if (machine.skin == Skin.DESKTOP_3B1) "img" else "ngenhd"
+    private fun hardDiskFile() = java.io.File(diskDir(), "harddisk.${hardDiskExt()}")
 
     /** Winchester drive 0 always attached (a new one starts unformatted); the last floppy goes back in. */
     private fun attachDisks() {
@@ -345,7 +363,7 @@ class EmulatorActivity : Activity() {
             saveDisks()
             val i = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "application/octet-stream"
-                putExtra(android.content.Intent.EXTRA_TITLE, "${machine.id}-harddisk.ngenhd")
+                putExtra(android.content.Intent.EXTRA_TITLE, "${machine.id}-harddisk.${hardDiskExt()}")
             }
             startActivityForResult(i, EXPORT_HD)
         }
@@ -361,7 +379,7 @@ class EmulatorActivity : Activity() {
                 .setMessage("Erase the hard disk? Everything installed on it is lost and the machine restarts.")
                 .setPositiveButton("Erase") { _, _ ->
                     hardDiskFile().delete()
-                    synchronized(coreLock) { Native.mediaInsert(handle, 1, ""); Native.reset(handle) }
+                    synchronized(coreLock) { Native.mediaInsert(handle, 1, hardDiskFile().absolutePath); Native.reset(handle) }
                     paused = false
                 }
                 .setNegativeButton("Cancel") { _, _ -> paused = false }
@@ -404,9 +422,12 @@ class EmulatorActivity : Activity() {
                     synchronized(coreLock) { Native.mediaInsert(handle, 1, hardDiskFile().absolutePath) }
                     Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return
                 }
-                tmp.copyTo(hardDiskFile(), overwrite = true)
-                tmp.delete()
-                synchronized(coreLock) { Native.reset(handle) }
+                synchronized(coreLock) {
+                    tmp.copyTo(hardDiskFile(), overwrite = true)
+                    tmp.delete()
+                    Native.mediaInsert(handle, 1, hardDiskFile().absolutePath)
+                    Native.reset(handle)
+                }
                 Toast.makeText(this, "Hard disk loaded; the machine restarted", Toast.LENGTH_SHORT).show()
             }
             EXPORT_HD -> {
@@ -511,6 +532,10 @@ class EmulatorActivity : Activity() {
                     val ev = keyQueue.poll() ?: break
                     Native.keyEvent(handle, ev and 0xff, ev and 0x100 != 0)
                 }
+                if (machine.skin == Skin.DESKTOP_3B1) {
+                    val (dx, dy) = synchronized(mouseLock) { (mouseDx to mouseDy).also { mouseDx = 0f; mouseDy = 0f } }
+                    if (dx != 0f || dy != 0f) Native.setAnalog(handle, 9, dx, dy)
+                }
                 val r = Native.runFrame(handle, touchInputs or keyInputs, pixels, audio)
                 workstation?.indicators = Native.mediaActivity(handle)
                 r
@@ -540,11 +565,11 @@ class EmulatorActivity : Activity() {
         val stateFile = cartFile?.let { RomStore.cartStateFile(this, machine, it) } ?: RomStore.stateFile(this, machine)
         val items = ArrayList<Pair<String, () -> Unit>>()
         items += "Resume" to {}
-        items += "Save state" to {
+        if (machine.skin != Skin.DESKTOP_3B1) items += "Save state" to {
             val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
             Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
         }
-        items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
+        if (machine.skin != Skin.DESKTOP_3B1) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
             if (stateFile.exists()) {
                 val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
                 Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()
@@ -723,6 +748,56 @@ class EmulatorActivity : Activity() {
         else -> 0
     }
 
+    private fun deskKey(code: Int): Int = if (machine.skin == Skin.DESKTOP_3B1) key3b1(code) else ngenKey(code)
+
+    /** A real keyboard on the 3B1's (scan codes as freebee/keyboard.c; office keys on the spare PC keys). */
+    private fun key3b1(code: Int): Int = when (code) {
+        in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> 0x61 + (code - KeyEvent.KEYCODE_A)
+        in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> 0x30 + (code - KeyEvent.KEYCODE_0)
+        KeyEvent.KEYCODE_SPACE -> 0x20
+        KeyEvent.KEYCODE_ENTER -> 0x0d
+        KeyEvent.KEYCODE_NUMPAD_ENTER -> 0x0a
+        KeyEvent.KEYCODE_TAB -> 0x09
+        KeyEvent.KEYCODE_DEL -> 0x08
+        KeyEvent.KEYCODE_FORWARD_DEL -> 0x7f
+        KeyEvent.KEYCODE_ESCAPE -> 0x1b
+        KeyEvent.KEYCODE_SHIFT_LEFT -> 0x48
+        KeyEvent.KEYCODE_SHIFT_RIGHT -> 0x49
+        KeyEvent.KEYCODE_CTRL_LEFT -> 0x4c
+        KeyEvent.KEYCODE_CTRL_RIGHT -> 0x4d
+        KeyEvent.KEYCODE_CAPS_LOCK -> 0x45
+        KeyEvent.KEYCODE_NUM_LOCK -> 0x7e
+        KeyEvent.KEYCODE_BREAK -> 0x25
+        KeyEvent.KEYCODE_DPAD_UP -> 0x01
+        KeyEvent.KEYCODE_DPAD_DOWN -> 0x0b
+        KeyEvent.KEYCODE_DPAD_LEFT -> 0x0e
+        KeyEvent.KEYCODE_DPAD_RIGHT -> 0x0f
+        KeyEvent.KEYCODE_PAGE_UP -> 0x2a          // Help
+        KeyEvent.KEYCODE_PAGE_DOWN -> 0x46        // Page
+        KeyEvent.KEYCODE_MOVE_HOME -> 0x4a
+        KeyEvent.KEYCODE_MOVE_END -> 0x4b
+        KeyEvent.KEYCODE_INSERT -> 0x41           // Cmd
+        KeyEvent.KEYCODE_F1 -> 0x15; KeyEvent.KEYCODE_F2 -> 0x16; KeyEvent.KEYCODE_F3 -> 0x17
+        KeyEvent.KEYCODE_F4 -> 0x18; KeyEvent.KEYCODE_F5 -> 0x19; KeyEvent.KEYCODE_F6 -> 0x1a
+        KeyEvent.KEYCODE_F7 -> 0x1c; KeyEvent.KEYCODE_F8 -> 0x1d
+        KeyEvent.KEYCODE_F9 -> 0x1e               // Suspd
+        KeyEvent.KEYCODE_F10 -> 0x04              // Exit
+        KeyEvent.KEYCODE_F11 -> 0x07              // Cancl
+        KeyEvent.KEYCODE_F12 -> 0x13              // Opts
+        KeyEvent.KEYCODE_MINUS -> 0x2d
+        KeyEvent.KEYCODE_EQUALS -> 0x3d
+        KeyEvent.KEYCODE_LEFT_BRACKET -> 0x5b
+        KeyEvent.KEYCODE_RIGHT_BRACKET -> 0x5d
+        KeyEvent.KEYCODE_BACKSLASH -> 0x5c
+        KeyEvent.KEYCODE_SEMICOLON -> 0x3b
+        KeyEvent.KEYCODE_APOSTROPHE -> 0x27
+        KeyEvent.KEYCODE_COMMA -> 0x2c
+        KeyEvent.KEYCODE_PERIOD -> 0x2e
+        KeyEvent.KEYCODE_SLASH -> 0x2f
+        KeyEvent.KEYCODE_GRAVE -> 0x60
+        else -> -1
+    }
+
     /** A real keyboard on the phone types on the emulated one (CTOS keys on the spare PC keys). */
     private fun ngenKey(code: Int): Int = when (code) {
         in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> 0x61 + (code - KeyEvent.KEYCODE_A)
@@ -774,7 +849,7 @@ class EmulatorActivity : Activity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (workstation != null) {
-            val k = ngenKey(keyCode)
+            val k = deskKey(keyCode)
             if (k < 0) return super.onKeyDown(keyCode, event)
             if (event.repeatCount == 0) keyQueue.add(k or 0x100)
             return true
@@ -796,7 +871,7 @@ class EmulatorActivity : Activity() {
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (workstation != null) {
-            val k = ngenKey(keyCode)
+            val k = deskKey(keyCode)
             if (k < 0) return super.onKeyUp(keyCode, event)
             keyQueue.add(k)
             return true

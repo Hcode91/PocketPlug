@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(pocketplug CXX)
+project(pocketplug C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,10 +13,23 @@ file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/cores/*.cpp)
 
+# UNIX PC (3B1): FreeBee (GPL-3) and Musashi (MIT) are C
+set(UNIXPC ${CMAKE_CURRENT_SOURCE_DIR}/cores/unixpc/freebee)
+file(GLOB UNIXPC_C_SOURCES CONFIGURE_DEPENDS ${UNIXPC}/*.c)
+list(APPEND UNIXPC_C_SOURCES
+    ${UNIXPC}/musashi/m68kcpu.c
+    ${UNIXPC}/musashi/m68kops.c
+    ${UNIXPC}/musashi/m68kdasm.c
+    ${UNIXPC}/musashi/softfloat/softfloat.c)
+set_source_files_properties(${UNIXPC_C_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-std=gnu99 -O2 -w")
+
 add_library(pocketplug SHARED
     jni_bridge.cpp
     core_registry.cpp
-    ${CORE_SOURCES})
+    ${CORE_SOURCES}
+    ${UNIXPC_C_SOURCES})
 
 target_include_directories(pocketplug PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(pocketplug PRIVATE POCKETPLUG "MUSASHI_CNF=\"../m68kconf.h\"")
 target_link_libraries(pocketplug log)

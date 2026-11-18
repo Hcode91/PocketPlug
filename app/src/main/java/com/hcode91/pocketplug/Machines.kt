@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1 }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -215,6 +215,20 @@ object Machines {
             year = "201x",
             roms = listOf(RomSpec("265games.bin", 0x10000000L, 0x761c92cbL)),
             skin = Skin.HANDHELD,
+        ),
+        MachineDef(
+            id = "3b1",
+            title = "PC 7300 / 3B1 Desktop",
+            subtitle = "1985 AT&T desktop computer (the UNIX PC) with a mouse-driven window manager over System V. "
+                + "Install from your own 3.51 disk set onto the built-in 64 MB hard disk (MAME set: 3b1)",
+            chip = "Motorola 68010, WD2797 + WD2010",
+            region = "USA",
+            year = "1985",
+            roms = listOf(
+                RomSpec("72-00616.14c", 0x2000L, 0xc61f7ae0L),
+                RomSpec("72-00617.15c", 0x2000L, 0x4e93ff40L),
+            ),
+            skin = Skin.DESKTOP_3B1,
         ),
         MachineDef(
             id = "ngen",

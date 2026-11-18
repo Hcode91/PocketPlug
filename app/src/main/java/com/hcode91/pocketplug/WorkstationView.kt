@@ -17,15 +17,15 @@ import android.view.View
  * latch for the next key when tapped on their own. Tap the floppy slot for
  * the disk menu and the monitor's power switch for the emulator menu.
  */
-class WorkstationView(ctx: Context) : View(ctx) {
+class WorkstationView(ctx: Context) : View(ctx), DesktopSkin {
 
-    var onKey: ((Int, Boolean) -> Unit)? = null
-    var onMenu: (() -> Unit)? = null
-    var onDisks: (() -> Unit)? = null
+    override var onKey: ((Int, Boolean) -> Unit)? = null
+    override var onMenu: (() -> Unit)? = null
+    override var onDisks: (() -> Unit)? = null
     /** bit 0 floppy busy, bit 1 hard disk busy, bits 8-15 keyboard LEDs */
-    var indicators = 0
+    override var indicators = 0
         set(v) { if (v != field) { field = v; postInvalidate() } }
-    var floppyLabel: String? = null
+    override var floppyLabel: String? = null
         set(v) { field = v; postInvalidate() }
 
     companion object {
@@ -103,7 +103,7 @@ class WorkstationView(ctx: Context) : View(ctx) {
     // SHIFT / CODE tapped on their own stay down until the next key is released
     private val latched = HashSet<Key>()
 
-    fun updateFrame(px: IntArray) {
+    override fun updateFrame(px: IntArray) {
         if (px.size < W * H) return
         System.arraycopy(px, 0, framePx, 0, W * H)
         postInvalidate()
