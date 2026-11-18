@@ -12,6 +12,7 @@
 #include "cores/spg2xx/spg2xx.h"
 #include "cores/ngen/ngen.h"
 #include "cores/unixpc/unixpc.h"
+#include "cores/nixie4004/nixieclock.h"
 
 Core* createCore(const std::string& id)
 {
@@ -79,6 +80,8 @@ Core* createCore(const std::string& id)
         c.bank41e6 = true;
         return new Vt369Core(c);
     }
+    if (id == "4004clk")      // 4004 Nixie Clock (Intel 4004)
+        return new NixieClockCore();
     if (id == "3b1")          // AT&T UNIX PC / PC 7300 / 3B1 (68010, FreeBee)
         return new UnixPcCore();
     if (id == "ngen")         // Convergent NGEN CP-001 / Burroughs B26 workstation (80186)

@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1 }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -215,6 +215,21 @@ object Machines {
             year = "201x",
             roms = listOf(RomSpec("265games.bin", 0x10000000L, 0x761c92cbL)),
             skin = Skin.HANDHELD,
+        ),
+        MachineDef(
+            id = "4004clk",
+            title = "4004 Nixie Clock",
+            subtitle = "2008 home-built clock run by the Intel 4004, the first microprocessor: six nixie tubes, "
+                + "date, time and a retirement countdown. Set from the phone's clock (MAME set: 4004clk)",
+            chip = "Intel 4004 (4-bit), 4001 ROM x16, 4002 RAM",
+            region = "USA",
+            year = "2008",
+            roms = (30..45).map { n ->
+                RomSpec("clock.u$n", 0x100L, longArrayOf(
+                    0x3d8608a5L, 0xc83af4bcL, 0x72442ae7L, 0x74789383L, 0xd817cc54L, 0xece36d21L, 0x65aa3cb1L, 0x4c2a2632L,
+                    0x133da0d6L, 0x0628593cL, 0x1c2e94b5L, 0x48b4510dL, 0x4b768675L, 0xdf8db80fL, 0x23037c71L, 0xa8d419efL)[n - 30])
+            },
+            skin = Skin.NIXIE_CLOCK,
         ),
         MachineDef(
             id = "3b1",

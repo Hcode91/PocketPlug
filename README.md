@@ -17,6 +17,7 @@ controller.
 | 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
 | 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
 | NGEN CP-001 Workstation (Convergent NGEN / Burroughs B26) | `ngen` | Intel 80186 + 8259 / 8254 / 8251, MC6845 text video, WD2797 floppy, WD1010 winchester | Boots BTOS 4.0 from floppy, installs it onto the emulated 10 MB hard disk and boots from there (MAME's driver does not boot) |
+| 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
 | PC 7300 / 3B1 Desktop (AT&T UNIX PC) | `3b1` | Motorola 68010 + MMU, 720x348 bitmap, WD2797 floppy, WD2010 hard disk, keyboard + mouse (FreeBee) | Installs the 3.51 Foundation set from floppies onto the emulated 64 MB hard disk, boots from it to the window manager; mouse and full keyboard |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
@@ -43,6 +44,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `72-00415_80186_cpu.bin` | 4 KB (4,096 bytes) | `a6dde7d9` |
 | | | `72-00422_10mb_disk.bin` | 4 KB (4,096 bytes) | `f5b046b6` |
 | | | Plus your own BTOS / CTOS system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
+| 4004 Nixie Clock | `4004clk` | `clock.u30` to `clock.u45` (16 files) | 256 bytes each | `3d8608a5` ... `a8d419ef` (checked one by one) |
 | PC 7300 / 3B1 Desktop | `3b1` | `72-00616.14c` | 8 KB (8,192 bytes) | `c61f7ae0` |
 | | | `72-00617.15c` | 8 KB (8,192 bytes) | `4e93ff40` |
 | | | Plus your own 3B1 system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
@@ -199,6 +201,24 @@ for the next key when tapped on their own; the LOCK and OVERTYPE keys light up.
 
 The machine has no clock chip: type the date at the sign-on screen.
 
+### 4004 Nixie Clock
+
+Import the MAME `4004clk` zip. Drawn as a home-built nixie clock: six tubes and
+two pairs of neon dots over the board with the 4004 in its white ceramic
+package, on a walnut base with the **SELECT** and **BROWSE** buttons and the
+**TICK-TOCK** and **MAINS** (50 / 60 Hz) switches. Tap the power switch (or
+Back) for the menu.
+
+- Like the real clock, it powers up with dark tubes and flashing dots and is
+  started with SELECT; PocketPlug does that for you and sets the time and date
+  from the phone (24 hours, month-day-year). It's set again from the phone
+  every time you come back, as if it had kept running.
+- **Displays**: SELECT, then BROWSE shows the display in use; SELECT steps the
+  number, BROWSE takes it. 1 date, 2 days to retirement, 3 time, 4 time to
+  retirement, 0 cycles through 1-3. Pressing SELECT five times goes to the
+  retirement setting. The display and settings are kept between visits.
+- A real keyboard: 1 or S = SELECT, 2 or B = BROWSE.
+
 ### PC 7300 / 3B1 Desktop
 
 Import the MAME `3b1` zip. Drawn as the desktop: the beige monitor with its green
@@ -250,6 +270,9 @@ reset and the scanline toggle.
 - Left out on purpose: the AT&T 3B2 minicomputers (`3b2_300`, `3b2_310`,
   `3b2_400`, `3b2_600`). Serial-terminal Unix servers with their own WE32100
   CPU and no screen or keyboard to recreate; SIMH already runs them well.
+- Left out on purpose: the ADDS 4000/260 (`4000_260`), a 1995 serial text
+  terminal. MAME doesn't emulate its serial ports, and without a host computer
+  on the other end all it can show is its setup menu.
 - 3B1: save states (they'd have to carry the whole hard disk), the serial port
   and the modem / phone line. The dialer's beep and tones play.
 
@@ -266,6 +289,7 @@ app/src/main/cpp/
   cores/spg2xx/         SunPlus SPG2xx (u'nSP CPU, tiles/sprites, 16-voice SPU)
   cores/ngen/           Convergent NGEN: 80186 (+ timers, DMA, interrupts), 8259, 8254,
                         8251, 6845 text video, WD2797 / WD1010 disk module
+  cores/nixie4004/       Intel 4004 CPU (i4004.h) and the 4004 Nixie Clock board
   cores/unixpc/         PC 7300 / 3B1: FreeBee (GPL-3) + Musashi 68010, glue in unixpc.cpp
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/

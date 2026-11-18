@@ -19,6 +19,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/spg2xx/unsp.*` | GPL-2.0-or-later | MAME u'nSP CPU (Segher Boessenkool, Ryan Holtz, David Haywood) |
 | `app/src/main/cpp/cores/spg2xx/*` (rest) | BSD-3-Clause | MAME SPG2xx devices (Ryan Holtz, David Haywood, Jonathan Gevaryahu), IMA ADPCM (Andrew Gardner, Aaron Giles), attotime/scheduler/screen timing (Aaron Giles); glue in spg2xx.cpp is GPL-2.0-or-later |
 | `app/src/main/cpp/cores/ngen/*` | BSD-3-Clause | PocketPlug (written from scratch; the I/O map follows MAME's BSD-3 `skeleton/ngen.cpp` notes by Barry Rodewald) |
+| `app/src/main/cpp/cores/nixie4004/*` | BSD-3-Clause | PocketPlug (CPU written from scratch; the board wiring follows MAME's BSD-3 `homebrew/4004clk.cpp` by Miodrag Milanovic) |
 | `app/src/main/cpp/cores/unixpc/freebee/*` (except `musashi/`) | GPL-3.0 | FreeBee 3B1 emulator (Philip Pemberton and contributors, github.com/philpem/freebee) - `GPL-3.0.txt`. Changed for PocketPlug: no SDL (keyboard, disk timers and dialer audio driven by the core), no TOML config, no serial PTY, ROMs passed in memory |
 | `app/src/main/cpp/cores/unixpc/freebee/musashi/*` | MIT | Musashi 680x0 core (Karl Stenerud et al., FreeBee's fork) - `musashi/readme.txt`; SoftFloat (John R. Hauser) - `musashi/softfloat/README.txt` |
 | `app/src/main/cpp/cores/unixpc/unixpc.*` | GPL-3.0-or-later | PocketPlug glue around FreeBee (main loop after FreeBee's `main.c`) |

@@ -37,6 +37,7 @@ class EmulatorActivity : Activity() {
     private var phone: PhoneCaseView? = null
     private var arcade: ArcadeCabinetView? = null
     private var handheld: HandheldView? = null
+    private var nixie: NixieClockView? = null
     private var workstation: DesktopSkin? = null
     // 3B1 mouse: motion gathered between frames
     private val mouseLock = Any()
@@ -139,6 +140,28 @@ class EmulatorActivity : Activity() {
                 workstation = v
                 setContentView(v)
                 attachDisks()
+            }
+            Skin.NIXIE_CLOCK -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = NixieClockView(this).apply {
+                    tickTock = prefs.getBoolean("ticktock_${machine.id}", true)
+                    mainsHz = prefs.getInt("mains_${machine.id}", 50)
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onTickTock = { on ->
+                        prefs.edit().putBoolean("ticktock_${machine.id}", on).apply()
+                        synchronized(coreLock) { Native.setOption(handle, 1, if (on) 1 else 0) }
+                    }
+                    onMains = { hz ->
+                        prefs.edit().putInt("mains_${machine.id}", hz).apply()
+                        synchronized(coreLock) { Native.setOption(handle, 2, hz) }
+                    }
+                }
+                nixie = v
+                setContentView(v)
+                // the chosen display and retirement date stay as they were left
+                val live = liveFile()
+                if (live.exists()) Native.loadState(handle, live.absolutePath)
             }
             Skin.HANDHELD -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -256,6 +279,7 @@ class EmulatorActivity : Activity() {
 
     /** LCD pets: remember the exact state and when we left it. */
     private fun saveLive() {
+        if (nixie != null && handle != 0L) { synchronized(coreLock) { Native.saveState(handle, liveFile().absolutePath) }; return }
         if (pet == null || handle == 0L) return
         if (synchronized(coreLock) { Native.saveState(handle, liveFile().absolutePath) }) {
             // time not yet fast-forwarded (app left mid catch-up) still counts next time
@@ -477,6 +501,17 @@ class EmulatorActivity : Activity() {
 
     /** Built-in pets keep the phone's local time and the chosen difficulty. */
     private fun syncPetClock() {
+        if (machine.skin == Skin.NIXIE_CLOCK) {
+            // the clock keeps running while the app is closed: set it from the phone each time
+            val now = System.currentTimeMillis()
+            val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+            synchronized(coreLock) {
+                Native.setOption(handle, 1, if (prefs.getBoolean("ticktock_${machine.id}", true)) 1 else 0)
+                Native.setOption(handle, 2, prefs.getInt("mains_${machine.id}", 50))
+                Native.setWallClock(handle, (now + java.util.TimeZone.getDefault().getOffset(now)) / 1000)
+            }
+            return
+        }
         if (machine.id != "oceanpet") return
         val now = System.currentTimeMillis()
         val local = (now + java.util.TimeZone.getDefault().getOffset(now)) / 1000
@@ -545,6 +580,7 @@ class EmulatorActivity : Activity() {
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
             else if (handheld != null) handheld?.updateFrame(pixels)
+            else if (nixie != null) nixie?.updateFrame(pixels)
             else tv.updateFrame(pixels)
             if (track != null && n > 0) {
                 // a blocking write paces emulation to the audio clock
@@ -607,7 +643,7 @@ class EmulatorActivity : Activity() {
             }
         } else {
             items += "Reset" to { synchronized(coreLock) { Native.reset(handle) } }
-            items += (if (tv.scanlines) "Scanlines: on" else "Scanlines: off") to {
+            if (workstation == null && nixie == null) items += (if (tv.scanlines) "Scanlines: on" else "Scanlines: off") to {
                 tv.scanlines = !tv.scanlines
                 prefs.edit().putBoolean("scanlines", tv.scanlines).apply()
                 tv.invalidate()
@@ -634,6 +670,11 @@ class EmulatorActivity : Activity() {
         Skin.EGG_PET -> petKeyBit(code)
         Skin.PHONE_CASE, Skin.ARCADE_CABINET -> caseKeyBit(code)
         Skin.HANDHELD -> handheldKeyBit(code)
+        Skin.NIXIE_CLOCK -> when (code) {
+            KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_BUTTON_A -> NixieClockView.SELECT
+            KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_B, KeyEvent.KEYCODE_BUTTON_B -> NixieClockView.BROWSE
+            else -> 0
+        }
         else -> danceKeyBit(code)
     }
 
