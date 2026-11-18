@@ -158,3 +158,37 @@ Java_com_hcode91_pocketplug_Native_setOption(JNIEnv*, jclass, jlong h, jint id, 
 {
     if (h) ((Core*)(intptr_t)h)->setOption(id, value);
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_hcode91_pocketplug_Native_keyEvent(JNIEnv*, jclass, jlong h, jint code, jboolean down)
+{
+    if (h) ((Core*)(intptr_t)h)->keyEvent(code, down == JNI_TRUE);
+}
+
+// Returns null on success, or an error message
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_hcode91_pocketplug_Native_mediaInsert(JNIEnv* env, jclass, jlong h, jint drive, jstring path)
+{
+    if (!h) return env->NewStringUTF("No machine");
+    std::string err;
+    if (((Core*)(intptr_t)h)->mediaInsert(drive, jstr(env, path), err)) return nullptr;
+    return env->NewStringUTF(err.c_str());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_hcode91_pocketplug_Native_mediaSave(JNIEnv* env, jclass, jlong h, jint drive, jstring path)
+{
+    return (h && ((Core*)(intptr_t)h)->mediaSave(drive, jstr(env, path))) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_hcode91_pocketplug_Native_mediaEject(JNIEnv*, jclass, jlong h, jint drive)
+{
+    if (h) ((Core*)(intptr_t)h)->mediaEject(drive);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_hcode91_pocketplug_Native_mediaActivity(JNIEnv*, jclass, jlong h)
+{
+    return h ? ((Core*)(intptr_t)h)->mediaActivity() : 0;
+}

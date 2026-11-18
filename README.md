@@ -16,6 +16,7 @@ controller.
 | 36-in-1 Classic Games Phone Case | `36pcase` | VT369 + sound CPU, scrambled opcodes, internal ROM, serial protection chip | Language select, menu and games match MAME pixel-for-pixel in every tested frame; sound matches MAME's level |
 | 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
 | 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
+| NGEN CP-001 Workstation (Convergent NGEN / Burroughs B26) | `ngen` | Intel 80186 + 8259 / 8254 / 8251, MC6845 text video, WD2797 floppy, WD1010 winchester | Boots BTOS 4.0 from floppy, installs it onto the emulated 10 MB hard disk and boots from there (MAME's driver does not boot) |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
@@ -37,6 +38,10 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `serial-rom.bin` | 256 bytes | `877fb90b` |
 | 240-in-1 Mini Arcade | `240in1ar` | `mw-106-2g.u3` | 128 MB (134,217,728 bytes) | `c46d2ca9` |
 | 265-in-1 Handheld | `265games` | `265games.bin` | 256 MB (268,435,456 bytes) | `761c92cb` |
+| NGEN CP-001 Workstation | `ngen` | `72-00414_80186_cpu.bin` | 4 KB (4,096 bytes) | `e1387a03` |
+| | | `72-00415_80186_cpu.bin` | 4 KB (4,096 bytes) | `a6dde7d9` |
+| | | `72-00422_10mb_disk.bin` | 4 KB (4,096 bytes) | `f5b046b6` |
+| | | Plus your own BTOS / CTOS system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
 
 MAME artwork, samples, BIOS files and parent sets are not needed.
 
@@ -164,6 +169,32 @@ for the menu. Gamepads: B/Y = A, A/X = B, Start, D-pad or left stick; keyboard
 X/Z, Enter, WASD. Like MAME, the CPU runs at twice the crystal clock and the
 ROM's interrupt-disable checks are patched, which the games need to run.
 
+### NGEN CP-001 Workstation
+
+Import the MAME `ngen` zip (the disk module's PROM, `72-00422_10mb_disk_15d.bin`,
+is not needed). Drawn as the workstation: a green-screen monitor, the disk
+module's floppy slot underneath and the CTOS keyboard (GO, CANCEL, FINISH, HELP,
+MARK, BOUND, MOVE, COPY, NEXT / PREV PAGE, SCROLL, f1-f10). SHIFT and CODE latch
+for the next key when tapped on their own; the LOCK and OVERTYPE keys light up.
+
+- **Tap the floppy slot** for the disk menu: insert a floppy image (`.imd` or a
+  raw `.img`), swap between floppies you've used, eject, and save / load / erase
+  the hard disk. Floppies are copied into the app and changes are written back
+  to the copy. The winchester (drive d0) lives in the app's storage and starts
+  unformatted.
+- **Tap the power rocker** on the monitor (or Back) for save/load state, reset
+  and quit. Save states include the disks.
+- **Installing BTOS 4.0 Standalone**: insert disk 1, type `INSTALL` as the user
+  name, press GO, then GO again on the IVolume form. It formats and tests the
+  winchester (a few minutes), then asks for disks 2 and 3 (insert each from the
+  disk menu, then GO). Afterwards eject the floppy and choose Reset: it boots
+  from the hard disk. Leave the user name empty and press GO for the Executive.
+- **A real keyboard** works too: Enter = RETURN, Esc = CANCEL, F12 = GO, F11 =
+  HELP, Ctrl = CODE, Alt = ACTION, Insert = OVERTYPE, Home = MARK, End = FINISH,
+  Page Up / Down = PREV / NEXT PAGE, numeric-pad Enter = NEXT.
+
+The machine has no clock chip: type the date at the sign-on screen.
+
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.
 
@@ -178,6 +209,8 @@ app/src/main/cpp/
   cores/vt1682/         V.R. Technology VT1682 (two 6502s, tile/sprite video, DAC sound)
   cores/vc4000/         Interton VC 4000 family / 1292 APVS (2650 + 2636 PVI)
   cores/spg2xx/         SunPlus SPG2xx (u'nSP CPU, tiles/sprites, 16-voice SPU)
+  cores/ngen/           Convergent NGEN: 80186 (+ timers, DMA, interrupts), 8259, 8254,
+                        8251, 6845 text video, WD2797 / WD1010 disk module
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/
   Machines.kt           machine list (ROM files, CRCs, skin)

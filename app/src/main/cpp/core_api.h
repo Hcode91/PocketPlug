@@ -45,6 +45,8 @@ public:
     // read them once, then releases them. Returns false if the core doesn't
     // support it (the caller should then just hold the bits briefly itself).
     virtual bool tapInputs(uint32_t mask) { (void)mask; return false; }
+    // Computer keyboards: a key went down / up (code is machine specific)
+    virtual void keyEvent(int code, bool down) { (void)code; (void)down; }
     // Analog sticks: x/y in -1..1 (left/up negative). Ignored by cores without them.
     virtual void setAnalog(int stick, float x, float y) { (void)stick; (void)x; (void)y; }
 
@@ -56,6 +58,15 @@ public:
     virtual void setWallClock(int64_t localSeconds) { (void)localSeconds; }
     // Machine-specific settings (e.g. 1 = gentle mode for the ocean pet).
     virtual void setOption(int id, int value) { (void)id; (void)value; }
+
+    // Removable / writable media (computers): drive numbers are machine specific.
+    // mediaInsert loads an image file (empty path = new blank medium where the
+    // machine supports it); mediaSave writes it back if it changed.
+    virtual bool mediaInsert(int drive, const std::string& path, std::string& error) { (void)drive; (void)path; error = "No drives"; return false; }
+    virtual bool mediaSave(int drive, const std::string& path) { (void)drive; (void)path; return false; }
+    virtual void mediaEject(int drive) { (void)drive; }
+    // Bit n set = drive n was busy recently (activity lights)
+    virtual int mediaActivity() { return 0; }
 
     // Save states
     virtual bool saveState(std::vector<uint8_t>& out) = 0;

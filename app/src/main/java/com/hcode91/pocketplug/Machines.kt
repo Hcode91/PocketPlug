@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -215,6 +215,21 @@ object Machines {
             year = "201x",
             roms = listOf(RomSpec("265games.bin", 0x10000000L, 0x761c92cbL)),
             skin = Skin.HANDHELD,
+        ),
+        MachineDef(
+            id = "ngen",
+            title = "NGEN CP-001 Workstation",
+            subtitle = "1983 office workstation (Convergent Technologies NGEN, sold as the Burroughs B26) running "
+                + "BTOS / CTOS from floppy and a 10 MB winchester. Insert your own system disks (MAME set: ngen)",
+            chip = "Intel 80186, WD2797 + WD1010",
+            region = "USA",
+            year = "1983",
+            roms = listOf(
+                RomSpec("72-00414_80186_cpu.bin", 0x1000L, 0xe1387a03L),
+                RomSpec("72-00415_80186_cpu.bin", 0x1000L, 0xa6dde7d9L),
+                RomSpec("72-00422_10mb_disk.bin", 0x1000L, 0xf5b046b6L),
+            ),
+            skin = Skin.WORKSTATION,
         ),
         MachineDef(
             id = "oceanpet",

@@ -10,6 +10,7 @@
 #include "cores/ocean/ocean.h"
 #include "cores/vt369/vt369.h"
 #include "cores/spg2xx/spg2xx.h"
+#include "cores/ngen/ngen.h"
 
 Core* createCore(const std::string& id)
 {
@@ -77,6 +78,8 @@ Core* createCore(const std::string& id)
         c.bank41e6 = true;
         return new Vt369Core(c);
     }
+    if (id == "ngen")         // Convergent NGEN CP-001 / Burroughs B26 workstation (80186)
+        return new NgenCore();
     if (id == "oceanpet")    // built-in original game, no ROM
         return new OceanPetCore();
     return nullptr;

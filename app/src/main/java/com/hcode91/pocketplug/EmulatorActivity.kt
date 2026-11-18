@@ -37,6 +37,10 @@ class EmulatorActivity : Activity() {
     private var phone: PhoneCaseView? = null
     private var arcade: ArcadeCabinetView? = null
     private var handheld: HandheldView? = null
+    private var workstation: WorkstationView? = null
+    // computer keyboards: key events go to the core between frames
+    private val keyQueue = java.util.concurrent.ConcurrentLinkedQueue<Int>()
+    private var floppyFile: java.io.File? = null
     @Volatile private var volume = 1f
     private var stickMask = 0
     // LCD pets keep living while the app is closed: the clock is fast-forwarded on return
@@ -107,6 +111,17 @@ class EmulatorActivity : Activity() {
                 if (classic) volume = if (v.soundOn) 1f else 0f
                 phone = v
                 setContentView(v)
+            }
+            Skin.WORKSTATION -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = WorkstationView(this).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onDisks = { showDiskMenu() }
+                }
+                workstation = v
+                setContentView(v)
+                attachDisks()
             }
             Skin.HANDHELD -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -260,7 +275,147 @@ class EmulatorActivity : Activity() {
     override fun onPause() {
         (getSystemService(SENSOR_SERVICE) as SensorManager).unregisterListener(shakeListener)
         stop()
+        saveDisks()
         super.onPause()
+    }
+
+    // ---- disks (computers) ----
+    private fun diskDir() = java.io.File(filesDir, "disks/${machine.id}").apply { mkdirs() }
+    private fun floppyDir() = java.io.File(diskDir(), "floppies").apply { mkdirs() }
+    private fun hardDiskFile() = java.io.File(diskDir(), "harddisk.ngenhd")
+
+    /** Winchester drive 0 always attached (a new one starts unformatted); the last floppy goes back in. */
+    private fun attachDisks() {
+        Native.mediaInsert(handle, 1, hardDiskFile().absolutePath)?.let {
+            Toast.makeText(this, "Hard disk: $it", Toast.LENGTH_LONG).show()
+        }
+        val last = getSharedPreferences("settings", MODE_PRIVATE).getString("floppy_${machine.id}", null)
+        val f = last?.let { java.io.File(floppyDir(), it) }
+        if (f != null && f.exists()) insertFloppy(f, quiet = true)
+    }
+
+    private fun insertFloppy(f: java.io.File, quiet: Boolean = false) {
+        saveDisks()
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 0, f.absolutePath) }
+        if (err != null) {
+            Toast.makeText(this, err, Toast.LENGTH_LONG).show()
+            if (!quiet && f.parentFile == floppyDir() && f != floppyFile) f.delete()
+            return
+        }
+        floppyFile = f
+        workstation?.floppyLabel = f.nameWithoutExtension
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putString("floppy_${machine.id}", f.name).apply()
+        if (!quiet) Toast.makeText(this, "Inserted ${f.nameWithoutExtension}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun ejectFloppy() {
+        saveDisks()
+        synchronized(coreLock) { Native.mediaEject(handle, 0) }
+        floppyFile = null
+        workstation?.floppyLabel = null
+        getSharedPreferences("settings", MODE_PRIVATE).edit().remove("floppy_${machine.id}").apply()
+    }
+
+    /** Changed disks are written back (floppies as .imd copies in the app's storage). */
+    private fun saveDisks() {
+        if (workstation == null || handle == 0L) return
+        synchronized(coreLock) {
+            floppyFile?.let { Native.mediaSave(handle, 0, it.absolutePath) }
+            Native.mediaSave(handle, 1, hardDiskFile().absolutePath)
+        }
+    }
+
+    private val PICK_FLOPPY = 41
+    private val IMPORT_HD = 42
+    private val EXPORT_HD = 43
+
+    private fun showDiskMenu() {
+        paused = true
+        val floppies = floppyDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Insert a floppy image (.imd / .img)..." to {
+            val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
+            }
+            startActivityForResult(i, PICK_FLOPPY)
+        }
+        for (f in floppies) if (f != floppyFile) items += "Insert ${f.nameWithoutExtension}" to { insertFloppy(f) }
+        if (floppyFile != null) items += "Eject ${floppyFile?.nameWithoutExtension}" to { ejectFloppy() }
+        items += "Hard disk: save a copy..." to {
+            saveDisks()
+            val i = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "application/octet-stream"
+                putExtra(android.content.Intent.EXTRA_TITLE, "${machine.id}-harddisk.ngenhd")
+            }
+            startActivityForResult(i, EXPORT_HD)
+        }
+        items += "Hard disk: load a saved copy..." to {
+            val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
+            }
+            startActivityForResult(i, IMPORT_HD)
+        }
+        items += "Hard disk: erase (start over)" to {
+            paused = true
+            AlertDialog.Builder(this)
+                .setMessage("Erase the hard disk? Everything installed on it is lost and the machine restarts.")
+                .setPositiveButton("Erase") { _, _ ->
+                    hardDiskFile().delete()
+                    synchronized(coreLock) { Native.mediaInsert(handle, 1, ""); Native.reset(handle) }
+                    paused = false
+                }
+                .setNegativeButton("Cancel") { _, _ -> paused = false }
+                .setOnCancelListener { paused = false }
+                .show()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Disks")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which ->
+                paused = false
+                items[which].second()
+            }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) return
+        when (requestCode) {
+            PICK_FLOPPY -> {
+                var name = "floppy"
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) name = it.getString(0) ?: name
+                }
+                val safe = name.replace(Regex("[^A-Za-z0-9._ -]"), "_").ifEmpty { "floppy.imd" }
+                val dest = java.io.File(floppyDir(), safe)
+                runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
+                // a copy lives in the app's storage; changes are written back to it (in .imd format)
+                insertFloppy(dest)
+            }
+            IMPORT_HD -> {
+                val tmp = java.io.File(cacheDir, "hd.tmp")
+                runCatching { contentResolver.openInputStream(uri)?.use { i -> tmp.outputStream().use { i.copyTo(it) } } }
+                val err = synchronized(coreLock) { Native.mediaInsert(handle, 1, tmp.absolutePath) }
+                if (err != null) {
+                    tmp.delete()
+                    synchronized(coreLock) { Native.mediaInsert(handle, 1, hardDiskFile().absolutePath) }
+                    Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return
+                }
+                tmp.copyTo(hardDiskFile(), overwrite = true)
+                tmp.delete()
+                synchronized(coreLock) { Native.reset(handle) }
+                Toast.makeText(this, "Hard disk loaded; the machine restarted", Toast.LENGTH_SHORT).show()
+            }
+            EXPORT_HD -> {
+                val ok = runCatching {
+                    contentResolver.openOutputStream(uri)?.use { o -> hardDiskFile().inputStream().use { it.copyTo(o) } } != null
+                }.getOrDefault(false)
+                Toast.makeText(this, if (ok && hardDiskFile().exists()) "Hard disk saved" else "Nothing to save yet", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -351,8 +506,17 @@ class EmulatorActivity : Activity() {
         while (running) {
             if (track != null && volume != appliedVolume) { appliedVolume = volume; track.setVolume(volume) }
             if (paused) { Thread.sleep(16); next = SystemClock.elapsedRealtimeNanos(); continue }
-            val n = synchronized(coreLock) { Native.runFrame(handle, touchInputs or keyInputs, pixels, audio) }
-            if (pet != null) pet?.updateFrame(pixels)
+            val n = synchronized(coreLock) {
+                while (true) {
+                    val ev = keyQueue.poll() ?: break
+                    Native.keyEvent(handle, ev and 0xff, ev and 0x100 != 0)
+                }
+                val r = Native.runFrame(handle, touchInputs or keyInputs, pixels, audio)
+                workstation?.indicators = Native.mediaActivity(handle)
+                r
+            }
+            if (workstation != null) workstation?.updateFrame(pixels)
+            else if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
             else if (handheld != null) handheld?.updateFrame(pixels)
@@ -424,6 +588,7 @@ class EmulatorActivity : Activity() {
                 tv.invalidate()
             }
         }
+        if (workstation != null) items += "Disks..." to { showDiskMenu() }
         items += "Quit to library" to { finish() }
         AlertDialog.Builder(this)
             .setTitle(title)
@@ -558,7 +723,62 @@ class EmulatorActivity : Activity() {
         else -> 0
     }
 
+    /** A real keyboard on the phone types on the emulated one (CTOS keys on the spare PC keys). */
+    private fun ngenKey(code: Int): Int = when (code) {
+        in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> 0x61 + (code - KeyEvent.KEYCODE_A)
+        in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> 0x30 + (code - KeyEvent.KEYCODE_0)
+        KeyEvent.KEYCODE_SPACE -> 0x20
+        KeyEvent.KEYCODE_ENTER -> 0x0a
+        KeyEvent.KEYCODE_NUMPAD_ENTER -> 0x0d
+        KeyEvent.KEYCODE_TAB -> 0x09
+        KeyEvent.KEYCODE_DEL -> 0x08
+        KeyEvent.KEYCODE_FORWARD_DEL -> 0x7f
+        KeyEvent.KEYCODE_SHIFT_LEFT -> 0x48
+        KeyEvent.KEYCODE_SHIFT_RIGHT -> 0x49
+        KeyEvent.KEYCODE_CTRL_LEFT -> 0x4c
+        KeyEvent.KEYCODE_CTRL_RIGHT -> 0x4d
+        KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_ALT_RIGHT -> 0x43
+        KeyEvent.KEYCODE_CAPS_LOCK -> 0x45
+        KeyEvent.KEYCODE_INSERT -> 0x44
+        KeyEvent.KEYCODE_ESCAPE -> 0x07
+        KeyEvent.KEYCODE_DPAD_UP -> 0x01
+        KeyEvent.KEYCODE_DPAD_DOWN -> 0x0b
+        KeyEvent.KEYCODE_DPAD_LEFT -> 0x0e
+        KeyEvent.KEYCODE_DPAD_RIGHT -> 0x0f
+        KeyEvent.KEYCODE_PAGE_UP -> 0x05
+        KeyEvent.KEYCODE_PAGE_DOWN -> 0x0c
+        KeyEvent.KEYCODE_MOVE_HOME -> 0x02
+        KeyEvent.KEYCODE_MOVE_END -> 0x04
+        KeyEvent.KEYCODE_F1 -> 0x15; KeyEvent.KEYCODE_F2 -> 0x16; KeyEvent.KEYCODE_F3 -> 0x17
+        KeyEvent.KEYCODE_F4 -> 0x18; KeyEvent.KEYCODE_F5 -> 0x19; KeyEvent.KEYCODE_F6 -> 0x1a
+        KeyEvent.KEYCODE_F7 -> 0x1c; KeyEvent.KEYCODE_F8 -> 0x1d; KeyEvent.KEYCODE_F9 -> 0x1e
+        KeyEvent.KEYCODE_F10 -> 0x1f
+        KeyEvent.KEYCODE_F11 -> 0x00          // HELP
+        KeyEvent.KEYCODE_F12 -> 0x1b          // GO
+        KeyEvent.KEYCODE_MINUS -> 0x2d
+        KeyEvent.KEYCODE_EQUALS -> 0x2b
+        KeyEvent.KEYCODE_LEFT_BRACKET -> 0x5b
+        KeyEvent.KEYCODE_RIGHT_BRACKET -> 0x5d
+        KeyEvent.KEYCODE_SEMICOLON -> 0x3b
+        KeyEvent.KEYCODE_APOSTROPHE -> 0x27
+        KeyEvent.KEYCODE_COMMA -> 0x2c
+        KeyEvent.KEYCODE_PERIOD -> 0x2e
+        KeyEvent.KEYCODE_SLASH -> 0x2f
+        KeyEvent.KEYCODE_GRAVE -> 0x5e
+        KeyEvent.KEYCODE_NUMPAD_0 -> 0x4a; KeyEvent.KEYCODE_NUMPAD_1 -> 0x60; KeyEvent.KEYCODE_NUMPAD_2 -> 0x46
+        KeyEvent.KEYCODE_NUMPAD_3 -> 0x47; KeyEvent.KEYCODE_NUMPAD_4 -> 0x7b; KeyEvent.KEYCODE_NUMPAD_5 -> 0x7d
+        KeyEvent.KEYCODE_NUMPAD_6 -> 0x41; KeyEvent.KEYCODE_NUMPAD_7 -> 0x5c; KeyEvent.KEYCODE_NUMPAD_8 -> 0x7c
+        KeyEvent.KEYCODE_NUMPAD_9 -> 0x21; KeyEvent.KEYCODE_NUMPAD_DOT -> 0x4b; KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> 0x42
+        else -> -1
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (workstation != null) {
+            val k = ngenKey(keyCode)
+            if (k < 0) return super.onKeyDown(keyCode, event)
+            if (event.repeatCount == 0) keyQueue.add(k or 0x100)
+            return true
+        }
         if (machine.skin == Skin.APVS_1292 && dpadBit(keyCode) != 0) { dpad = dpad or dpadBit(keyCode); applyDpad(); return true }
         val b = keyBit(keyCode)
         if (b == 0) return super.onKeyDown(keyCode, event)
@@ -575,6 +795,12 @@ class EmulatorActivity : Activity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (workstation != null) {
+            val k = ngenKey(keyCode)
+            if (k < 0) return super.onKeyUp(keyCode, event)
+            keyQueue.add(k)
+            return true
+        }
         if (machine.skin == Skin.APVS_1292 && dpadBit(keyCode) != 0) { dpad = dpad and dpadBit(keyCode).inv(); applyDpad(); return true }
         val b = keyBit(keyCode)
         if (b == 0) return super.onKeyUp(keyCode, event)

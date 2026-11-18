@@ -20,4 +20,13 @@ object Native {
     @JvmStatic external fun advanceTime(handle: Long, seconds: Double): Boolean
     @JvmStatic external fun setWallClock(handle: Long, localSeconds: Long)
     @JvmStatic external fun setOption(handle: Long, id: Int, value: Int)
+    /** Computers: a key of the machine's own keyboard went down / up. */
+    @JvmStatic external fun keyEvent(handle: Long, code: Int, down: Boolean)
+    /** Load a disk image into a drive; null on success, else an error. */
+    @JvmStatic external fun mediaInsert(handle: Long, drive: Int, path: String): String?
+    /** Write a drive's image back if it changed. */
+    @JvmStatic external fun mediaSave(handle: Long, drive: Int, path: String): Boolean
+    @JvmStatic external fun mediaEject(handle: Long, drive: Int)
+    /** Bit n = drive n busy recently. */
+    @JvmStatic external fun mediaActivity(handle: Long): Int
 }
