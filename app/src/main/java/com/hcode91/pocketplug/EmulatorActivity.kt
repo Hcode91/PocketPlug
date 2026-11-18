@@ -38,6 +38,9 @@ class EmulatorActivity : Activity() {
     private var arcade: ArcadeCabinetView? = null
     private var handheld: HandheldView? = null
     private var nixie: NixieClockView? = null
+    private var joypad: JoystickPadView? = null
+    private var wide: WideHandheldView? = null
+    private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
     // 3B1 mouse: motion gathered between frames
     private val mouseLock = Any()
@@ -162,6 +165,35 @@ class EmulatorActivity : Activity() {
                 // the chosen display and retirement date stay as they were left
                 val live = liveFile()
                 if (live.exists()) Native.loadState(handle, live.absolutePath)
+            }
+            Skin.JOYSTICK_TV -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val m = JoystickPadView(this).apply { onInput = { setTouch(0, it) } }
+                joypad = m
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.92f)
+                    add(m, 0.8f)
+                })
+            }
+            Skin.WIDE_HANDHELD -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val v = WideHandheldView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                wide = v
+                setContentView(v)
+            }
+            Skin.UNIVERSITY_BOARD -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = UniversityBoardView(this, machine.id == "990189v").apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onJoy = { setTouch(0, it) }
+                }
+                uboard = v
+                setContentView(v)
             }
             Skin.HANDHELD -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -581,6 +613,8 @@ class EmulatorActivity : Activity() {
             else if (arcade != null) arcade?.updateFrame(pixels)
             else if (handheld != null) handheld?.updateFrame(pixels)
             else if (nixie != null) nixie?.updateFrame(pixels)
+            else if (wide != null) wide?.updateFrame(pixels)
+            else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
             if (track != null && n > 0) {
                 // a blocking write paces emulation to the audio clock
@@ -670,6 +704,7 @@ class EmulatorActivity : Activity() {
         Skin.EGG_PET -> petKeyBit(code)
         Skin.PHONE_CASE, Skin.ARCADE_CABINET -> caseKeyBit(code)
         Skin.HANDHELD -> handheldKeyBit(code)
+        Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
         Skin.NIXIE_CLOCK -> when (code) {
             KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_BUTTON_A -> NixieClockView.SELECT
             KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_B, KeyEvent.KEYCODE_BUTTON_B -> NixieClockView.BROWSE
@@ -888,7 +923,45 @@ class EmulatorActivity : Activity() {
         else -> -1
     }
 
+    /** A real keyboard on the TM 990/189's (codes: row * 8 + bit, MAME's LINE0-8). */
+    private fun boardKey(code: Int, e: KeyEvent): Int {
+        val ch = e.getUnicodeChar(0).toChar().uppercaseChar()
+        if (ch in 'A'..'Z') {
+            val i = ch - 'A'
+            return when {
+                i == 0 -> 0x1c
+                i <= 5 -> 0x20 + (i - 1)          // B-F
+                i <= 10 -> 0x28 + (i - 6)         // G-K
+                i <= 15 -> 0x30 + (i - 11)        // L-P
+                i <= 20 -> 0x38 + (i - 16)        // Q-U
+                else -> 0x40 + (i - 21)           // V-Z
+            }
+        }
+        return when (code) {
+            KeyEvent.KEYCODE_0 -> 0x0c
+            in KeyEvent.KEYCODE_1..KeyEvent.KEYCODE_5 -> 0x10 + (code - KeyEvent.KEYCODE_1)
+            in KeyEvent.KEYCODE_6..KeyEvent.KEYCODE_9 -> 0x18 + (code - KeyEvent.KEYCODE_6)
+            KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_SHIFT_RIGHT -> 0x00
+            KeyEvent.KEYCODE_SPACE -> 0x01
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> 0x02
+            KeyEvent.KEYCODE_PERIOD -> 0x03          // $ =
+            KeyEvent.KEYCODE_COMMA -> 0x04
+            KeyEvent.KEYCODE_LEFT_BRACKET -> 0x08    // + (
+            KeyEvent.KEYCODE_RIGHT_BRACKET -> 0x09   // - )
+            KeyEvent.KEYCODE_MINUS -> 0x0a           // @ /
+            KeyEvent.KEYCODE_EQUALS -> 0x0b          // > %
+            KeyEvent.KEYCODE_SYSRQ -> UniversityBoardView.LOAD
+            else -> -1
+        }
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (uboard != null) {
+            val k = boardKey(keyCode, event)
+            if (k < 0) return super.onKeyDown(keyCode, event)
+            if (event.repeatCount == 0) keyQueue.add(k or 0x100)
+            return true
+        }
         if (workstation != null) {
             val k = deskKey(keyCode)
             if (k < 0) return super.onKeyDown(keyCode, event)
@@ -906,11 +979,19 @@ class EmulatorActivity : Activity() {
         phone?.externalMask = keyInputs or stickMask
         arcade?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
+        joypad?.externalMask = keyInputs or stickMask
+        wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (uboard != null) {
+            val k = boardKey(keyCode, event)
+            if (k < 0) return super.onKeyUp(keyCode, event)
+            keyQueue.add(k)
+            return true
+        }
         if (workstation != null) {
             val k = deskKey(keyCode)
             if (k < 0) return super.onKeyUp(keyCode, event)
@@ -926,6 +1007,8 @@ class EmulatorActivity : Activity() {
         phone?.externalMask = keyInputs or stickMask
         arcade?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
+        joypad?.externalMask = keyInputs or stickMask
+        wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }

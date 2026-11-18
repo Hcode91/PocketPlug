@@ -8,3 +8,4 @@ tools/headless
 *.bin
 *.zip
 *.7z
+tools/obj/

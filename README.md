@@ -18,6 +18,9 @@ controller.
 | 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
 | NGEN CP-001 Workstation (Convergent NGEN / Burroughs B26) | `ngen` | Intel 80186 + 8259 / 8254 / 8251, MC6845 text video, WD2797 floppy, WD1010 winchester | Boots BTOS 4.0 from floppy, installs it onto the emulated 10 MB hard disk and boots from there (MAME's driver does not boot) |
 | 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
+| 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
+| Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
+| TM 990/189 University Board (+ Video Board) | `990189`, `990189v` | TMS9980A + 2x TMS9901 (own cores), TMS9918 (own core) | University BASIC runs; the LED display and lights follow MAME frame-for-frame apart from a frame's lag in key echo; the video board's four colour demos run |
 | PC 7300 / 3B1 Desktop (AT&T UNIX PC) | `3b1` | Motorola 68010 + MMU, 720x348 bitmap, WD2797 floppy, WD2010 hard disk, keyboard + mouse (FreeBee) | Installs the 3.51 Foundation set from floppies onto the emulated 64 MB hard disk, boots from it to the window manager; mouse and full keyboard |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
@@ -45,6 +48,12 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `72-00422_10mb_disk.bin` | 4 KB (4,096 bytes) | `f5b046b6` |
 | | | Plus your own BTOS / CTOS system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
 | 4004 Nixie Clock | `4004clk` | `clock.u30` to `clock.u45` (16 files) | 256 bytes each | `3d8608a5` ... `a8d419ef` (checked one by one) |
+| 500-in-1 Handheld Game | `500in1hh` | `500in1.bin` | 16 MB (16,777,216 bytes) | `50f44c1a` |
+| Joystick88 | `88in1joy` | `88in1joystick.bin` | 4 MB (4,194,304 bytes) | `86b8d819` |
+| TM 990/189 University Board | `990189` | `990-469.u32` | 2 KB (2,048 bytes) | `08df7edb` |
+| | | `990-469.u33` | 4 KB (4,096 bytes) | `e9b4ac1b` |
+| TM 990/189 + Video Board | `990189v` | the two `990189` files, plus `demo1000.u13` | 2 KB (2,048 bytes) | `c0e16685` |
+| | | `demo1800.u11` | 2 KB (2,048 bytes) | `8737dc4b` |
 | PC 7300 / 3B1 Desktop | `3b1` | `72-00616.14c` | 8 KB (8,192 bytes) | `c61f7ae0` |
 | | | `72-00617.15c` | 8 KB (8,192 bytes) | `4e93ff40` |
 | | | Plus your own 3B1 system floppies (`.imd` ImageDisk, or raw `.img`), inserted from the disk menu | - | - |
@@ -201,6 +210,37 @@ for the next key when tapped on their own; the LOCK and OVERTYPE keys light up.
 
 The machine has no clock chip: type the date at the sign-on screen.
 
+### Joystick88
+
+Import the MAME `88in1joy` zip. The TV shows the games; under it is the
+horseshoe joystick: drag the ball-top stick, tap A / B, the TURBO buttons fire
+A or B repeatedly while held, and SELECT / START sit in the middle. The TV's
+MENU button (or Back) has save states and reset.
+
+### 500-in-1 Handheld Game
+
+Import the MAME `500in1hh` zip. Turn the phone sideways: the white handheld
+has the D-pad on the left, A and B on the right and SELECT / START up top;
+tap the strip under the screen (or Back) for the menu. Pick a language, then a
+game (right / left page through the list).
+
+### TM 990/189 University Board
+
+Import the MAME `990189` zip; for the video board model import both the
+`990189` and `990189v` zips (the second only holds the demo ROMs). Drawn as the
+board: chips, user LEDs, IDLE / FWD lights and the red LOAD lever above the
+ten-digit display and the 45-key keyboard (shifted signs in yellow above the
+keys; SHIFT toggles them and lights the SHIFT lamp). The white chip labelled
+MENU (or Back) opens the menu; LOAD restarts the monitor like the real switch.
+
+- University BASIC is up when the display reads `rEAdY`. Type a line and press
+  Ret, e.g. `PRINT 1+2`. The display scrolls along the line.
+- With the video board, BASIC can draw in colour on the monitor. For the demos:
+  `NEW` Ret, `LOAD0` (or 1-3) Ret, `RUN` Ret. The two red buttons by the screen
+  are the joystick fire buttons.
+- A real keyboard works: letters and digits, Space, Enter = Ret, Shift, and
+  `[ ] - = . ,` for `+ - @ > $ ,`.
+
 ### 4004 Nixie Clock
 
 Import the MAME `4004clk` zip. Drawn as a home-built nixie clock: six tubes and
@@ -280,9 +320,10 @@ reset and the scanline toggle.
   MC68705 programmer boards (`705p3prg`, `705p5prg`, `705r3prg`, `705u3prg`,
   switches and lights only) and the 68k Single Board Computer (`68ksbc`, used
   only over a serial terminal).
-- Planned: TI TM 990/189 University Board (`990189`, `990189v`), Play Vision
-  Joystick88 (`88in1joy`), 500-in-1 Handheld Game (`500in1hh`), TimeTop
-  Chaoji Zhishi Da Fuweng 1 and 2 (`6578cjz1`, `6578cjz2`).
+- Tried, not added: TimeTop Chaoji Zhishi Da Fuweng 1 / 2 (`6578cjz1`,
+  `6578cjz2`). The SH6578 is supported in the VT core and the quiz runs to its
+  title screen exactly as in MAME, but its answer pad talks over an
+  undocumented port (MAME has no inputs for it either), so it can't be played.
 - 3B1: save states (they'd have to carry the whole hard disk), the serial port
   and the modem / phone line. The dialer's beep and tones play.
 
@@ -299,6 +340,8 @@ app/src/main/cpp/
   cores/spg2xx/         SunPlus SPG2xx (u'nSP CPU, tiles/sprites, 16-voice SPU)
   cores/ngen/           Convergent NGEN: 80186 (+ timers, DMA, interrupts), 8259, 8254,
                         8251, 6845 text video, WD2797 / WD1010 disk module
+  cores/vt369/          VT NES-on-a-chip family: VT02/03, VT "4FFx", VT369 (+ SH6578)
+  cores/tm990/          TM 990/189: TMS9980A (tms9980.h), TMS9901s, TMS9918 (tms9918.h)
   cores/nixie4004/       Intel 4004 CPU (i4004.h) and the 4004 Nixie Clock board
   cores/unixpc/         PC 7300 / 3B1: FreeBee (GPL-3) + Musashi 68010, glue in unixpc.cpp
   jni_bridge.cpp        Kotlin <-> core glue

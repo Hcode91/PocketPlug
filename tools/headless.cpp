@@ -53,7 +53,7 @@ int main(int argc, char** argv)
         int16_t buf[4096]; size_t n;
         while ((n = core->readAudio(buf, 4096)) > 0) audio.insert(audio.end(), buf, buf + n);
         if (getenv("DBG") && std::string(argv[1]) == "110dance" && (f + 1) % atoi(getenv("DBG")) == 0) printf("%d %s\n", f + 1, ((Vt1682Core*)core)->debugInfo().c_str());
-        if ((f + 1) % 50 == 0) {
+        if ((f + 1) % (getenv("EVERY") ? atoi(getenv("EVERY")) : 50) == 0) {
             char p[512]; snprintf(p, sizeof p, "%s/f%05d.ppm", argv[4], f + 1);
             writePPM(p, core->frameBuffer(), core->frameWidth(), core->frameHeight());
         }

@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -244,6 +244,58 @@ object Machines {
                 RomSpec("72-00617.15c", 0x2000L, 0x4e93ff40L),
             ),
             skin = Skin.DESKTOP_3B1,
+        ),
+        MachineDef(
+            id = "500in1hh",
+            title = "500-in-1 Handheld Game",
+            subtitle = "White sideways handheld with a square colour screen, D-pad and A/B; 500 NES-style games "
+                + "behind a Chinese / English menu (MAME set: 500in1hh)",
+            chip = "VT \"4FFx\" NES-on-a-chip, scrambled opcodes",
+            region = "China",
+            year = "202x",
+            roms = listOf(RomSpec("500in1.bin", 0x1000000L, 0x50f44c1aL)),
+            skin = Skin.WIDE_HANDHELD,
+        ),
+        MachineDef(
+            id = "88in1joy",
+            title = "Joystick88",
+            subtitle = "Plug-and-play joystick for the TV with 88 NES-style games: stick, A, B, turbo and "
+                + "SELECT / START on a horseshoe pad (Play Vision; MAME set: 88in1joy)",
+            chip = "VT02 / VT03 NES-on-a-chip",
+            region = "UK / Europe",
+            year = "201x",
+            roms = listOf(RomSpec("88in1joystick.bin", 0x400000L, 0x86b8d819L)),
+            skin = Skin.JOYSTICK_TV,
+        ),
+        MachineDef(
+            id = "990189",
+            title = "TM 990/189 University Board",
+            subtitle = "1978 Texas Instruments teaching computer: a single board with a 10-digit LED display and "
+                + "a 45-key calculator keyboard, running University BASIC (MAME set: 990189)",
+            chip = "TMS9980A, TMS9901 x2",
+            region = "USA",
+            year = "1978",
+            roms = listOf(
+                RomSpec("990-469.u32", 0x800L, 0x08df7edbL),
+                RomSpec("990-469.u33", 0x1000L, 0xe9b4ac1bL),
+            ),
+            skin = Skin.UNIVERSITY_BOARD,
+        ),
+        MachineDef(
+            id = "990189v",
+            title = "TM 990/189 + Video Board",
+            subtitle = "The University Board with TI's colour video board (TMS9918): University BASIC draws in colour "
+                + "and four demos are built in - NEW, LOAD0-3, RUN (MAME set: 990189v)",
+            chip = "TMS9980A, TMS9901 x2, TMS9918",
+            region = "USA",
+            year = "1980",
+            roms = listOf(
+                RomSpec("990-469.u32", 0x800L, 0x08df7edbL),
+                RomSpec("990-469.u33", 0x1000L, 0xe9b4ac1bL),
+                RomSpec("demo1000.u13", 0x800L, 0xc0e16685L),
+                RomSpec("demo1800.u11", 0x800L, 0x8737dc4bL),
+            ),
+            skin = Skin.UNIVERSITY_BOARD,
         ),
         MachineDef(
             id = "ngen",

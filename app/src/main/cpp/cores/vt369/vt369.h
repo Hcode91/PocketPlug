@@ -21,6 +21,12 @@ struct Vt369Config {
     std::string protRomName;       // vt_menu_protection serial ROM (4152/4153)
     int protStartByte = 0;
     bool case36 = false;           // enable_36pcase_gpio + 36pcase late protection protocol
+    // which SoC: 0 = VT369 (vt3xx_soc), 1 = VT "4FFx" (vt4ffx_soc, VT3xx PPU, no sound CPU),
+    // 2 = VT02 / VT03 (nes_vt02_vt03_soc, the original NES-on-a-chip),
+    // 3 = SH6578 (UMC; its own tile format, 4 KB ROM banks, scanline timer IRQ)
+    int soc = 0;
+    int palMode = 1;               // extended palette: 0 = VT03 (YUV), 1 = PAL_MODE_NEW_RGB
+    bool ntscDmaBug = false;       // VT02/03: OAM / palette DMA shifted by one byte (not force_bad_dma)
 };
 
 class Vt369Core : public Core {
@@ -58,6 +64,27 @@ private:
     void protWriteEnable(int state);
     void flushOamDma();
     uint8_t m_cryptTable[256];
+
+    // SH6578 (nes_sh6578.cpp / ppu2c0x_sh6578.cpp): kept apart so the VT states don't change
+    struct Sh {
+        uint8_t ram[0x2000], ram5[0x3000];          // 0000-1fff, 5000-7fff
+        uint8_t vram[0x2800];                       // PPU 0000-27ff
+        uint8_t nvram[0x8000];                      // PPU 8000-ffff (battery RAM)
+        uint8_t pal[0x40];
+        uint8_t colsel;                             // 2008: colour select / name table start
+        uint8_t bank[8];
+        uint8_t dmaControl, dmaBank, dmaSrc[2], dmaDst[2], dmaLen[2];
+        uint8_t irqMask, timerVal, prevIo, ioLatch[2], extPlane[2], r4027;
+        int32_t timerLines;                         // scanlines until the timer IRQ, -1 = off
+        uint32_t rng;
+    } m_sh;
+    uint8_t shCpuRead(uint16_t a);
+    void shCpuWrite(uint16_t a, uint8_t d);
+    uint8_t shPpuRead(uint32_t a);
+    void shPpuWrite(uint32_t a, uint8_t d);
+    void shDma();
+    void shDrawBackground(uint8_t* lp);
+    uint8_t shRand() { uint32_t x = m_sh.rng ? m_sh.rng : 1; x ^= x << 13; x ^= x >> 17; x ^= x << 5; m_sh.rng = x; return uint8_t(x); }
     uint32_t m_inputs = 0;
     uint32_t m_out[256 * 240];
 

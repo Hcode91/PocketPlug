@@ -13,6 +13,7 @@
 #include "cores/ngen/ngen.h"
 #include "cores/unixpc/unixpc.h"
 #include "cores/nixie4004/nixieclock.h"
+#include "cores/tm990/tm990.h"
 
 Core* createCore(const std::string& id)
 {
@@ -80,6 +81,28 @@ Core* createCore(const std::string& id)
         c.bank41e6 = true;
         return new Vt369Core(c);
     }
+    if (id == "88in1joy") {   // Play Vision Joystick88 (VT02/03, 4 MB)
+        Vt369Config c;
+        c.romName = "88in1joystick.bin";
+        c.romSize = 0x400000;
+        c.soc = 2;
+        c.palMode = 0;
+        c.ntscDmaBug = true;
+        return new Vt369Core(c);
+    }
+    if (id == "500in1hh") {   // 500-in-1 handheld (VT "4FFx" SoC, gbox2020 opcode swap, 16 MB)
+        Vt369Config c;
+        c.romName = "500in1.bin";
+        c.romSize = 0x1000000;
+        c.soc = 1;
+        c.palMode = 0;
+        c.crypt = 3;
+        return new Vt369Core(c);
+    }
+    if (id == "990189")       // TI TM 990/189 University Board
+        return new Tm990Core(false);
+    if (id == "990189v")      // ... with the Video Board Interface (TMS9918)
+        return new Tm990Core(true);
     if (id == "4004clk")      // 4004 Nixie Clock (Intel 4004)
         return new NixieClockCore();
     if (id == "3b1")          // AT&T UNIX PC / PC 7300 / 3B1 (68010, FreeBee)
