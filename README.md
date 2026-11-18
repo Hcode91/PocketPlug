@@ -266,14 +266,23 @@ reset and the scanline toggle.
 - NGEN speaker sound (how the speaker is driven is still unknown).
 - Left out on purpose: MAME's generic 386 / 486 PC motherboards (`386sc`,
   `386sc2c`, `386schg`, `386sxvhcom`, `3siud`, `486apio`, `486ccv`, `486igb21`,
-  `486wb6a3`). They're plain IBM PC/AT clones (DOS / Windows 3.x),
+  `486wb6a3`, `4dmshl3g`, `4dmuhl3s`, `4nd04a`). They're plain IBM PC/AT clones (DOS / Windows 3.x),
   better served by a PC emulator such as 86Box.
 - Left out on purpose: the AT&T 3B2 minicomputers (`3b2_300`, `3b2_310`,
   `3b2_400`, `3b2_600`). Serial-terminal Unix servers with their own WE32100
   CPU and no screen or keyboard to recreate; SIMH already runs them well.
 - Left out on purpose: the ADDS 4000/260 (`4000_260`), a 1995 serial text
-  terminal. MAME doesn't emulate its serial ports, and without a host computer
-  on the other end all it can show is its setup menu.
+  terminal, and the Mera-Elzab 7951om (`7951om`), a 1987 terminal. MAME
+  doesn't emulate their serial ports, and without a host computer on the other
+  end there's nothing to use.
+- Left out on purpose: the SGI 4D/410 (`4d410`, a server MAME can't run), the
+  Wavetek 600 Cellular Activation Tester (`600cat`, test equipment), Motorola's
+  MC68705 programmer boards (`705p3prg`, `705p5prg`, `705r3prg`, `705u3prg`,
+  switches and lights only) and the 68k Single Board Computer (`68ksbc`, used
+  only over a serial terminal).
+- Planned: TI TM 990/189 University Board (`990189`, `990189v`), Play Vision
+  Joystick88 (`88in1joy`), 500-in-1 Handheld Game (`500in1hh`), TimeTop
+  Chaoji Zhishi Da Fuweng 1 and 2 (`6578cjz1`, `6578cjz2`).
 - 3B1: save states (they'd have to carry the whole hard disk), the serial port
   and the modem / phone line. The dialer's beep and tones play.
 
