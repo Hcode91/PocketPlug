@@ -36,6 +36,7 @@ class EmulatorActivity : Activity() {
     private var pet: EggPetView? = null
     private var phone: PhoneCaseView? = null
     private var arcade: ArcadeCabinetView? = null
+    private var handheld: HandheldView? = null
     @Volatile private var volume = 1f
     private var stickMask = 0
     // LCD pets keep living while the app is closed: the clock is fast-forwarded on return
@@ -97,6 +98,15 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 phone = v
+                setContentView(v)
+            }
+            Skin.HANDHELD -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = HandheldView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                handheld = v
                 setContentView(v)
             }
             Skin.ARCADE_CABINET -> {
@@ -337,6 +347,7 @@ class EmulatorActivity : Activity() {
             if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
+            else if (handheld != null) handheld?.updateFrame(pixels)
             else tv.updateFrame(pixels)
             if (track != null && n > 0) {
                 // a blocking write paces emulation to the audio clock
@@ -424,6 +435,7 @@ class EmulatorActivity : Activity() {
         Skin.APVS_1292 -> apvsKeyBit(code)
         Skin.EGG_PET -> petKeyBit(code)
         Skin.PHONE_CASE, Skin.ARCADE_CABINET -> caseKeyBit(code)
+        Skin.HANDHELD -> handheldKeyBit(code)
         else -> danceKeyBit(code)
     }
 
@@ -468,6 +480,18 @@ class EmulatorActivity : Activity() {
     }
 
     override fun onGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (machine.skin == Skin.HANDHELD && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            var m = 0
+            if (y < -0.5f) m = m or HandheldView.UP
+            if (y > 0.5f) m = m or HandheldView.DOWN
+            if (x < -0.5f) m = m or HandheldView.LEFT
+            if (x > 0.5f) m = m or HandheldView.RIGHT
+            if (m != stickMask) { stickMask = m; setTouch(3, m); handheld?.externalMask = keyInputs or m }
+            return true
+        }
         if ((machine.skin == Skin.PHONE_CASE || machine.skin == Skin.ARCADE_CABINET) && event.action == android.view.MotionEvent.ACTION_MOVE &&
             (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
             // left stick and hat both drive the D-pad
@@ -503,6 +527,17 @@ class EmulatorActivity : Activity() {
         else -> 0
     }
 
+    private fun handheldKeyBit(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_X -> HandheldView.A
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_Z -> HandheldView.B
+        KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER -> HandheldView.START
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> HandheldView.UP
+        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> HandheldView.DOWN
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> HandheldView.LEFT
+        KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> HandheldView.RIGHT
+        else -> 0
+    }
+
     private fun danceKeyBit(code: Int): Int = when (code) {
         KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> DanceMatBits.UP
         KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> DanceMatBits.DOWN
@@ -526,6 +561,7 @@ class EmulatorActivity : Activity() {
         pet?.externalMask = keyInputs
         phone?.externalMask = keyInputs or stickMask
         arcade?.externalMask = keyInputs or stickMask
+        handheld?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }
@@ -539,6 +575,7 @@ class EmulatorActivity : Activity() {
         pet?.externalMask = keyInputs
         phone?.externalMask = keyInputs or stickMask
         arcade?.externalMask = keyInputs or stickMask
+        handheld?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }

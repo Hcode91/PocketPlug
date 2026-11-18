@@ -14,6 +14,7 @@
 struct RomFile {
     std::string name;
     std::vector<uint8_t> data;
+    std::string path;      // always set by the app; data is left empty for cores that map files themselves
 };
 
 class Core {
@@ -22,6 +23,9 @@ public:
 
     // Load the machine's ROM files (already extracted). Returns false + error on failure.
     virtual bool load(const std::vector<RomFile>& roms, std::string& error) = 0;
+    // Very large sets (hundreds of MB) are memory-mapped by the core: the app
+    // then only passes RomFile::path and leaves data empty.
+    virtual bool wantsRomPaths() const { return false; }
     virtual void reset() = 0;
     virtual void runFrame() = 0;
 

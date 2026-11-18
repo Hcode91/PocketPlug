@@ -62,7 +62,8 @@ Java_com_hcode91_pocketplug_Native_load(JNIEnv* env, jclass, jlong h, jobjectArr
         RomFile rf;
         rf.name = jstr(env, (jstring)env->GetObjectArrayElement(names, i));
         std::string path = jstr(env, (jstring)env->GetObjectArrayElement(paths, i));
-        if (!readFile(path, rf.data)) {
+        rf.path = path;
+        if (!core->wantsRomPaths() && !readFile(path, rf.data)) {
             std::string err = "Could not read " + rf.name;
             return env->NewStringUTF(err.c_str());
         }

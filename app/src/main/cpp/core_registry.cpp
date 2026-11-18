@@ -9,6 +9,7 @@
 #include "cores/tama/tama.h"
 #include "cores/ocean/ocean.h"
 #include "cores/vt369/vt369.h"
+#include "cores/spg2xx/spg2xx.h"
 
 Core* createCore(const std::string& id)
 {
@@ -44,6 +45,18 @@ Core* createCore(const std::string& id)
         c.romName = "25q32.u7";
         c.romSize = 0x400000;
         return new Vt369Core(c);
+    }
+    if (id == "265games") {   // 265-in-1 handheld (SPG2xx, 256 MB in 32 banks)
+        Spg2xxConfig c;
+        c.romName = "265games.bin";
+        c.romSize = 0x10000000;
+        // init_m527: the IRQ-disable patches MAME applies (word offsets in the ROM)
+        for (uint32_t w : { 0x242500fu, 0x30284b5u, 0x340c055u, 0x4415e46u, 0x481cab4u, 0x4c12c3au,
+                            0x5c0c1b4u, 0x600d62cu, 0x64103c5u, 0x68084ddu, 0x6d45cddu }) {
+            c.romPatches.push_back(w); c.romPatchValues.push_back(0x0003);
+        }
+        c.romPatches.push_back(0x4821e25u); c.romPatchValues.push_back(0xffff);  // gym dancing
+        return new Spg2xxCore(c);
     }
     if (id == "240in1ar") {   // 240-in-1 mini arcade cabinet (VT369, scrambled opcodes, 128 MB)
         Vt369Config c;

@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -191,6 +191,16 @@ object Machines {
             year = "201x",
             roms = listOf(RomSpec("mw-106-2g.u3", 0x8000000L, 0xc46d2ca9L)),
             skin = Skin.ARCADE_CABINET,
+        ),
+        MachineDef(
+            id = "265games",
+            title = "265-in-1 Handheld",
+            subtitle = "Colour handheld with 265 sports, arcade and puzzle games in five game zones (MAME set: 265games)",
+            chip = "SunPlus SPG2xx (u'nSP)",
+            region = "Europe",
+            year = "201x",
+            roms = listOf(RomSpec("265games.bin", 0x10000000L, 0x761c92cbL)),
+            skin = Skin.HANDHELD,
         ),
         MachineDef(
             id = "oceanpet",

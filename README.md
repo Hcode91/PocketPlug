@@ -14,6 +14,7 @@ controller.
 | Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock, egg, hatching and pet match MAME segment-for-segment over 10 min; lives in real time |
 | 168-in-1 Game Phone Case | `168pcase` | VT369 (NES-on-a-chip) | Menu and games match MAME pixel-for-pixel in every tested frame (Contra, Panda Adventure, Aether, 60+ others); NES APU sound |
 | 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
+| 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
@@ -31,6 +32,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Egg Pet - Ocean (original) | - | Nothing (built in) | - | - |
 | 168-in-1 Game Phone Case | `168pcase` | `25q32.u7` | 4 MB (4,194,304 bytes) | `98e8e97a` |
 | 240-in-1 Mini Arcade | `240in1ar` | `mw-106-2g.u3` | 128 MB (134,217,728 bytes) | `c46d2ca9` |
+| 265-in-1 Handheld | `265games` | `265games.bin` | 256 MB (268,435,456 bytes) | `761c92cb` |
 
 MAME artwork, samples, BIOS files and parent sets are not needed.
 
@@ -141,6 +143,15 @@ B and Select are still available for the few games that want them.
 MAME lists this set as not working, and several games are buggy on the real
 machine too; PocketPlug matches MAME's picture in everything tested.
 
+### 265-in-1 Handheld
+
+Import the MAME `265games` set (`265games.bin`, 256 MB; the file is memory-mapped,
+not loaded into RAM). Drawn as a two-tone vertical handheld: D-pad, red **A**,
+yellow **B** and **START**. Tap the "265 GAMES" logo under the screen (or Back)
+for the menu. Gamepads: B/Y = A, A/X = B, Start, D-pad or left stick; keyboard
+X/Z, Enter, WASD. Like MAME, the CPU runs at twice the crystal clock and the
+ROM's interrupt-disable checks are patched, which the games need to run.
+
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.
 
@@ -154,6 +165,7 @@ app/src/main/cpp/
   common/s2650.*        shared Signetics 2650 CPU
   cores/vt1682/         V.R. Technology VT1682 (two 6502s, tile/sprite video, DAC sound)
   cores/vc4000/         Interton VC 4000 family / 1292 APVS (2650 + 2636 PVI)
+  cores/spg2xx/         SunPlus SPG2xx (u'nSP CPU, tiles/sprites, 16-voice SPU)
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/
   Machines.kt           machine list (ROM files, CRCs, skin)
