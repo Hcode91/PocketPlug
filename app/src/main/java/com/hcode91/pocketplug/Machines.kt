@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -181,6 +181,16 @@ object Machines {
             year = "202x",
             roms = listOf(RomSpec("25q32.u7", 0x400000L, 0x98e8e97aL)),
             skin = Skin.PHONE_CASE,
+        ),
+        MachineDef(
+            id = "240in1ar",
+            title = "240-in-1 Mini Arcade",
+            subtitle = "Palm-sized upright arcade cabinet with joystick and sampled-music games (MAME set: 240in1ar)",
+            chip = "VT369 (NES on a chip, sound CPU)",
+            region = "UK / Europe",
+            year = "201x",
+            roms = listOf(RomSpec("mw-106-2g.u3", 0x8000000L, 0xc46d2ca9L)),
+            skin = Skin.ARCADE_CABINET,
         ),
         MachineDef(
             id = "oceanpet",

@@ -45,6 +45,14 @@ Core* createCore(const std::string& id)
         c.romSize = 0x400000;
         return new Vt369Core(c);
     }
+    if (id == "240in1ar") {   // 240-in-1 mini arcade cabinet (VT369, scrambled opcodes, 128 MB)
+        Vt369Config c;
+        c.romName = "mw-106-2g.u3";
+        c.romSize = 0x8000000;
+        c.crypt = 1;
+        c.bank41e6 = true;
+        return new Vt369Core(c);
+    }
     if (id == "oceanpet")    // built-in original game, no ROM
         return new OceanPetCore();
     return nullptr;

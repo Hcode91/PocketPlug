@@ -15,6 +15,8 @@
 struct Vt369Config {
     std::string romName;
     uint32_t romSize = 0x400000;
+    int crypt = -1;            // opcode bitswap (MAME which_crypt), -1 = none
+    bool bank41e6 = false;     // 41e6 bits 0-1 select a 32 MB ROM bank (red5mam style)
 };
 
 class Vt369Core : public Core {
@@ -42,6 +44,8 @@ private:
     Vt369Config m_cfg;
     std::vector<uint8_t> m_rom;     // 4 MB SPI flash image
     M6502 m_cpu;
+    M6502 m_spu;                    // sound CPU (runs at the 21.47 MHz master clock)
+    uint8_t m_cryptTable[256];
     uint32_t m_inputs = 0;
     uint32_t m_out[256 * 240];
 
@@ -114,6 +118,19 @@ private:
         double resampleSum;
         int32_t resampleN;
         double dcPrevIn, dcPrevOut;
+        // external banking / opcode scrambling
+        uint32_t ahigh;
+        uint8_t encrypted;
+        // ---- sound CPU (VT3xx SPU) ----
+        uint8_t spuRam[0x1800];
+        uint8_t spuRunning;
+        uint16_t spuTimerPeriod;
+        uint8_t spuTimerCtrl;
+        double spuTimerNext;       // next timer IRQ (sound-CPU cycles), <0 = off
+        int64_t spuCycle;          // sound CPU time (4 cycles per dot)
+        uint8_t adderAddr[2], adderResult[2], adpcmAddr[2], adpcmResult[2], dac[4];
+        int16_t dacOut[2];
+        struct SpuRegs { uint16_t pc; uint8_t a, x, y, s, p, databank, irq; } spuRegs;
     } m_s;
 
     // ---------------- helpers ----------------
@@ -128,7 +145,7 @@ private:
     std::vector<int16_t> m_audio;
     int64_t m_cpuDot = 0;          // CPU's position (dots) within the frame loop
 
-    uint8_t progRead(uint32_t addr) const { addr &= 0x1ffffff; return m_rom[addr & (m_rom.size() - 1)]; }
+    uint8_t progRead(uint32_t addr) const { addr = (addr & 0x1ffffff) | m_s.ahigh; return m_rom[addr & (m_rom.size() - 1)]; }
     int relative() const { return (m_s.relative[0] + ((m_s.relative[1] & 0x0f) << 8)) * 0x2000; }
 
     // SoC
@@ -198,12 +215,24 @@ private:
     void lcdcRegsW(int offset, uint8_t data);
     uint8_t onespaceRel(uint32_t offset) { return progRead(relative() + offset); }
 
+    // sound CPU
+public:
+    uint8_t spuRead(uint16_t a);
+    void spuWrite(uint16_t a, uint8_t d);
+    uint8_t spuExtRead(uint32_t a) { return progRead(relative() + a); }
+private:
+    void spuControl(uint8_t data);
+    void spuRun();
+    void spuTimerUpdate();
+    void setEncryption(bool on) { m_s.encrypted = on; m_cpu.setOpcodeTable(on ? m_cryptTable : nullptr); }
+
     // APU
     void apuInit();
     void apuReset();
     void apuWrite(int offset, uint8_t value);
     uint8_t apuStatus();
     void apuSync();
+    void apuSyncTo(int64_t now);
     void apuSample();
     void apuSquare(State::Square* chan);
     void apuTriangle(State::Triangle* chan);

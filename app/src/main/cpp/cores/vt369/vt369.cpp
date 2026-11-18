@@ -8,6 +8,11 @@
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#ifdef VT_DEBUG
+#include <cstdio>
+#include <cstdlib>
+extern int g_vtFrame;
+#endif
 
 #define BIT(x, n) (((x) >> (n)) & 1)
 static inline uint32_t rgb(int r, int g, int b) { return 0xff000000u | (r << 16) | (g << 8) | b; }
@@ -26,6 +31,11 @@ static const int DOTS_PER_APU_SAMPLE = 12;      // APU stream runs at clock / 4
 
 static uint8_t cpu_rd(void* c, uint16_t a) { return ((Vt369Core*)c)->cpuRead(a); }
 static void cpu_wr(void* c, uint16_t a, uint8_t d) { ((Vt369Core*)c)->cpuWrite(a, d); }
+static uint8_t spu_rd(void* c, uint16_t a) { return ((Vt369Core*)c)->spuRead(a); }
+static void spu_wr(void* c, uint16_t a, uint8_t d) { ((Vt369Core*)c)->spuWrite(a, d); }
+static uint8_t spu_ext(void* c, uint32_t a) { return ((Vt369Core*)c)->spuExtRead(a); }
+static const double MASTER_CLOCK = 21477272.7;  // RP2A03_NTSC_XTAL, sound CPU clock
+static const int SPU_CYCLES_PER_DOT = 4;
 
 /*************************************************************************
  Setup
@@ -39,6 +49,19 @@ Vt369Core::Vt369Core(const Vt369Config& c) : m_cfg(c)
     m_cpu.setBus(this, cpu_rd, cpu_wr);
     m_cpu.decimalEnabled = false;     // RP2A03 core
     m_cpu.interruptDelay = true;
+    m_spu.setBus(this, spu_rd, spu_wr);
+    m_spu.extRead = spu_ext;
+    m_spu.interruptDelay = true;
+    m_spu.irqHold = true;
+    // MAME m6502_swap_op_d5_d6.cpp: rp2a03_core_swap_op_d5_d6 descramble()
+    for (int op = 0; op < 256; op++) {
+        uint8_t v = op;
+        switch (c.crypt) {
+        case 0: v = (op & 0x9f) | ((op >> 1) & 0x20) | ((op << 1) & 0x40); break;   // d5/d6
+        case 1: v = (op & 0xed) | ((op >> 3) & 0x02) | ((op << 3) & 0x10); break;   // d1/d4
+        }
+        m_cryptTable[op] = v;
+    }
     initPalettes();
     apuInit();
 }
@@ -49,8 +72,13 @@ bool Vt369Core::load(const std::vector<RomFile>& roms, std::string& error)
     for (auto& f : roms) if (f.name == m_cfg.romName) r = &f;
     if (!r && roms.size() == 1) r = &roms[0];
     if (!r) { error = "Missing " + m_cfg.romName; return false; }
-    m_rom.assign(m_cfg.romSize, 0xff);
-    std::memcpy(m_rom.data(), r->data.data(), std::min(r->data.size(), (size_t)m_cfg.romSize));
+    if (r->data.size() == m_cfg.romSize) {
+        // big sets (128 MB): take the loader's buffer instead of holding two copies
+        m_rom = std::move(const_cast<std::vector<uint8_t>&>(r->data));
+    } else {
+        m_rom.assign(m_cfg.romSize, 0xff);
+        std::memcpy(m_rom.data(), r->data.data(), std::min(r->data.size(), (size_t)m_cfg.romSize));
+    }
     reset();
     return true;
 }
@@ -62,9 +90,11 @@ void Vt369Core::reset()
     m_s.initialE000 = 0xff;
     m_s.clockMul = 1;
     m_s.nmiAt = -1;
+    m_s.spuTimerNext = -1;
     socReset();
     ppuReset();
     apuReset();
+    setEncryption(m_cfg.crypt >= 0);
     m_cpu.reset();
     m_audio.clear();
 }
@@ -371,7 +401,11 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
     case 0x4155: case 0x4156: case 0x4157: return m_s.gpio415x[5 + (a - 0x4155)];
     case 0x415a: case 0x415b: return m_s.gpio415x[0xa + (a - 0x415a)];
     case 0x415c: return 0xf0;
-    case 0x418a: return (uint8_t)rand();
+    case 0x418a:
+#ifdef VT_DEBUG
+        if (getenv("LOG418A")) printf("418a read frame %d\n", g_vtFrame);
+#endif
+        return (uint8_t)rand();
     case 0x4199: return 0x02;
     case 0x41b7: return 0x04;
     case 0x41e4: case 0x41e5: return m_s.gpio41ex[4 + (a - 0x41e4)];
@@ -449,8 +483,15 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
     case 0x415a: case 0x415b: m_s.gpio415x[0xa + (a - 0x415a)] = d; return;
     case 0x4160: case 0x4161: m_s.relative[a - 0x4160] = d; return;
     case 0x41e4: case 0x41e5: m_s.gpio41ex[4 + (a - 0x41e4)] = d; return;
-    case 0x41e6: m_s.gpio41ex[6] = d; return;
+    case 0x41e6:
+        m_s.gpio41ex[6] = d;
+        if (m_cfg.bank41e6) m_s.ahigh = (uint32_t)(d & 0x03) << 25;   // extbank_red5mam_w
+        return;
     case 0x41e7: case 0x41e8: case 0x41e9: case 0x41ea: case 0x41eb: m_s.gpio41ex[7 + (a - 0x41e7)] = d; return;
+    case 0x4162: spuControl(d); return;
+    case 0x4169:                                    // encryption_4169_w
+        if (m_cfg.crypt >= 0) { if (d == 0x01) setEncryption(false); else if (d == 0x00) setEncryption(true); }
+        return;
     case 0x4201: {
         bool inInst = m_inInst;
         m_inInst = false;
@@ -462,6 +503,137 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
     if (a >= 0x4100 && a <= 0x410b) { w410x(a - 0x4100, d); return; }
     if (a >= 0x2040 && a <= 0x2049) { lcdcRegsW(a - 0x2040, d); return; }
     if (a >= 0x4130 && a < 0x413e) { aluW((a < 0x4138) ? a - 0x4130 : a - 0x4138, d); return; }
+}
+
+/*************************************************************************
+ Sound CPU (vt3xx_soc_base_device::vt369_sound_map)
+*************************************************************************/
+
+void Vt369Core::spuControl(uint8_t data)
+{
+    bool run = data == 0x0d;
+    if (run && !m_s.spuRunning) {
+        m_s.spuCycle = m_s.dot * SPU_CYCLES_PER_DOT;
+        m_spu.databank = 0;
+        m_spu.m_irqLine = false;
+        m_spu.reset();
+    }
+    m_s.spuRunning = run;
+}
+
+void Vt369Core::spuTimerUpdate()
+{
+    if ((m_s.spuTimerCtrl & 0x01) && m_s.spuTimerPeriod)
+        m_s.spuTimerNext = (double)m_s.spuCycle + MASTER_CLOCK * 8.0 / m_s.spuTimerPeriod;
+    else
+        m_s.spuTimerNext = -1;
+}
+
+uint8_t Vt369Core::spuRead(uint16_t a)
+{
+    if (a < 0x1800) return m_s.spuRam[a];
+    if (a < 0x2000) return m_s.soundram[a & 0x7ff];
+    switch (a) {
+    case 0x2210: case 0x2211: return m_s.adderResult[a & 1];
+    case 0x2402: case 0x2403: return m_s.adpcmResult[a & 1];
+    case 0x2404: return 0x00;
+    }
+    if (a >= 0xfffa) {            // vt369_soundcpu_vectors_r
+        int off = a - 0xfffa;
+        if (off == 4 || off == 5) return m_s.soundram[0x7f8 + (off & 1)];
+        return m_s.soundram[0x7fa + off];
+    }
+    return 0;                     // 4000-4fff internal ROM: not present
+}
+
+static const int16_t s_adpcmSteps[16][16] = {   // vt369_adpcm.h (NewRisingSun, GPL-2.0+)
+    {0, 14, 28, 42, 56, 70, 84, 97, -111, -97, -84, -70, -56, -42, -28, -14 },
+    {0, 13, 26, 39, 52, 65, 78, 91, -104, -91, -78, -65, -52, -39, -26, -13 },
+    {0, 11, 21, 32, 43, 54, 64, 75,  -86, -75, -64, -54, -43, -32, -21, -11 },
+    {0,  9, 18, 27, 35, 44, 53, 62,  -71, -62, -53, -44, -35, -27, -18,  -9 },
+    {0,  7, 13, 20, 27, 34, 40, 47,  -54, -47, -40, -34, -27, -20, -13,  -7 },
+    {0,  6, 11, 17, 22, 28, 33, 39,  -44, -39, -33, -28, -22, -17, -11,  -6 },
+    {0,  5,  9, 14, 18, 23, 27, 32,  -36, -32, -27, -23, -18, -14,  -9,  -5 },
+    {0,  4,  8, 11, 15, 19, 23, 26,  -30, -26, -23, -19, -15, -11,  -8,  -4 },
+    {0,  3,  6,  9, 12, 15, 17, 20,  -23, -20, -17, -15, -12,  -9,  -6,  -3 },
+    {0,  2,  5,  7, 10, 12, 14, 17,  -19, -17, -14, -12, -10,  -7,  -5,  -2 },
+    {0,  2,  4,  6,  8, 10, 12, 14,  -16, -14, -12, -10,  -8,  -6,  -4,  -2 },
+    {0,  2,  3,  5,  6,  8, 10, 11,  -13, -11, -10,  -8,  -6,  -5,  -3,  -2 },
+    {0,  1,  2,  4,  5,  6,  7,  9,  -10,  -9,  -7,  -6,  -5,  -4,  -2,  -1 },
+    {0,  1,  2,  3,  4,  5,  6,  7,   -8,  -7,  -6,  -5,  -4,  -3,  -2,  -1 },
+    {0,  1,  2,  3,  3,  4,  5,  6,   -7,  -6,  -5,  -4,  -3,  -3,  -2,  -1 },
+    {0,  1,  1,  2,  3,  4,  4,  5,   -6,  -5,  -4,  -4,  -3,  -2,  -1,  -1 } };
+
+void Vt369Core::spuWrite(uint16_t a, uint8_t d)
+{
+    if (a < 0x1800) { m_s.spuRam[a] = d; return; }
+    if (a < 0x2000) { m_s.soundram[a & 0x7ff] = d; return; }
+    switch (a) {
+    case 0x2100: m_s.spuTimerPeriod = (m_s.spuTimerPeriod & 0xff00) | d; return;
+    case 0x2101: m_s.spuTimerPeriod = (m_s.spuTimerPeriod & 0x00ff) | (d << 8); return;
+    case 0x2102: m_s.spuTimerCtrl = d; spuTimerUpdate(); return;
+    case 0x2205: case 0x2206: {
+        m_s.adderAddr[a - 0x2205] = d;
+        if (a == 0x2206) {        // do_sound_adder
+            uint16_t ad = (m_s.adderAddr[0] << 8) | m_s.adderAddr[1];
+            int32_t r = 0;
+            for (int i = 0; i < 4; i++)
+                r += (int16_t)(spuRead((ad + i * 2) & 0x1fff) | (spuRead((ad + i * 2 + 1) & 0x1fff) << 8));
+            m_s.adderResult[0] = r >> 8; m_s.adderResult[1] = r;
+        }
+        return; }
+    case 0x2210: case 0x2211: m_s.adderResult[a & 1] = d; return;
+    case 0x2400: case 0x2401: {
+        m_s.adpcmAddr[a & 1] = d;
+        if (a == 0x2401) {        // do_sound_adpcm_decode / vt369_adpcm_decoder_device::decode_packet
+            uint16_t ad = ((m_s.adpcmAddr[0] << 8) | m_s.adpcmAddr[1]) & 0x1fff;
+            uint8_t pk[6];
+            for (int i = 0; i < 6; i++) pk[i] = m_s.soundram[(ad - 0x1800 + i) & 0x7ff];
+            pk[5] %= 48;
+            int nibble = pk[1] >> (pk[5] & 1 ? 4 : 0);
+            int index = pk[0] - (pk[5] >= 24 && (pk[0] & 0x40) ? 1 : 0) + (pk[5] >= 24 && (pk[0] & 0x80) ? 2 : 0);
+            int step = s_adpcmSteps[index & 0xf][nibble & 0xf];
+            int8_t out = (int8_t)pk[4];
+            switch ((pk[0] >> 4) & 3) {
+            case 0: out = step; break;
+            case 1: out = step + (int8_t)pk[4]; break;
+            case 2: out = step + (int8_t)pk[4] * 2 - (int8_t)pk[3]; break;
+            case 3: out = step + (int8_t)pk[4] - ((int8_t)pk[3] >> 1); break;
+            }
+            pk[3] = pk[4]; pk[4] = (uint8_t)out; pk[5]++;
+            uint16_t fin = (uint16_t)(out * (pk[2] & 0x7f));
+            for (int i = 0; i < 6; i++) m_s.soundram[(ad - 0x1800 + i) & 0x7ff] = pk[i];
+            m_s.adpcmResult[0] = fin >> 8; m_s.adpcmResult[1] = fin;
+        }
+        return; }
+    case 0x2800: case 0x2801: case 0x2802: case 0x2803: {
+        int off = a & 3;
+        apuSyncTo(m_s.spuCycle / SPU_CYCLES_PER_DOT);
+        m_s.dac[off] = d;
+#ifdef VT_DEBUG
+        if (getenv("LOGDAC") && g_vtFrame >= atoi(getenv("LOGDAC")) && g_vtFrame < atoi(getenv("LOGDAC"))+1) printf("dac %d %02x cyc=%lld per=%04x ctl=%02x\n", off, d, (long long)m_s.spuCycle, m_s.spuTimerPeriod, m_s.spuTimerCtrl);
+#endif
+        if (off & 1) {
+            int ch = (off & 2) >> 1;
+            m_s.dacOut[ch] = (int16_t)(m_s.dac[off] | (m_s.dac[off - 1] << 8));
+        }
+        return; }
+    }
+}
+
+void Vt369Core::spuRun()
+{
+    if (!m_s.spuRunning) return;
+    const int64_t target = m_s.dot * SPU_CYCLES_PER_DOT;
+    while (m_s.spuCycle < target) {
+        if (m_s.spuTimerNext >= 0 && m_s.spuCycle >= m_s.spuTimerNext) {   // sound_timer_expired
+            if (m_s.spuTimerCtrl & 0x02) m_spu.setIrq(true);
+            double next = m_s.spuTimerNext;
+            spuTimerUpdate();
+            if (m_s.spuTimerNext >= 0) m_s.spuTimerNext += next - (double)m_s.spuCycle;
+        }
+        m_s.spuCycle += m_spu.step();
+    }
 }
 
 /*************************************************************************
@@ -1471,6 +1643,8 @@ void Vt369Core::apuSample()
     apuDpcm(&m_s.dpcm);
     float acc = m_squareLut[m_s.squ[0].output + m_s.squ[1].output];
     acc += m_tndLut[m_s.tri.output][m_s.noi.output][m_s.dpcm.output];
+    // sound CPU DACs: 0.2 each in MAME (our APU path is scaled by 0.6 below)
+    acc += (m_s.dacOut[0] + m_s.dacOut[1]) * (0.2f / 0.6f / 32768.0f);
     // box-filter down to 44.1 kHz
     m_s.resampleSum += acc;
     m_s.resampleN++;
@@ -1488,14 +1662,16 @@ void Vt369Core::apuSample()
     }
 }
 
-void Vt369Core::apuSync()
+void Vt369Core::apuSync() { apuSyncTo(m_s.dot); }
+
+void Vt369Core::apuSyncTo(int64_t now)
 {
     // frame_timer_cb (its IRQ output isn't connected on the VT SoC, but $4015 bit 6 is readable)
-    while (m_s.frameTimerAt >= 0 && m_s.frameTimerAt <= m_s.dot) {
+    while (m_s.frameTimerAt >= 0 && m_s.frameTimerAt <= now) {
         if (m_s.stepMode == 4 && m_s.frameIrqEnabled) m_s.frameIrqOccurred = 1;
         m_s.frameTimerAt += FRAME_TIMER_DOTS;
     }
-    while (m_s.apuDot + DOTS_PER_APU_SAMPLE <= m_s.dot) {
+    while (m_s.apuDot + DOTS_PER_APU_SAMPLE <= now) {
         m_s.apuDot += DOTS_PER_APU_SAMPLE;
         apuSample();
     }
@@ -1555,6 +1731,7 @@ void Vt369Core::runFrame()
             int cyc = m_cpu.step();
             m_inInst = false;
             m_s.dot += cyc * (3 / m_s.clockMul);
+            spuRun();
         }
         while (!m_frameDone && nextEventDot() <= m_s.dot) fireEvent();
     }
@@ -1571,13 +1748,15 @@ void Vt369Core::runFrame()
 bool Vt369Core::saveState(std::vector<uint8_t>& out)
 {
     out.clear();
-    uint32_t magic = 0x39335456;   // 'VT39'
+    uint32_t magic = 0x41335456;   // 'VT3A'
     auto put = [&](const void* p, size_t n) { const uint8_t* b = (const uint8_t*)p; out.insert(out.end(), b, b + n); };
     put(&magic, 4);
     put(&m_s, sizeof(m_s));
     put(&m_cpu.pc, 2); put(&m_cpu.a, 1); put(&m_cpu.x, 1); put(&m_cpu.y, 1); put(&m_cpu.s, 1); put(&m_cpu.p, 1);
     uint8_t lines = (m_cpu.m_irqLine ? 1 : 0) | (m_cpu.m_nmiPending ? 2 : 0);
     put(&lines, 1);
+    m_s.spuRegs = { m_spu.pc, m_spu.a, m_spu.x, m_spu.y, m_spu.s, m_spu.p, m_spu.databank, (uint8_t)m_spu.m_irqLine };
+    std::memcpy(out.data() + 4, &m_s, sizeof(m_s));
     put(m_bitmapBuf, sizeof(m_bitmapBuf));
     return true;
 }
@@ -1587,7 +1766,7 @@ bool Vt369Core::loadState(const std::vector<uint8_t>& in)
     size_t need = 4 + sizeof(m_s) + 8 + 1 + sizeof(m_bitmapBuf);
     if (in.size() != need) return false;
     uint32_t magic; memcpy(&magic, in.data(), 4);
-    if (magic != 0x39335456) return false;
+    if (magic != 0x41335456) return false;
     const uint8_t* p = in.data() + 4;
     memcpy(&m_s, p, sizeof(m_s)); p += sizeof(m_s);
     memcpy(&m_cpu.pc, p, 2); p += 2;
@@ -1595,6 +1774,10 @@ bool Vt369Core::loadState(const std::vector<uint8_t>& in)
     uint8_t lines = *p++;
     m_cpu.m_irqLine = lines & 1; m_cpu.m_nmiPending = (lines & 2) != 0;
     memcpy(m_bitmapBuf, p, sizeof(m_bitmapBuf));
+    auto& r = m_s.spuRegs;
+    m_spu.pc = r.pc; m_spu.a = r.a; m_spu.x = r.x; m_spu.y = r.y; m_spu.s = r.s; m_spu.p = r.p;
+    m_spu.databank = r.databank; m_spu.m_irqLine = r.irq; m_spu.m_irqSkip = m_spu.m_nmiSkip = false;
+    m_cpu.setOpcodeTable(m_s.encrypted ? m_cryptTable : nullptr);
     m_audio.clear();
     return true;
 }

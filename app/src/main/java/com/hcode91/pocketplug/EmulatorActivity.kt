@@ -24,6 +24,8 @@ class EmulatorActivity : Activity() {
     companion object {
         /** Longest absence we fast-forward (a neglected pet won't survive it anyway). */
         const val MAX_CATCH_UP = 14 * 86400.0
+        /** The arcade cabinet's VOLUME button steps through these. */
+        val VOLUME_STEPS = floatArrayOf(1f, 0.55f, 0.25f, 0f)
     }
 
     private lateinit var machine: MachineDef
@@ -33,6 +35,8 @@ class EmulatorActivity : Activity() {
     private val pads = arrayOfNulls<ApvsControllerView>(2)
     private var pet: EggPetView? = null
     private var phone: PhoneCaseView? = null
+    private var arcade: ArcadeCabinetView? = null
+    @Volatile private var volume = 1f
     private var stickMask = 0
     // LCD pets keep living while the app is closed: the clock is fast-forwarded on return
     private var liveSavedAt = 0L
@@ -93,6 +97,23 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 phone = v
+                setContentView(v)
+            }
+            Skin.ARCADE_CABINET -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val level = prefs.getInt("volume_${machine.id}", 0).coerceIn(0, ArcadeCabinetView.VOLUME_LEVELS - 1)
+                volume = VOLUME_STEPS[level]
+                val v = ArcadeCabinetView(this).apply {
+                    volumeLevel = level
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    onVolume = {
+                        volume = VOLUME_STEPS[it]
+                        prefs.edit().putInt("volume_${machine.id}", it).apply()
+                    }
+                }
+                arcade = v
                 setContentView(v)
             }
             Skin.EGG_PET -> {
@@ -308,11 +329,14 @@ class EmulatorActivity : Activity() {
 
         val frameNs = (1_000_000_000.0 / refresh).toLong()
         var next = SystemClock.elapsedRealtimeNanos()
+        var appliedVolume = -1f
         while (running) {
+            if (track != null && volume != appliedVolume) { appliedVolume = volume; track.setVolume(volume) }
             if (paused) { Thread.sleep(16); next = SystemClock.elapsedRealtimeNanos(); continue }
             val n = synchronized(coreLock) { Native.runFrame(handle, touchInputs or keyInputs, pixels, audio) }
             if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
+            else if (arcade != null) arcade?.updateFrame(pixels)
             else tv.updateFrame(pixels)
             if (track != null && n > 0) {
                 // a blocking write paces emulation to the audio clock
@@ -399,7 +423,7 @@ class EmulatorActivity : Activity() {
     private fun keyBit(code: Int): Int = when (machine.skin) {
         Skin.APVS_1292 -> apvsKeyBit(code)
         Skin.EGG_PET -> petKeyBit(code)
-        Skin.PHONE_CASE -> caseKeyBit(code)
+        Skin.PHONE_CASE, Skin.ARCADE_CABINET -> caseKeyBit(code)
         else -> danceKeyBit(code)
     }
 
@@ -444,7 +468,7 @@ class EmulatorActivity : Activity() {
     }
 
     override fun onGenericMotionEvent(event: android.view.MotionEvent): Boolean {
-        if (machine.skin == Skin.PHONE_CASE && event.action == android.view.MotionEvent.ACTION_MOVE &&
+        if ((machine.skin == Skin.PHONE_CASE || machine.skin == Skin.ARCADE_CABINET) && event.action == android.view.MotionEvent.ACTION_MOVE &&
             (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
             // left stick and hat both drive the D-pad
             val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
@@ -454,7 +478,7 @@ class EmulatorActivity : Activity() {
             if (y > 0.5f) m = m or 0x20
             if (x < -0.5f) m = m or 0x40
             if (x > 0.5f) m = m or 0x80
-            if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m }
+            if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m }
             return true
         }
         if (machine.skin == Skin.APVS_1292 && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -501,6 +525,7 @@ class EmulatorActivity : Activity() {
         mat?.externalMask = keyInputs
         pet?.externalMask = keyInputs
         phone?.externalMask = keyInputs or stickMask
+        arcade?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }
@@ -513,6 +538,7 @@ class EmulatorActivity : Activity() {
         mat?.externalMask = keyInputs
         pet?.externalMask = keyInputs
         phone?.externalMask = keyInputs or stickMask
+        arcade?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
     }

@@ -26,6 +26,12 @@ public:
     // MAME-style interrupt sampling: an interrupt raised between instructions is
     // only seen after one more instruction (the next opcode was already fetched).
     bool interruptDelay = false;
+    // HOLD_LINE style IRQ: the line drops by itself once the interrupt is taken
+    bool irqHold = false;
+    // VT3xx sound CPU: extra opcodes (PHX/PHY/PLX/PLY, data bank, 24-bit bus loads)
+    typedef uint8_t (*ExtReadFn)(void* ctx, uint32_t addr);
+    ExtReadFn extRead = nullptr;     // non-null enables the VT3xx SPU opcode set
+    uint8_t databank = 0;
     bool m_irqSkip = false, m_nmiSkip = false;
 
     // registers (public for state saving / debugging)
@@ -52,4 +58,5 @@ private:
     void adc(uint8_t v);
     void sbc(uint8_t v);
     void cmp(uint8_t r, uint8_t v);
+    int stepSpu(uint8_t op);
 };

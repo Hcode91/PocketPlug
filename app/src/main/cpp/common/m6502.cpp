@@ -85,6 +85,7 @@ int M6502::step()
         return 7;
     }
     if (m_irqLine && !(p & FI) && !m_irqSkip) {
+        if (irqHold) m_irqLine = false;
         interrupt(0xfffe, false);
         return 7;
     }
@@ -92,6 +93,7 @@ int M6502::step()
 
     uint8_t op = rd(pc++);
     if (m_optable) op = m_optable[op];
+    if (extRead) { int c_ = stepSpu(op); if (c_) return c_; }
 
     int cyc = 2;
     uint16_t ad = 0;
@@ -304,4 +306,39 @@ int M6502::step()
 #undef BR
 #undef RMW
     return cyc;
+}
+
+// VT3xx SPU extra opcodes (MAME ovt3xx_spu.lst, David Haywood, BSD-3-Clause).
+// Returns 0 when the opcode is a standard one.
+int M6502::stepSpu(uint8_t op)
+{
+    switch (op) {
+    case 0xc2: rd(pc); push(x); return 3;                         // PHX
+    case 0xd2: rd(pc); push(y); return 3;                         // PHY
+    case 0x3c: rd(pc); x = pop(); setNZ(x); return 4;             // PLX
+    case 0x34: rd(pc); y = pop(); setNZ(y); return 4;             // PLY
+    case 0x7a: rd(pc); a = databank; return 2;                    // get data bank
+    case 0x5a: rd(pc); databank = a; return 2;                    // set data bank
+    case 0xbf: {                                                  // LDA bank:abs,X
+        uint32_t lo = rd(pc++); uint32_t hi = rd(pc++);
+        a = extRead(m_ctx, ((((uint32_t)databank << 16) | (hi << 8) | lo) + x) & 0xffffff);
+        setNZ(a); return 3; }
+    case 0xa7: {                                                  // LDA bank:(zp),Y
+        uint8_t z = rd(pc++);
+        uint16_t b = rd(z) | (rd((uint8_t)(z + 1)) << 8);
+        int c = 4;
+        if ((b ^ (uint16_t)(b + y)) & 0xff00) { rd((b & 0xff00) | ((b + y) & 0xff)); c++; }
+        a = extRead(m_ctx, (((uint32_t)databank << 16) | (uint32_t)(b + y)) & 0xffffff);
+        setNZ(a); return c; }
+    case 0x62: {                                                  // ADC abs into X
+        uint16_t ad = rd16(pc); pc += 2;
+        uint8_t v = rd(ad);
+        int t = v + x + (p & FC ? 1 : 0);
+        p &= ~(FN | FV | FZ | FC);
+        if (!(uint8_t)t) p |= FZ; else if ((int8_t)t < 0) p |= FN;
+        if (~(v ^ x) & (v ^ t) & 0x80) p |= FV;
+        if (t & 0xff00) p |= FC;
+        x = (uint8_t)t; return 4; }
+    }
+    return 0;
 }

@@ -13,6 +13,7 @@ controller.
 | Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
 | Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock, egg, hatching and pet match MAME segment-for-segment over 10 min; lives in real time |
 | 168-in-1 Game Phone Case | `168pcase` | VT369 (NES-on-a-chip) | Menu and games match MAME pixel-for-pixel in every tested frame (Contra, Panda Adventure, Aether, 60+ others); NES APU sound |
+| 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
@@ -111,6 +112,17 @@ Import the MAME `168pcase` set (`25q32.u7`). The case is drawn as the real one:
 D-pad, red **A**/**B**, round **SELECT**/**START**, and two **TURBO** buttons
 (rapid-fire B / A). Tap the camera bump (or Back) for the menu. Gamepads: B/Y = A,
 A/X = B, Start/Select, D-pad or left stick; keyboard X/Z, Enter, Space, WASD.
+
+### 240-in-1 Mini Arcade
+
+Import the MAME `240in1ar` set (`mw-106-2g.u3`, 128 MB). Drawn as a mini
+upright cabinet: drag the red ball-top joystick, press the big **A**, and the
+small **Start**, **Reset** and **Volume** buttons work like the real ones
+(Volume steps loud / medium / quiet / mute and is remembered). Tap the marquee
+(or Back) for the menu. Gamepads and keyboards use the phone-case mapping, so
+B and Select are still available for the few games that want them.
+MAME lists this set as not working, and several games are buggy on the real
+machine too; PocketPlug matches MAME's picture in everything tested.
 
 The **MENU** button on the TV (or the system Back gesture) has save/load state,
 reset and the scanline toggle.
