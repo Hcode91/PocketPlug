@@ -208,6 +208,12 @@ reset and the scanline toggle.
 - Left out on purpose: MAME's generic 386 PC motherboards (`386sc`, `386sc2c`,
   `386schg`, `386sxvhcom`). They're plain IBM PC/AT clones (DOS / Windows 3.x),
   better served by a PC emulator such as 86Box.
+- Left out on purpose: the AT&T 3B2 minicomputers (`3b2_300`, `3b2_310`,
+  `3b2_400`, `3b2_600`). Serial-terminal Unix servers with their own WE32100
+  CPU and no screen or keyboard to recreate; SIMH already runs them well.
+- Next machine: the AT&T UNIX PC Model 3B1 (`3b1`), built by Convergent like the
+  NGEN. 68010 with a paged MMU, 720x348 mono bitmap screen, the same WD2797 /
+  WD1010 disk chips. Needs the MAME `3b1` boot ROMs and UNIX PC system disks.
 
 ## Layout
 
