@@ -245,7 +245,7 @@ reset and the scanline toggle.
   (ImageDisk dumps), which we don't have yet. The 80186 NGEN is done.
 - NGEN speaker sound (how the speaker is driven is still unknown).
 - Left out on purpose: MAME's generic 386 PC motherboards (`386sc`, `386sc2c`,
-  `386schg`, `386sxvhcom`). They're plain IBM PC/AT clones (DOS / Windows 3.x),
+  `386schg`, `386sxvhcom`, `3siud`). They're plain IBM PC/AT clones (DOS / Windows 3.x),
   better served by a PC emulator such as 86Box.
 - Left out on purpose: the AT&T 3B2 minicomputers (`3b2_300`, `3b2_310`,
   `3b2_400`, `3b2_600`). Serial-terminal Unix servers with their own WE32100
