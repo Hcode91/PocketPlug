@@ -17,6 +17,23 @@ controller.
 | Egg Pet - Ocean (original) | `oceanpet` | Built in (no ROM) | PocketPlug's own sea pet in the spirit of the 1998 ocean egg; real time, classic or gentle mode |
 | Egg Pet - Angel (1997 angel virtual pet) | `tamaang` | Epson E0C6S48 (+1 MHz OSC3) | Matches MAME segment-for-segment over 10 min (intro, clock, hatching); shake sensor; lives in real time |
 
+## Required files
+
+What each machine needs, with the checksums PocketPlug checks on import. A MAME set
+`.zip` / `.7z` or the bare file all work.
+
+| Machine | MAME set | File | Size | CRC32 |
+|---|---|---|---|---|
+| Retro Dance Mat | `110dance` | `110songdancemat.bin` | 32 MB (33,554,432 bytes) | `cd668e41` |
+| 1292 / 1392 APVS | `1292apvs`, `1392apvs` | No system ROM; cartridge dumps (up to 6 KB each) or MAME's `vc4000` software-list zip | - | Known carts get titles |
+| Egg Pet - Generation 1 | `tama` | `tama.bin` | 12 KB (12,288 bytes) | `5c864cb1` |
+| Egg Pet - Angel | `tamaang` | `tamaang.bin` | 16 KB (16,384 bytes) | `87bcb59f` |
+| Egg Pet - Ocean (original) | - | Nothing (built in) | - | - |
+| 168-in-1 Game Phone Case | `168pcase` | `25q32.u7` | 4 MB (4,194,304 bytes) | `98e8e97a` |
+| 240-in-1 Mini Arcade | `240in1ar` | `mw-106-2g.u3` | 128 MB (134,217,728 bytes) | `c46d2ca9` |
+
+MAME artwork, samples, BIOS files and parent sets are not needed.
+
 ## Using it
 
 1. Install the APK from the latest GitHub Actions run (artifact **PocketPlug-apk**).
@@ -153,6 +170,7 @@ tools/                  desktop headless runner for testing cores against real R
    one with a new configuration.
 2. Register it in `core_registry.cpp`.
 3. Add a `MachineDef` in `Machines.kt` (and a skin if it needs a new controller).
+4. Add its files to the **Required files** table above.
 
 ### Testing a core on a PC
 
