@@ -31,6 +31,8 @@ data class MachineDef(
     val cartLibrary: String = id,
     /** Model name printed on the console (skins that show one). */
     val badge: String = "",
+    /** Getting-started steps, shown in a bubble over the machine (empty: none needed). */
+    val setup: List<String> = emptyList(),
 )
 
 /** Input bits for the dance mat (match UIO port A on the VT1682, 1 = pressed). */
@@ -160,6 +162,11 @@ object Machines {
             year = "1996",
             roms = listOf(RomSpec("tama.bin", 0x3000L, 0x5c864cb1L)),
             skin = Skin.EGG_PET,
+            setup = listOf(
+                "At first start the egg shows: press B for the clock.",
+                "A sets the hour, B the minutes, C confirms.",
+                "The egg hatches a few minutes later. Tap the key ring (or Back) for the menu.",
+            ),
         ),
         MachineDef(
             id = "tamaang",
@@ -171,6 +178,11 @@ object Machines {
             roms = listOf(RomSpec("tamaang.bin", 0x4000L, 0x87bcb59fL)),
             skin = Skin.EGG_PET,
             badge = "angel",
+            setup = listOf(
+                "At first start the egg shows: press B for the clock.",
+                "A sets the hour, B the minutes, C confirms.",
+                "The egg hatches a few minutes later. Shake the phone or touch a wing for the vibration sensor; the ball chain (or Back) opens the menu.",
+            ),
         ),
         MachineDef(
             id = "168pcase",
@@ -244,6 +256,14 @@ object Machines {
                 RomSpec("72-00617.15c", 0x2000L, 0x4e93ff40L),
             ),
             skin = Skin.DESKTOP_3B1,
+            setup = listOf(
+                "Tap the floppy drive for the disk menu. The hard disk starts empty, so UNIX goes on first (about 15 minutes, once).",
+                "Insert 01_Diagnostic_Disk and choose Reset. Press a key at the configuration screen, then choose 2 (Initialize Hard Disk), 9 (Miniscribe 64 MB), No, Yes, and No to the surface test.",
+                "Insert 02_Floppy_Boot_Disk and choose 7 (reboot). Insert 03_Floppy_File_System when asked, press a key and answer yes.",
+                "Insert 04_Hard_Disk_Boot and press Return, then disks 5 to 12 one by one, Return after each (use 08_..._no_phinit for disk 8).",
+                "It reboots from the hard disk: press Enter at the date and time. From then on, eject the floppy and it starts from the hard disk.",
+                "The screen is the mouse pad: drag to move, tap to click. Shut UNIX down before quitting (there are no save states).",
+            ),
         ),
         MachineDef(
             id = "a1200xl",
@@ -259,12 +279,69 @@ object Machines {
             ),
             skin = Skin.ATARI_XL,
             badge = "1200xl",
+            setup = listOf(
+                "With nothing loaded it shows its logo; HELP runs the self test.",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+                "For BASIC: Menu, then \"BASIC cartridge\" plugs one in (the 1200XL had none built in).",
+            ),
+        ),
+        MachineDef(
+            id = "a400",
+            title = "400 Home Computer",
+            subtitle = "1979 Atari 8-bit computer with the flat keyboard, here with the common 48 KB upgrade. Load your "
+                + "own disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a400)",
+            chip = "6502B, ANTIC, CTIA/GTIA, POKEY (Atari800)",
+            region = "USA",
+            year = "1979",
+            roms = listOf(
+                RomSpec("co12399b.rom", 0x800L, 0x6a5d766eL),
+                RomSpec("co12499b.rom", 0x1000L, 0xd818f3e8L),
+                RomSpec("co14599b.rom", 0x1000L, 0xc1690a9bL),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "400",
+            setup = listOf(
+                "With nothing loaded it starts in Memo Pad, a simple typing screen.",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+                "For BASIC: Menu, then \"BASIC cartridge\" plugs one in.",
+            ),
+        ),
+        MachineDef(
+            id = "a400pal",
+            title = "400 Home Computer (PAL)",
+            subtitle = "The European 400 (50 Hz). Import the a400 zip as well as a400pal: the floating-point chip "
+                + "is only in the a400 zip (MAME set: a400pal)",
+            chip = "6502B, ANTIC, CTIA/GTIA, POKEY (Atari800)",
+            region = "Europe",
+            year = "1980",
+            roms = listOf(
+                RomSpec("co12399b.rom", 0x800L, 0x6a5d766eL),
+                RomSpec("co15199.rom", 0x1000L, 0x8e547f56L),
+                RomSpec("co15299.rom", 0x1000L, 0xbe55b413L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "400",
+            setup = listOf(
+                "With nothing loaded it starts in Memo Pad, a simple typing screen.",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+                "For BASIC: Menu, then \"BASIC cartridge\" plugs one in.",
+            ),
         ),
         MachineDef(
             id = "a130xe",
             title = "130XE Home Computer",
-            subtitle = "1985 Atari 8-bit computer with 128 KB and BASIC built in. Load your own disk, program, "
-                + "cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a130xe)",
+            subtitle = "1985 Atari 8-bit computer with 128 KB and BASIC built in. Import the a800xl zip as well: "
+                + "the OS chip is only in that one. Load your own disk, program, cartridge or tape files "
+                + "(.atr .xex .car .rom .cas) (MAME set: a130xe)",
             chip = "6502C, ANTIC, GTIA, POKEY, FREDDIE (Atari800)",
             region = "USA / Europe",
             year = "1985",
@@ -274,6 +351,13 @@ object Machines {
             ),
             skin = Skin.ATARI_XL,
             badge = "130xe",
+            setup = listOf(
+                "It starts in BASIC (type PRINT 2+2 and RETURN).",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+            ),
         ),
         MachineDef(
             id = "500in1hh",
@@ -310,6 +394,11 @@ object Machines {
                 RomSpec("990-469.u33", 0x1000L, 0xe9b4ac1bL),
             ),
             skin = Skin.UNIVERSITY_BOARD,
+            setup = listOf(
+                "Wait for rEAdY on the display (the red LOAD lever restarts it).",
+                "Type a BASIC line on the keys and press Ret, e.g. PRINT 1+2. The display scrolls along the line.",
+                "SHIFT switches the keys to the yellow signs above them (the SHIFT lamp lights).",
+            ),
         ),
         MachineDef(
             id = "990189v",
@@ -326,6 +415,11 @@ object Machines {
                 RomSpec("demo1800.u11", 0x800L, 0x8737dc4bL),
             ),
             skin = Skin.UNIVERSITY_BOARD,
+            setup = listOf(
+                "Wait for rEAdY on the board's display.",
+                "For a colour demo type NEW, Ret, then LOAD0 (or LOAD1-3), Ret, then RUN, Ret.",
+                "The two red buttons by the screen are the joystick fire buttons.",
+            ),
         ),
         MachineDef(
             id = "ngen",
@@ -341,6 +435,13 @@ object Machines {
                 RomSpec("72-00422_10mb_disk.bin", 0x1000L, 0xf5b046b6L),
             ),
             skin = Skin.WORKSTATION,
+            setup = listOf(
+                "Tap the floppy slot for the disk menu and insert BTOS disk 1 (.imd or .img). The hard disk starts unformatted.",
+                "Type INSTALL as the user name and press GO, then GO again on the IVolume form. It formats and tests the hard disk (a few minutes).",
+                "Insert disk 2 and disk 3 when asked (disk menu, then GO).",
+                "Eject the floppy and choose Reset: it now starts from the hard disk.",
+                "Leave the user name empty and press GO for the Executive. Type the date at the sign-on screen (there's no clock chip).",
+            ),
         ),
         MachineDef(
             id = "oceanpet",

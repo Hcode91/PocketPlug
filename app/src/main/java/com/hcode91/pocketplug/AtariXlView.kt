@@ -23,7 +23,12 @@ import kotlin.math.hypot
  * when tapped on their own. The cartridge slot and the drive open the disk
  * menu, the small MENU plate by the power light the emulator menu.
  */
-class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
+class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
+
+    private val xe = model == MODEL_130XE
+    private val m400 = model == MODEL_400
+    /** console keys in a column right of the keys (130XE, 400) rather than a row above (1200XL) */
+    private val col = xe || m400
 
     var onKey: ((Int, Boolean) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -42,6 +47,9 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
     companion object {
         const val W = 336
         const val H = 240
+        const val MODEL_1200XL = 0
+        const val MODEL_130XE = 1
+        const val MODEL_400 = 2
         const val SHIFT = 64
         const val CONTROL = 65
         const val START = 66
@@ -86,10 +94,10 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
         K("Z", 0x17), K("X", 0x16), K("C", 0x12), K("V", 0x10), K("B", 0x15), K("N", 0x23), K("M", 0x25),
         K(",", 0x20, shift = "["), K(".", 0x22, shift = "]"), K("/", 0x26, shift = "?"))
 
-    private val rows: List<List<K>> = if (xe) listOf(
+    private val rows: List<List<K>> = if (col) listOf(
         numberRow + listOf(K("BACK S", 0x34, 1.25f, w, "DELETE"), K("BREAK", BREAK, 1.25f, w)),
         qRow + listOf(K("RETURN", 0x0c, 2f, w)),
-        aRow + listOf(K("CAPS", 0x3c, 1.75f, w)),
+        aRow + listOf(if (m400) K("LOWR", 0x3c, 1.75f, w, "CAPS") else K("CAPS", 0x3c, 1.75f, w)),
         listOf(K("SHIFT", SHIFT, 2.25f, w)) + zRow + listOf(K("SHIFT", SHIFT, 2.25f, w), K("◪", 0x27, 1f, w)),
         listOf(K("", 0x21, 9f, w)),
     ) else listOf(
@@ -102,9 +110,14 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
         listOf(K("SHIFT", SHIFT, 2.5f, w)) + zRow + listOf(K("SHIFT", SHIFT, 2.5f, w)),
         listOf(K("", 0x21, 9f, w)),
     )
-    // the 130XE's console keys, top to bottom in a column right of the keyboard
-    private val column: List<K> = if (xe) listOf(K("RESET", RESET, 1f, c), K("OPTION", OPTION, 1f, c),
-        K("SELECT", SELECT, 1f, c), K("START", START, 1f, c), K("HELP", HELP, 1f, c)) else emptyList()
+    // the console keys, top to bottom in a column right of the keyboard
+    private val column: List<K> = when {
+        xe -> listOf(K("RESET", RESET, 1f, c), K("OPTION", OPTION, 1f, c),
+            K("SELECT", SELECT, 1f, c), K("START", START, 1f, c), K("HELP", HELP, 1f, c))
+        m400 -> listOf(K("RESET", RESET, 1f, c, "SYSTEM"), K("OPTION", OPTION, 1f, c),
+            K("SELECT", SELECT, 1f, c), K("START", START, 1f, c))
+        else -> emptyList()
+    }
 
     private val keys = ArrayList<Key>()
     private val keyByRow = ArrayList<List<Key>>()
@@ -168,12 +181,12 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
 
         // computer
         val cw = wf * 0.985f
-        val maxUnits = rows.maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() } + (if (xe) 2.0f else 0f)
+        val maxUnits = rows.maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() } + (if (col) 2.0f else 0f)
         unit = cw * 0.94f / maxUnits
         val keyRows = rows.size
         val kh = unit * 1.22f                 // keys a little taller than wide: easier to hit
         val bandH = unit * 1.1f
-        val caseH = bandH + kh * keyRows + unit * (if (xe) 0.9f else 0.6f)
+        val caseH = bandH + kh * keyRows + unit * (if (col) 0.9f else 0.6f)
         case.set((wf - cw) / 2, tvBody.bottom + vh * 0.012f, (wf + cw) / 2, tvBody.bottom + vh * 0.012f + caseH)
         band.set(case.left, case.top, case.right, case.top + bandH)
         slot.set(case.centerX() - unit * 2.6f, band.top + bandH * 0.25f, case.centerX() + unit * 2.6f, band.top + bandH * 0.62f)
@@ -181,11 +194,11 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
         val kbLeft = case.centerX() - kbW / 2
         keyWell.set(kbLeft - unit * 0.18f, band.bottom + unit * 0.12f, kbLeft + kbW + unit * 0.18f, case.bottom - unit * 0.25f)
         var y = band.bottom + unit * 0.3f
-        val mainW = rows.drop(if (xe) 0 else 1).maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() }
+        val mainW = rows.drop(if (col) 0 else 1).maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() }
         val mainLeft = kbLeft
         for ((ri, r) in rows.withIndex()) {
             val total = r.sumOf { it.units.toDouble() }.toFloat()
-            val consoleRow = !xe && ri == 0
+            val consoleRow = !col && ri == 0
             val rowH = if (consoleRow) kh * 0.8f else kh
             // the space bar is centred under the main block
             var x = if (r.size == 1) mainLeft + (mainW - total) * unit / 2 else mainLeft
@@ -196,8 +209,8 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
             y += if (consoleRow) rowH + unit * 0.22f else rowH
         }
         // the 1200XL's console keys sit on the metal band, above the well of the main keys
-        if (!xe) keyWell.top = keyByRow[0][0].rect.bottom + unit * 0.2f
-        if (xe) {
+        if (!col) keyWell.top = keyByRow[0][0].rect.bottom + unit * 0.2f
+        if (col) {
             val cx0 = mainLeft + mainW * unit + unit * 0.35f
             var cy = band.bottom + unit * 0.3f
             val ch = kh * keyRows / columnKeys.size
@@ -266,14 +279,28 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
 
     private fun drawComputer(cv: Canvas) {
         val r = unit * 0.4f
-        val bodyTop = if (xe) 0xFFD6D3CC.toInt() else 0xFFE6DFCD.toInt()
-        val bodyBottom = if (xe) 0xFFB9B6AE.toInt() else 0xFFCFC6B0.toInt()
+        val bodyTop = when { xe -> 0xFFD6D3CC.toInt(); m400 -> 0xFFDDD3BA.toInt(); else -> 0xFFE6DFCD.toInt() }
+        val bodyBottom = when { xe -> 0xFFB9B6AE.toInt(); m400 -> 0xFFC2B597.toInt(); else -> 0xFFCFC6B0.toInt() }
         paint.color = 0x77000000
         cv.drawRoundRect(case.left + unit * 0.1f, case.top + unit * 0.15f, case.right + unit * 0.1f, case.bottom + unit * 0.15f, r, r, paint)
         paint.shader = LinearGradient(0f, case.top, 0f, case.bottom, bodyTop, bodyBottom, Shader.TileMode.CLAMP)
         cv.drawRoundRect(case, r, r, paint)
         paint.shader = null
-        if (xe) {
+        if (m400) {
+            // the raised housing at the back with its hinged cartridge door
+            val hood = RectF(case.centerX() - unit * 4.2f, band.top + band.height() * 0.06f, case.centerX() + unit * 4.2f, band.bottom - band.height() * 0.02f)
+            paint.color = 0xFFB3A786.toInt()
+            cv.drawRoundRect(hood.left - unit * 0.1f, hood.top + unit * 0.08f, hood.right + unit * 0.1f, hood.bottom + unit * 0.1f, unit * 0.2f, unit * 0.2f, paint)
+            paint.shader = LinearGradient(0f, hood.top, 0f, hood.bottom, 0xFFE6DDC6.toInt(), 0xFFCDC1A2.toInt(), Shader.TileMode.CLAMP)
+            cv.drawRoundRect(hood, unit * 0.2f, unit * 0.2f, paint)
+            paint.shader = null
+            // vents at the right of the back
+            stroke.color = 0xFFA89C7C.toInt(); stroke.strokeWidth = unit * 0.05f
+            for (i in 0..4) {
+                val vy = band.top + band.height() * (0.25f + i * 0.13f)
+                cv.drawLine(case.right - unit * 2.4f, vy, case.right - unit * 0.6f, vy, stroke)
+            }
+        } else if (xe) {
             // ribbed back with the cartridge slot through it
             stroke.color = 0xFFA6A39B.toInt(); stroke.strokeWidth = unit * 0.06f
             var gy = band.top + band.height() * 0.15f
@@ -294,7 +321,7 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
             while (gy < metal.bottom) { cv.drawLine(metal.left, gy, metal.right, gy, stroke); gy += unit * 0.06f }
         }
         // cartridge slot (tap: media menu)
-        paint.color = if (xe) 0xFF8E8A82.toInt() else 0xFF7E7868.toInt()
+        paint.color = when { xe -> 0xFF8E8A82.toInt(); m400 -> 0xFFA99C7B.toInt(); else -> 0xFF7E7868.toInt() }
         cv.drawRoundRect(slot.left - unit * 0.12f, slot.top - unit * 0.1f, slot.right + unit * 0.12f, slot.bottom + unit * 0.1f, unit * 0.1f, unit * 0.1f, paint)
         paint.color = 0xFF1A1714.toInt()
         cv.drawRoundRect(slot, unit * 0.06f, unit * 0.06f, paint)
@@ -303,12 +330,12 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
         cv.drawText(mediaLabel ?: "tap: load a game", slot.centerX(), slot.centerY() + text.textSize * 0.36f, text)
 
         // keyboard well
-        paint.color = if (xe) 0xFF2E2E31.toInt() else 0xFF2A2420.toInt()
+        paint.color = when { xe -> 0xFF2E2E31.toInt(); m400 -> 0xFF3A2C22.toInt(); else -> 0xFF2A2420.toInt() }
         cv.drawRoundRect(keyWell, unit * 0.15f, unit * 0.15f, paint)
         for (k in keys) drawKey(cv, k)
 
         // lights and the menu plate
-        if (!xe) {
+        if (model == MODEL_1200XL) {
             val l = lights
             val names = arrayOf("POWER", "L1", "L2")
             val on = booleanArrayOf(true, indicators and 0x10 != 0, indicators and 0x20 != 0)
@@ -323,7 +350,7 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
             text.color = 0xFF45423C.toInt(); text.textSize = unit * 0.2f
             cv.drawText("POWER", powerLight.x, powerLight.y + unit * 0.42f, text)
         }
-        paint.color = if (xe) 0xFFA8A59D.toInt() else 0xFF8C8E8B.toInt()
+        paint.color = when { xe -> 0xFFA8A59D.toInt(); m400 -> 0xFFB5A884.toInt(); else -> 0xFF8C8E8B.toInt() }
         cv.drawRoundRect(menuPlate, unit * 0.08f, unit * 0.08f, paint)
         text.color = 0xFF2A2724.toInt(); text.textSize = minOf(menuPlate.height() * 0.42f, menuPlate.width() * 0.3f)
         text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
@@ -342,10 +369,35 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
         val r = k.rect
         val down = k.down || latched.contains(k)
         val (top, side, ink) = when {
+            // the 400's flat membrane: tan squares, orange control keys, yellow console keys
+            m400 && k.kind == Kind.CONSOLE -> Triple(0xFFE2C66E.toInt(), 0xFFB79C4E.toInt(), 0xFF3A2C22.toInt())
+            m400 && k.kind == Kind.WIDE && k.code != 0x21 -> Triple(0xFFDE8A3A.toInt(), 0xFFB56A24.toInt(), 0xFF2E2018.toInt())
+            m400 -> Triple(0xFFCDBB92.toInt(), 0xFFA89670.toInt(), 0xFF3A2C22.toInt())
             k.kind == Kind.CONSOLE && xe -> Triple(0xFFB4B1AA.toInt(), 0xFF8E8B84.toInt(), 0xFF2C2B29.toInt())
             k.kind == Kind.CONSOLE -> Triple(0xFF5A524B.toInt(), 0xFF3B3530.toInt(), 0xFFF0E8D8.toInt())
             xe -> Triple(0xFF57575D.toInt(), 0xFF38383C.toInt(), 0xFFF2F2F2.toInt())
             else -> Triple(0xFF4A413A.toInt(), 0xFF2E2823.toInt(), 0xFFF0E8D8.toInt())
+        }
+        if (m400) {
+            // membrane: flat, it only darkens when pressed
+            paint.color = if (down) side else top
+            cv.drawRoundRect(r.left + unit * 0.03f, r.top + unit * 0.03f, r.right - unit * 0.03f, r.bottom - unit * 0.03f, unit * 0.05f, unit * 0.05f, paint)
+            stroke.color = side; stroke.strokeWidth = unit * 0.03f
+            cv.drawRoundRect(r.left + unit * 0.03f, r.top + unit * 0.03f, r.right - unit * 0.03f, r.bottom - unit * 0.03f, unit * 0.05f, unit * 0.05f, stroke)
+            text.color = ink
+            text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            val my = r.centerY()
+            if (k.shiftLabel.isNotEmpty()) {
+                text.textSize = unit * (if (k.shiftLabel.length > 2) 0.17f else 0.26f)
+                cv.drawText(k.shiftLabel, r.centerX(), my - unit * 0.08f, text)
+                text.textSize = unit * (if (k.label.length > 1) 0.17f else 0.3f)
+                cv.drawText(k.label, r.centerX(), my + unit * 0.25f, text)
+            } else {
+                text.textSize = if (k.kind == Kind.CHAR && k.label.length == 1) unit * 0.4f
+                    else minOf(unit * 0.2f, r.width() * 0.9f / maxOf(1, k.label.length) * 1.6f)
+                cv.drawText(k.label, r.centerX(), my + text.textSize * 0.36f, text)
+            }
+            return
         }
         val rad = unit * 0.1f
         val sink = if (down) r.height() * 0.06f else 0f
@@ -414,8 +466,8 @@ class AtariXlView(ctx: Context, private val xe: Boolean) : View(ctx) {
         val dw = d.width()
         paint.color = 0x77000000
         cv.drawRoundRect(d.left + dw * 0.015f, d.top + dw * 0.02f, d.right + dw * 0.015f, d.bottom + dw * 0.02f, dw * 0.04f, dw * 0.04f, paint)
-        paint.shader = LinearGradient(0f, d.top, 0f, d.bottom, if (xe) 0xFFD6D3CC.toInt() else 0xFFE6DFCD.toInt(),
-            if (xe) 0xFFB3B0A8.toInt() else 0xFFC9C0AA.toInt(), Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(0f, d.top, 0f, d.bottom, when { xe -> 0xFFD6D3CC.toInt(); m400 -> 0xFFDDD3BA.toInt(); else -> 0xFFE6DFCD.toInt() },
+            when { xe -> 0xFFB3B0A8.toInt(); m400 -> 0xFFC2B597.toInt(); else -> 0xFFC9C0AA.toInt() }, Shader.TileMode.CLAMP)
         cv.drawRoundRect(d, dw * 0.04f, dw * 0.04f, paint)
         paint.shader = null
         // dark front panel with the slot and door lever

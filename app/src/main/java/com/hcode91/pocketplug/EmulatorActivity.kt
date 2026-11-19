@@ -148,7 +148,11 @@ class EmulatorActivity : Activity() {
             }
             Skin.ATARI_XL -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val v = AtariXlView(this, machine.badge == "130xe").apply {
+                val v = AtariXlView(this, when (machine.badge) {
+                    "130xe" -> AtariXlView.MODEL_130XE
+                    "400" -> AtariXlView.MODEL_400
+                    else -> AtariXlView.MODEL_1200XL
+                }).apply {
                     onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
                     onMenu = { showMenu() }
                     onDisks = { showAtariMenu() }
@@ -156,7 +160,7 @@ class EmulatorActivity : Activity() {
                 }
                 atari = v
                 setContentView(v)
-                if (machine.badge == "1200xl" && prefs.getBoolean("basic_${machine.id}", false))
+                if (machine.badge != "130xe" && prefs.getBoolean("basic_${machine.id}", false))
                     Native.setOption(handle, 1, 1)
             }
             Skin.NIXIE_CLOCK -> {
@@ -293,7 +297,26 @@ class EmulatorActivity : Activity() {
                 })
             }
         }
+        attachSetupBubble()
         hideSystemBars()
+    }
+
+    // ---- getting-started steps (machines that need more than loading the ROM) ----
+    private var setupBubble: SetupBubble? = null
+
+    private fun attachSetupBubble() {
+        if (machine.setup.isEmpty()) return
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        // open the first time; afterwards just the "?" bubble
+        val seen = prefs.getBoolean("setup_seen_${machine.id}", false)
+        val b = SetupBubble(this, machine.title, machine.setup, startOpen = !seen) {
+            prefs.edit().putBoolean("setup_hidden_${machine.id}", true).apply()
+        }
+        if (prefs.getBoolean("setup_hidden_${machine.id}", false)) b.visibility = android.view.View.GONE
+        prefs.edit().putBoolean("setup_seen_${machine.id}", true).apply()
+        addContentView(b, android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT))
+        setupBubble = b
     }
 
     /** OFF/ON switch: the TV goes dark for a moment and the console restarts. */
@@ -770,9 +793,13 @@ class EmulatorActivity : Activity() {
                 tv.invalidate()
             }
         }
+        if (machine.setup.isNotEmpty()) items += "Getting started steps" to {
+            prefs.edit().putBoolean("setup_hidden_${machine.id}", false).apply()
+            setupBubble?.show(true)
+        }
         if (workstation != null) items += "Disks..." to { showDiskMenu() }
         if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
-        if (atari != null && machine.badge == "1200xl") {
+        if (atari != null && machine.badge != "130xe") {
             val on = prefs.getBoolean("basic_${machine.id}", false)
             items += (if (on) "BASIC cartridge: plugged in" else "BASIC cartridge: not plugged in") to {
                 prefs.edit().putBoolean("basic_${machine.id}", !on).apply()

@@ -110,6 +110,10 @@ Core* createCore(const std::string& id)
         return new Atari800Core(Atari800Core::k1200XL);
     if (id == "a130xe")       // Atari 130XE (Atari800)
         return new Atari800Core(Atari800Core::k130XE);
+    if (id == "a400")         // Atari 400, NTSC (Atari800)
+        return new Atari800Core(Atari800Core::k400);
+    if (id == "a400pal")      // Atari 400, PAL (Atari800)
+        return new Atari800Core(Atari800Core::k400PAL);
     if (id == "3b1")          // AT&T UNIX PC / PC 7300 / 3B1 (68010, FreeBee)
         return new UnixPcCore();
     if (id == "ngen")         // Convergent NGEN CP-001 / Burroughs B26 workstation (80186)

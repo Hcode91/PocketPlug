@@ -11,7 +11,7 @@
 
 class Atari800Core : public Core {
 public:
-    enum Model { k1200XL, k130XE };
+    enum Model { k1200XL, k130XE, k400, k400PAL };
     explicit Atari800Core(Model m);
     ~Atari800Core() override;
 

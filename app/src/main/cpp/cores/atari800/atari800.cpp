@@ -29,11 +29,12 @@ namespace {
 
 bool g_active = false;   // Atari800 is single-instance (globals)
 
-bool writeFile(const std::string& path, const std::vector<uint8_t>& a, const std::vector<uint8_t>& b)
+bool writeFile(const std::string& path, std::initializer_list<const std::vector<uint8_t>*> parts)
 {
     FILE* f = fopen(path.c_str(), "wb");
     if (!f) return false;
-    bool ok = fwrite(a.data(), 1, a.size(), f) == a.size() && fwrite(b.data(), 1, b.size(), f) == b.size();
+    bool ok = true;
+    for (auto* p : parts) ok = ok && fwrite(p->data(), 1, p->size(), f) == p->size();
     fclose(f);
     return ok;
 }
@@ -73,7 +74,19 @@ bool Atari800Core::load(const std::vector<RomFile>& roms, std::string& error)
             error = "Missing the 1200XL OS ROMs"; return false;
         }
         osPath_ = dirOf(lo->path) + "/.a1200xl-os.rom";
-        if (!writeFile(osPath_, lo->data, hi->data)) { error = "Can't write " + osPath_; return false; }
+        if (!writeFile(osPath_, { &lo->data, &hi->data })) { error = "Can't write " + osPath_; return false; }
+    } else if (model_ == k400 || model_ == k400PAL) {
+        // 400 / 800 OS: floating point (2 KB at $D800) + two 4 KB chips ($E000, $F000)
+        const RomFile* fp = find(roms, "co12399b.rom");
+        const RomFile* e = find(roms, model_ == k400 ? "co12499b.rom" : "co15199.rom");
+        const RomFile* f = find(roms, model_ == k400 ? "co14599b.rom" : "co15299.rom");
+        if (!fp || !e || !f || fp->data.size() != 0x800 || e->data.size() != 0x1000 || f->data.size() != 0x1000) {
+            error = model_ == k400 ? "Missing the 400 OS ROMs"
+                : "Missing the 400 OS ROMs (co12399b.rom is in the a400 zip: import it too)";
+            return false;
+        }
+        osPath_ = dirOf(e->path) + (model_ == k400 ? "/.a400-os.rom" : "/.a400pal-os.rom");
+        if (!writeFile(osPath_, { &fp->data, &e->data, &f->data })) { error = "Can't write " + osPath_; return false; }
     } else {
         const RomFile* os = find(roms, "co61598b.rom");
         const RomFile* basic = find(roms, "co24947a.rom");
@@ -82,21 +95,23 @@ bool Atari800Core::load(const std::vector<RomFile>& roms, std::string& error)
         basicPath_ = basic->path;
     }
 
+    const bool old = model_ == k400 || model_ == k400PAL;
     std::vector<std::string> args = {
         "atari800",
         "-config", "/dev/null",
-        model_ == k1200XL ? "-1200" : "-xe",
-        "-ntsc",
-        // the 1200XL has no BASIC inside: it starts with no cartridge (see setOption)
-        model_ == k1200XL ? "-nobasic" : "-basic",
-        "-xlxe_rom", osPath_,
+        model_ == k1200XL ? "-1200" : model_ == k130XE ? "-xe" : "-atari",
+        model_ == k400PAL ? "-pal" : "-ntsc",
+        // only the 130XE has BASIC inside: the others start with no cartridge (see setOption)
+        model_ == k130XE ? "-basic" : "-nobasic",
+        // ("-atari" is a 400 / 800 with 48 KB: the usual upgrade, so the bigger games fit)
+        old ? (model_ == k400 ? "-osb_rom" : "-osa_rom") : "-xlxe_rom", osPath_,
         "-audio16", "-dsprate", "44100", "-nostereo",
     };
     if (!basicPath_.empty()) { args.push_back("-basic_rom"); args.push_back(basicPath_); }
     std::vector<char*> argv;
-    for (auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
+    for (auto& a : args) if (!a.empty()) argv.push_back(const_cast<char*>(a.c_str()));
     argv.push_back(nullptr);
-    if (!libatari800_init(int(args.size()), argv.data())) {
+    if (!libatari800_init(int(argv.size()) - 1, argv.data())) {
         error = "Atari800 failed to start";
         return false;
     }
@@ -148,7 +163,7 @@ int Atari800Core::pickKey() const
 
 void Atari800Core::setOption(int id, int value)
 {
-    if (id != 1 || model_ != k1200XL || !loaded_) return;
+    if (id != 1 || model_ == k130XE || !loaded_) return;
     // a BASIC cartridge plugged into the 1200XL: on a machine without built-in
     // BASIC, Atari800 maps its BASIC ROM (Altirra BASIC, as this set has no
     // BASIC ROM) like a cartridge when BASIC isn't disabled
