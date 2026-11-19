@@ -21,8 +21,19 @@ object RomStore {
 
     fun isReady(ctx: Context, m: MachineDef) = m.roms.all {
         val f = romFile(ctx, m, it)
-        if (it.size == RomSpec.ANY_SIZE) f.length() > 0 else f.length() == it.size
+        linkOf(ctx, m, it) != null || (if (it.size == RomSpec.ANY_SIZE) f.length() > 0 else f.length() == it.size)
     }
+
+    // ---- files left in the user's folder (big ones), read through their document URI ----
+
+    private fun linkFile(ctx: Context, m: MachineDef, spec: RomSpec) = File(romDir(ctx, m), spec.name + ".link")
+    fun linkOf(ctx: Context, m: MachineDef, spec: RomSpec): Uri? =
+        linkFile(ctx, m, spec).takeIf { it.exists() }?.readText()?.trim()?.let { Uri.parse(it) }
+    fun link(ctx: Context, m: MachineDef, spec: RomSpec, uri: Uri) {
+        romFile(ctx, m, spec).delete()
+        linkFile(ctx, m, spec).writeText(uri.toString())
+    }
+    fun unlink(ctx: Context, m: MachineDef, spec: RomSpec) { linkFile(ctx, m, spec).delete() }
 
     fun delete(ctx: Context, m: MachineDef) { romDir(ctx, m).deleteRecursively() }
 
@@ -48,6 +59,7 @@ object RomStore {
                     ?: m.roms.firstOrNull { it.size == size && it.name !in found }
                     ?: return
                 progress("Extracting ${spec.name}…")
+                unlink(ctx, m, spec)
                 FileOutputStream(romFile(ctx, m, spec)).use { stream.copyTo(it, 1 shl 20) }
                 found += spec.name
             }

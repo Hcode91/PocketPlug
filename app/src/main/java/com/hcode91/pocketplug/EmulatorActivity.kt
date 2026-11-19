@@ -40,6 +40,7 @@ class EmulatorActivity : Activity() {
     private var nixie: NixieClockView? = null
     private var joypad: JoystickPadView? = null
     private var ablPad: AblPadView? = null
+    private val linkedFds = ArrayList<android.os.ParcelFileDescriptor>()
     private var chess: ChessComputerView? = null
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
@@ -94,7 +95,18 @@ class EmulatorActivity : Activity() {
             paths = arrayOf(f.absolutePath)
         } else {
             names = machine.roms.map { it.name }.toTypedArray()
-            paths = machine.roms.map { RomStore.romFile(this, machine, it).absolutePath }.toTypedArray()
+            // files left in the user's folder are read through an open descriptor
+            paths = machine.roms.map { spec ->
+                RomStore.linkOf(this, machine, spec)?.let { u ->
+                    runCatching { contentResolver.openFileDescriptor(u, "r") }.getOrNull()?.let { pfd ->
+                        linkedFds += pfd
+                        "/proc/self/fd/${pfd.fd}"
+                    } ?: run {
+                        Toast.makeText(this, "${spec.name} isn't in your ROM folder any more - rescan it", Toast.LENGTH_LONG).show()
+                        finish(); return
+                    }
+                } ?: RomStore.romFile(this, machine, spec).absolutePath
+            }.toTypedArray()
         }
         val err = if (handle != 0L) Native.load(handle, names, paths) else "This machine isn't supported by the core"
         if (err != null) {
@@ -728,6 +740,7 @@ class EmulatorActivity : Activity() {
     override fun onDestroy() {
         stop()
         if (handle != 0L) { Native.destroy(handle); handle = 0L }
+        linkedFds.forEach { runCatching { it.close() } }
         super.onDestroy()
     }
 

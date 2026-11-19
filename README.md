@@ -278,6 +278,21 @@ horseshoe joystick: drag the ball-top stick, tap A / B, the TURBO buttons fire
 A or B repeatedly while held, and SELECT / START sit in the middle. The TV's
 MENU button (or Back) has save states and reset.
 
+### Find my ROMs
+
+The quickest way to set machines up: tap **Find my ROMs** and pick the folder
+your ROMs are in. PocketPlug looks through it and every subfolder for the files
+each machine needs, by checksum and size, so names and folder layout don't
+matter: MAME zips (and zips inside zips), 7z files, loose files and CHD images
+are all found. Archives are only listed, not unpacked, and loose files are only
+read when their size is one a machine needs.
+
+You get a list of machines that are ready to set up and ones still missing
+files (with the missing names); one tap copies the found files in. Files over
+100 MB can stay in your folder instead (the machine then reads them from there,
+and stops working if they're moved, until you rescan). The folder is
+remembered: tap Find my ROMs again to rescan; only new or changed files are read.
+
 ### Chess computers (Mephisto Academy, Novag Accord)
 
 Import the MAME zip (`academy` also needs MAME's `hd44780` zip, the LCD's

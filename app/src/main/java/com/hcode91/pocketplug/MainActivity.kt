@@ -48,7 +48,9 @@ class MainActivity : Activity() {
         })
         root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(button("Sort a folder of ROMs", false) { pickSortFolder() })
+            addView(button("Find my ROMs", true) { findRoms() })
+            addView(View(this@MainActivity), LinearLayout.LayoutParams(dp(10), 1))
+            addView(button("Sort a folder", false) { pickSortFolder() })
             setPadding(0, 0, 0, dp(14))
         })
 
@@ -206,6 +208,119 @@ class MainActivity : Activity() {
         startActivityForResult(i, REQ_IMPORT)
     }
 
+    // ---- finding every machine's files in a folder ----
+
+    private fun savedRomFolder(): android.net.Uri? {
+        val s = getSharedPreferences("settings", MODE_PRIVATE).getString(RomScanner.PREF_FOLDER, null) ?: return null
+        val u = android.net.Uri.parse(s)
+        return u.takeIf { contentResolver.persistedUriPermissions.any { p -> p.uri == u && p.isReadPermission } }
+    }
+
+    private fun findRoms() {
+        val saved = savedRomFolder()
+        if (saved == null) { pickRomFolder(); return }
+        val name = saved.lastPathSegment?.substringAfterLast(':')?.ifEmpty { "your folder" } ?: "your folder"
+        AlertDialog.Builder(this)
+            .setTitle("Find my ROMs")
+            .setMessage("Look through $name (and its subfolders) again? Only new or changed files are read.")
+            .setPositiveButton("Rescan") { _, _ -> scanRomFolder(saved) }
+            .setNeutralButton("Pick another folder") { _, _ -> pickRomFolder() }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun pickRomFolder() {
+        AlertDialog.Builder(this)
+            .setTitle("Find my ROMs")
+            .setMessage("Pick the folder your ROMs are in. Every machine's files are found in it and its subfolders " +
+                "by their checksums, so names and folders don't matter: MAME zips, 7z files, loose files and CHD images.\n\n" +
+                "Nothing in the folder changes. PocketPlug remembers it, so next time it's one tap to look again.")
+            .setPositiveButton("Pick folder") { _, _ ->
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION), REQ_FIND)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun scanRomFolder(tree: android.net.Uri) {
+        val status = TextView(this).apply { setPadding(dp(24), dp(20), dp(24), dp(8)); textSize = 14f }
+        val dlg = AlertDialog.Builder(this).setTitle("Finding ROMs").setView(status).setCancelable(false).show()
+        thread {
+            val sc = RomScanner(this, tree)
+            val res = runCatching { sc.scan { msg -> status.post { status.text = msg } } }
+            runOnUiThread {
+                dlg.dismiss()
+                res.onFailure { AlertDialog.Builder(this).setMessage("Couldn't read the folder: ${it.message}").setPositiveButton("OK", null).show() }
+                res.onSuccess { showScanResult(sc, it) }
+            }
+        }
+    }
+
+    private fun showScanResult(sc: RomScanner, hits: List<RomScanner.MachineHits>) {
+        // machines already set up only count if something of theirs changed place
+        val fresh = hits.filter { !RomStore.isReady(this, it.machine) }
+        val complete = fresh.filter { it.complete }
+        val partial = fresh.filter { !it.complete }
+        val ready = hits.filter { RomStore.isReady(this, it.machine) }
+        val big = complete.flatMap { h -> h.found.values }.any { it.entry == null && it.docSize > RomScanner.LINK_ABOVE }
+        val text = buildString {
+            if (complete.isEmpty() && partial.isEmpty()) append("Nothing new: ")
+            append(if (hits.isEmpty()) "no files for any machine were found.\n" else "")
+            if (complete.isNotEmpty()) {
+                append("Ready to set up (${complete.size}):\n")
+                for (h in complete) append("   ✓ ${h.machine.title}\n")
+            }
+            if (partial.isNotEmpty()) {
+                append("\nFound some files, still missing others:\n")
+                for (h in partial) {
+                    append("   ◐ ${h.machine.title}\n")
+                    append("        missing: ${h.missing.joinToString()}\n")
+                }
+            }
+            if (ready.isNotEmpty()) append("\nAlready set up: ${ready.joinToString { it.machine.title }}\n")
+            if (big) append("\nFiles over 100 MB can stay in your folder instead of being copied (saves space; the machine stops working if you move them).")
+        }
+        val tv = TextView(this).apply { this.text = text; textSize = 13f; setPadding(dp(20), dp(12), dp(20), dp(12)); setTextIsSelectable(true) }
+        val b = AlertDialog.Builder(this).setTitle("Find my ROMs").setView(ScrollView(this).apply { addView(tv) })
+        // partial machines get their files too, so a later folder can finish them
+        val todo = complete + partial
+        if (todo.isNotEmpty()) {
+            b.setPositiveButton("Set up ${complete.size}" + if (partial.isNotEmpty()) " (+${partial.size} partly)" else "") { _, _ -> installScan(sc, todo, big) }
+            b.setNegativeButton("Cancel", null)
+        } else b.setPositiveButton("OK", null)
+        b.show()
+    }
+
+    private fun installScan(sc: RomScanner, todo: List<RomScanner.MachineHits>, askLink: Boolean) {
+        fun go(link: Boolean) {
+            val status = TextView(this).apply { setPadding(dp(24), dp(20), dp(24), dp(8)); textSize = 14f }
+            val dlg = AlertDialog.Builder(this).setTitle("Setting up").setView(status).setCancelable(false).show()
+            thread {
+                val res = runCatching { sc.install(todo, link) { msg -> status.post { status.text = msg } } }
+                runOnUiThread {
+                    dlg.dismiss()
+                    val msg = res.fold(onSuccess = { r ->
+                        buildString {
+                            append(if (r.machines.isEmpty()) "No machine is complete yet." else "Ready to play: ${r.machines.joinToString()}.")
+                            if (r.linked > 0) append("\n${r.linked} large file${if (r.linked == 1) "" else "s"} left in your folder.")
+                            if (r.failed.isNotEmpty()) append("\n\nCouldn't set up:\n" + r.failed.take(20).joinToString("\n"))
+                        }
+                    }, onFailure = { "Stopped: ${it.message}" })
+                    AlertDialog.Builder(this).setTitle("Done").setMessage(msg).setPositiveButton("OK", null).show()
+                    rebuild()
+                }
+            }
+        }
+        if (!askLink) { go(false); return }
+        AlertDialog.Builder(this)
+            .setTitle("Large files")
+            .setMessage("Some files are over 100 MB. Copy them into PocketPlug too, or leave them in your folder?")
+            .setPositiveButton("Leave in folder") { _, _ -> go(true) }
+            .setNegativeButton("Copy them") { _, _ -> go(false) }
+            .show()
+    }
+
     @Deprecated("Deprecated in Java")
     // ---- sorting a folder of ROM files ----
 
@@ -304,6 +419,15 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_FIND) {
+            val tree = data?.data
+            if (resultCode == RESULT_OK && tree != null) {
+                runCatching { contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                getSharedPreferences("settings", MODE_PRIVATE).edit().putString(RomScanner.PREF_FOLDER, tree.toString()).apply()
+                scanRomFolder(tree)
+            }
+            return
+        }
         if (requestCode == REQ_SORT) {
             if (resultCode == RESULT_OK) data?.data?.let { sortFolder(it) }
             return
@@ -355,6 +479,7 @@ class MainActivity : Activity() {
     companion object {
         const val REQ_IMPORT = 1
         const val REQ_SORT = 2
+        const val REQ_FIND = 3
         val BG = 0xFF0E0B1A.toInt()
         val ACCENT = 0xFFFF4FD8.toInt()
         val MUTED = 0xFF9A90C2.toInt()
