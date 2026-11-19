@@ -12,8 +12,8 @@ android {
         applicationId = "com.hcode91.pocketplug"
         minSdk = 26
         targetSdk = 34
-        versionCode = 28
-        versionName = "0.19.2"
+        versionCode = 29
+        versionName = "0.20.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_static" } }
     }
@@ -39,4 +39,5 @@ dependencies {
     // ROM set import: .zip is handled by the JDK, .7z needs commons-compress + xz
     implementation("org.apache.commons:commons-compress:1.26.2")
     implementation("org.tukaani:xz:1.9")
+    testImplementation("junit:junit:4.13.2")
 }

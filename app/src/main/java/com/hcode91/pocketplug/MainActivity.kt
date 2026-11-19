@@ -44,7 +44,12 @@ class MainActivity : Activity() {
             text = "Plug & play TV games"
             textSize = 15f
             setTextColor(MUTED)
-            setPadding(0, 0, 0, dp(18))
+            setPadding(0, 0, 0, dp(10))
+        })
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(button("Sort a folder of ROMs", false) { pickSortFolder() })
+            setPadding(0, 0, 0, dp(14))
         })
 
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -202,8 +207,106 @@ class MainActivity : Activity() {
     }
 
     @Deprecated("Deprecated in Java")
+    // ---- sorting a folder of ROM files ----
+
+    private fun pickSortFolder() {
+        AlertDialog.Builder(this)
+            .setTitle("Sort a folder of ROMs")
+            .setMessage("Pick the folder your ROMs are in (Download, say). Each file is identified by what's inside it, " +
+                "not its name: MAME sets by their chips, console games and discs by their headers.\n\n" +
+                "Nothing moves until you've seen the list. Sorted files go into a Sorted folder inside the one you pick, " +
+                "one folder per system; files it can't identify stay where they are.")
+            .setPositiveButton("Pick folder") { _, _ ->
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION), REQ_SORT)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun sortFolder(tree: android.net.Uri) {
+        runCatching { contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+        val status = TextView(this).apply { setPadding(dp(24), dp(20), dp(24), dp(8)); textSize = 14f }
+        val dlg = AlertDialog.Builder(this).setTitle("Identifying files").setView(status).setCancelable(false).show()
+        thread {
+            val fs = FolderSorter(this, tree)
+            val res = runCatching {
+                status.post { status.text = "Loading the ROM index..." }
+                val sorter = FolderSorter.sorter(this)
+                fs.scan(sorter) { msg -> status.post { status.text = msg } }
+            }
+            runOnUiThread {
+                dlg.dismiss()
+                res.onFailure { AlertDialog.Builder(this).setMessage("Couldn't read the folder: ${it.message}").setPositiveButton("OK", null).show() }
+                res.onSuccess { showSortPlan(fs, it) }
+            }
+        }
+    }
+
+    private fun showSortPlan(fs: FolderSorter, plans: List<FolderSorter.Plan>) {
+        val known = plans.filter { it.result != null }
+        val unknown = plans.filter { it.result == null }
+        if (known.isEmpty()) {
+            AlertDialog.Builder(this).setTitle("Nothing to sort")
+                .setMessage(if (plans.isEmpty()) "The folder is empty." else "None of the ${plans.size} files could be identified.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        val text = buildString {
+            append("${known.size} file${if (known.size == 1) "" else "s"} identified")
+            if (unknown.isNotEmpty()) append(", ${unknown.size} left where they are")
+            append(".\n")
+            // by folder, then each file and why
+            for ((folder, ps) in known.groupBy { it.result!!.folder }.toSortedMap(String.CASE_INSENSITIVE_ORDER)) {
+                append("\n${FolderSorter.SORTED}/$folder\n")
+                for (p in ps.sortedBy { it.doc.name.lowercase() }) {
+                    val r = p.result!!
+                    append("   ${p.doc.name}")
+                    if (p.companionOf != null) append("  (with ${p.companionOf.name})")
+                    else if (r.machine != null && Machines.all.any { it.id == r.machine }) append("  ★ PocketPlug")
+                    append("\n")
+                }
+            }
+            if (unknown.isNotEmpty()) {
+                append("\nNot identified (staying put):\n")
+                for (p in unknown.sortedBy { it.doc.name.lowercase() }.take(300)) append("   ${p.doc.name}\n")
+                if (unknown.size > 300) append("   ... and ${unknown.size - 300} more\n")
+            }
+        }
+        val tv = TextView(this).apply { this.text = text; textSize = 12f; setPadding(dp(20), dp(12), dp(20), dp(12)); setTextIsSelectable(true) }
+        AlertDialog.Builder(this)
+            .setTitle("Where they'll go")
+            .setView(ScrollView(this).apply { addView(tv) })
+            .setPositiveButton("Move ${known.size}") { _, _ -> runSortMove(fs, plans) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun runSortMove(fs: FolderSorter, plans: List<FolderSorter.Plan>) {
+        val status = TextView(this).apply { setPadding(dp(24), dp(20), dp(24), dp(8)); textSize = 14f }
+        val dlg = AlertDialog.Builder(this).setTitle("Sorting").setView(status).setCancelable(false).show()
+        thread {
+            val res = runCatching { fs.move(plans) { msg -> status.post { status.text = msg } } }
+            runOnUiThread {
+                dlg.dismiss()
+                val msg = res.fold(onSuccess = { r ->
+                    buildString {
+                        append("Moved ${r.moved} file${if (r.moved == 1) "" else "s"} into ${FolderSorter.SORTED}.")
+                        if (r.duplicates > 0) append("\n${r.duplicates} had the same name as a file already there: they're in ${FolderSorter.SORTED}/Duplicates.")
+                        if (r.failed.isNotEmpty()) append("\n\nCouldn't move:\n" + r.failed.take(30).joinToString("\n"))
+                    }
+                }, onFailure = { "Sorting stopped: ${it.message}" })
+                AlertDialog.Builder(this).setTitle("Done").setMessage(msg).setPositiveButton("OK", null).show()
+            }
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_SORT) {
+            if (resultCode == RESULT_OK) data?.data?.let { sortFolder(it) }
+            return
+        }
         val m = pendingImport ?: return
         val uri = data?.data
         if (requestCode != REQ_IMPORT || resultCode != RESULT_OK || uri == null) return
@@ -250,6 +353,7 @@ class MainActivity : Activity() {
 
     companion object {
         const val REQ_IMPORT = 1
+        const val REQ_SORT = 2
         val BG = 0xFF0E0B1A.toInt()
         val ACCENT = 0xFFFF4FD8.toInt()
         val MUTED = 0xFF9A90C2.toInt()

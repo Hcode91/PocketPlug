@@ -301,6 +301,32 @@ Back) for the menu.
   retirement setting. The display and settings are kept between visits.
 - A real keyboard: 1 or S = SELECT, 2 or B = BROWSE.
 
+### Sorting a folder of ROMs
+
+**Sort a folder of ROMs** at the top of the library sorts any folder you pick
+(Download, say) into a `Sorted` folder inside it, one folder per system:
+
+- `Computers/<machine> [set]`, `Consoles and plug-and-play/<machine> [set]`,
+  `Other systems/...`, `Arcade`, and `Devices and BIOS` for shared ROMs
+  (keyboards and the like): MAME sets, recognised by the CRC32s of the chips
+  inside each zip / 7z (read from the archive's own index, so nothing is
+  unpacked), including zips of zips; the set the file is named after wins a
+  tie. MAME hard disks (CHD) by their SHA1; one used by several machines goes
+  to `Shared disks`.
+- `Games/<system>`: console games and computer disks by their headers (iNES,
+  the Game Boy / GBA logos, SEGA, TMR SEGA, Lynx, Atari 7800, ATR, Amiga
+  "DOS", WOZ, ...), discs by their boot sector or ISO 9660 system name
+  (PlayStation, PS2, PSP, Saturn, Dreamcast, Mega-CD, PC Engine CD, GameCube,
+  Wii, CD-i), and otherwise by unambiguous extensions. A `.cue` / `.gdi` /
+  `.m3u` takes its tracks with it.
+
+Nothing moves until you've seen where everything will go; files it can't
+identify stay where they are, and a name already taken in the target folder
+goes to `Sorted/Duplicates`. ★ marks sets PocketPlug runs. The index
+(`app/src/main/assets/romindex.bin.gz`, 39,000 machines and 260,000 chips) is
+made from MAME's source by `tools/mkromindex.py`; it holds only names, years,
+makers and checksums.
+
 ### A6Plus Mini Arcade
 
 Import the MAME `a6plus` zip (`w25q64jv.u3`), then import `a6plus.chd`, the
