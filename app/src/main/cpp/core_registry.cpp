@@ -11,6 +11,7 @@
 #include "cores/ocean/ocean.h"
 #include "cores/vt369/vt369.h"
 #include "cores/spg2xx/spg2xx.h"
+#include "cores/trkfld/trkfld.h"
 #include "cores/ngen/ngen.h"
 #include "cores/unixpc/unixpc.h"
 #include "cores/atari800/atari800.h"
@@ -130,6 +131,8 @@ Core* createCore(const std::string& id)
         c.decryptAcFf = true;
         return new Spg2xxCore(c);
     }
+    if (id == "abl4play")     // 4 Player System 10-in-1 (trkfldch SoC, 65C816)
+        return new TrkfldCore("abl4play.bin", 0x800000);
     if (id == "ablpinb") {    // ABL Pinball (VT02/03 PAL, plunger and flippers)
         Vt369Config c;
         c.romName = "abl_pinball.bin";

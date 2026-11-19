@@ -25,6 +25,8 @@ import kotlin.math.hypot
  *                tosses the ball to serve) and the receiver's own buttons for the menus.
  *  - "kickbox":  two gloves (punch), two foot pads (kick), a guard button and
  *                the receiver's buttons for the menus.
+ *  - "fourplay": four pads for the 4 Player System, two by two; player 1's
+ *                has START and SELECT.
  *
  * No maker's name or logo is drawn.
  */
@@ -42,10 +44,24 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         const val S_UP = 0x01; const val S_DOWN = 0x02; const val S_LEFT = 0x04; const val S_RIGHT = 0x08
         const val S_OK = 0x10; const val S_BACK = 0x20
         const val SWING = 0x80; const val RACKET_BUTTON = 0x100
+        // 4 Player System: player 1 in bits 0-7, players 2-4 in bits 8-13 / 16-21 / 24-29
+        const val F_START = 0x01; const val F_SELECT = 0x02; const val F_UP = 0x04; const val F_DOWN = 0x08
+        const val F_LEFT = 0x10; const val F_RIGHT = 0x20; const val F_B1 = 0x40; const val F_B2 = 0x80
         const val L_PUNCH = 0x80; const val R_PUNCH = 0x100; const val L_KICK = 0x200; const val R_KICK = 0x400; const val GUARD = 0x800
 
         /** Gamepad / keyboard mapping for each style. */
         fun keyBit(style: String, code: Int): Int {
+            if (style == "fourplay") return when (code) {
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> F_UP
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> F_DOWN
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> F_LEFT
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> F_RIGHT
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_Z -> F_B1
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_X -> F_B2
+                KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER -> F_START
+                KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_SHIFT_RIGHT -> F_SELECT
+                else -> 0
+            }
             val spg = style == "tennis" || style == "kickbox"
             val dir = when (code) {
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> if (spg) S_UP else UP
@@ -116,9 +132,9 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
 
     private fun circle(bit: Int, label: String, x: Float, y: Float, r: Float) = Ctl(bit, label).also { it.cx = x; it.cy = y; it.r = r; ctls += it }
     private fun rect(bit: Int, label: String, l: Float, t: Float, rr: Float, b: Float) = Ctl(bit, label).also { it.rect.set(l, t, rr, b); ctls += it }
-    private fun stick(x: Float, y: Float, r: Float, shift: Int) = Ctl(0).also {
+    private fun stick(x: Float, y: Float, r: Float, shift: Int, bits: IntArray = intArrayOf(UP, DOWN, LEFT, RIGHT)) = Ctl(0).also {
         it.cx = x; it.cy = y; it.r = r; it.stick = true
-        it.stickBits = intArrayOf(UP shl shift, DOWN shl shift, LEFT shl shift, RIGHT shl shift); ctls += it
+        it.stickBits = IntArray(4) { i -> bits[i] shl shift }; ctls += it
     }
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
@@ -159,6 +175,27 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 circle(RACKET_BUTTON, "", l + bw * 0.315f, t + bh * 0.78f, bh * 0.055f)
                 receiverPad(l, t, bw, bh)
             }
+            "fourplay" -> {
+                // the pads sit two by two, filling the space under the TV
+                val gw = w * 0.47f; val gh = h * 0.46f
+                for (p in 0..3) {
+                    val ox = w * 0.02f + (p % 2) * (gw + w * 0.02f)
+                    val oy = h * 0.03f + (p / 2) * (gh + h * 0.03f)
+                    val r = minOf(gw, gh) * 0.2f
+                    if (p == 0) {
+                        stick(ox + gw * 0.25f, oy + gh * 0.5f, r, 0, intArrayOf(F_UP, F_DOWN, F_LEFT, F_RIGHT))
+                        circle(F_B1, "1", ox + gw * 0.66f, oy + gh * 0.58f, r * 0.45f)
+                        circle(F_B2, "2", ox + gw * 0.84f, oy + gh * 0.42f, r * 0.45f)
+                        rect(F_SELECT, "SELECT", ox + gw * 0.4f, oy + gh * 0.16f, ox + gw * 0.52f, oy + gh * 0.23f)
+                        rect(F_START, "START", ox + gw * 0.56f, oy + gh * 0.16f, ox + gw * 0.68f, oy + gh * 0.23f)
+                    } else {
+                        val s = 8 * p
+                        stick(ox + gw * 0.25f, oy + gh * 0.5f, r, s, intArrayOf(0x01, 0x02, 0x04, 0x08))
+                        circle(0x10 shl s, "1", ox + gw * 0.66f, oy + gh * 0.58f, r * 0.45f)
+                        circle(0x20 shl s, "2", ox + gw * 0.84f, oy + gh * 0.42f, r * 0.45f)
+                    }
+                }
+            }
             "kickbox" -> {
                 circle(L_PUNCH, "", l + bw * 0.36f, t + bh * 0.25f, bh * 0.2f)
                 circle(R_PUNCH, "", l + bw * 0.64f, t + bh * 0.25f, bh * 0.2f)
@@ -193,6 +230,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             "minijoy" -> drawMiniJoy(c, held)
             "tennis" -> { drawReceiver(c, held); drawRacket(c, held) }
             "kickbox" -> { drawReceiver(c, held); drawKickBox(c, held) }
+            "fourplay" -> drawFourPlay(c, held)
         }
     }
 
@@ -303,6 +341,36 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             c.drawCircle(kx, ky, k.r * 0.44f, paint); paint.shader = null
         }
         drawButtons(c, held, 0xFF2CC7C4.toInt(), 0xFF0B6E6C.toInt(), 0xFFFFFFFF.toInt())
+    }
+
+    private val playerColours = intArrayOf(0xFF2F6FE0.toInt(), 0xFFE0402F.toInt(), 0xFF2FA84A.toInt(), 0xFFE0B02F.toInt())
+
+    private fun drawFourPlay(c: Canvas, held: Int) {
+        val sticks = ctls.filter { it.stick }
+        for ((p, k) in sticks.withIndex()) {
+            // pad body: a rounded grey controller with a coloured player stripe
+            val gw = width * 0.47f; val gh = height * 0.46f
+            val ox = width * 0.02f + (p % 2) * (gw + width * 0.02f)
+            val oy = height * 0.03f + (p / 2) * (gh + height * 0.03f)
+            val r = RectF(ox, oy + gh * 0.08f, ox + gw, oy + gh * 0.95f)
+            paint.color = 0x55000000; c.drawRoundRect(r.left + 4f, r.top + 6f, r.right + 4f, r.bottom + 6f, gh * 0.3f, gh * 0.3f, paint)
+            paint.shader = LinearGradient(0f, r.top, 0f, r.bottom, 0xFFD9DCE2.toInt(), 0xFF9A9FA8.toInt(), Shader.TileMode.CLAMP)
+            c.drawRoundRect(r, gh * 0.3f, gh * 0.3f, paint); paint.shader = null
+            paint.color = playerColours[p]
+            c.drawRoundRect(r.centerX() - gw * 0.12f, r.bottom - gh * 0.16f, r.centerX() + gw * 0.12f, r.bottom - gh * 0.07f, gh * 0.04f, gh * 0.04f, paint)
+            label(c, "${p + 1}P", r.centerX(), r.bottom - gh * 0.115f, gh * 0.07f, 0xFFFFFFFF.toInt())
+            // D-pad cross that tilts toward the thumb
+            val a = k.r * 0.95f; val t = k.r * 0.34f
+            paint.color = 0xFF2A2D33.toInt()
+            c.drawRoundRect(k.cx - a, k.cy - t, k.cx + a, k.cy + t, t * 0.3f, t * 0.3f, paint)
+            c.drawRoundRect(k.cx - t, k.cy - a, k.cx + t, k.cy + a, t * 0.3f, t * 0.3f, paint)
+            paint.color = 0xFF4A4E57.toInt()
+            val bits = k.stickBits
+            val dx = (if (held and bits[3] != 0) 1 else 0) - (if (held and bits[2] != 0) 1 else 0)
+            val dy = (if (held and bits[1] != 0) 1 else 0) - (if (held and bits[0] != 0) 1 else 0)
+            c.drawCircle(k.cx + dx * a * 0.6f, k.cy + dy * a * 0.6f, t * 0.55f, paint)
+        }
+        drawButtons(c, held, 0xFFE8473A.toInt(), 0xFF8E1A12.toInt(), 0xFFFFFFFF.toInt())
     }
 
     private fun drawReceiver(c: Canvas, held: Int) {

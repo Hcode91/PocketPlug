@@ -21,6 +21,7 @@ controller.
 | 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
+| 4 Player System 10-in-1 (Advance Bright) | `abl4play` | 65C816 TV game SoC ("trkfldch": tile layers, sprites, YUV palette, DMA) | Menu and all games start and play, up to four players; matches MAME's frames. No sound (unknown, as in MAME) |
 | Pinball (Advance Bright TV game) (PAL) | `ablpinb` | VT02 / VT03 PAL, plunger and flipper inputs | Logo, table menu and all tables run as in MAME; plunger, flippers and nudge work |
 | Super Ping Pong (Advance Bright sensor bat) (PAL) | `ablping` | VT02 / VT03 "sports" PAL + the bat's speech chip handshake | Menus and matches play (MAME's driver stops after the menu); the umpire's voice is silent (its data format is unknown) |
 | Double Players Mini Joystick 80-in-1 (Advance Bright) (PAL) | `ablmini` | VT02 / VT03 Waixing PAL, 8 MB, two pads | Menu and games match MAME's frames; two players |
@@ -67,6 +68,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | 4004 Nixie Clock | `4004clk` | `clock.u30` to `clock.u45` (16 files) | 256 bytes each | `3d8608a5` ... `a8d419ef` (checked one by one) |
 | 500-in-1 Handheld Game | `500in1hh` | `500in1.bin` | 16 MB (16,777,216 bytes) | `50f44c1a` |
 | Joystick88 | `88in1joy` | `88in1joystick.bin` | 4 MB (4,194,304 bytes) | `86b8d819` |
+| 4 Player System 10-in-1 | `abl4play` | `abl4play.bin` | 8 MB (8,388,608 bytes) | `5d57fb70` |
 | Pinball | `ablpinb` | `abl_pinball.bin` | 2 MB (2,097,152 bytes) | `b2ce20fb` |
 | Super Ping Pong | `ablping` | `abl_pingpong.bin` | 2 MB (2,097,152 bytes) | `b31de1fb` |
 | Double Players Mini Joystick 80-in-1 | `ablmini` | `ablmini.bin` | 8 MB (8,388,608 bytes) | `e65a2c3a` |
@@ -273,7 +275,7 @@ MENU button (or Back) has save states and reset.
 
 ### Advance Bright TV games
 
-Import each MAME zip (`ablpinb`, `ablping`, `ablmini`, `ablwikid`, `abltenni`,
+Import each MAME zip (`abl4play`, `ablpinb`, `ablping`, `ablmini`, `ablwikid`, `abltenni`,
 `ablkickb`). The TV shows the game; under it is the controller the box came
 with. Tap the TV (or Back) for the menu.
 
@@ -281,6 +283,9 @@ with. Tap the TV (or Back) for the menu.
   plunger back (longer = harder) and let go to launch. NUDGE shakes the table.
 - Super Ping Pong: tap the bat's red rubber to swing (it is also OK in the
   menus); the handle has up, down and cancel.
+- 4 Player System: four pads, two by two; player 1's has START and SELECT.
+  START picks a game and confirms; left / right move along the player and
+  START buttons on the player-select screen.
 - Mini Joystick 80-in-1: one joystick per player, each with A, B, SELECT and START.
 - Joystick 14-in-1: the horseshoe joystick, as for Joystick88.
 - Wireless Tennis: the receiver's arrows and OK work the menus. In a match, tap

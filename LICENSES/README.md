@@ -16,6 +16,8 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/s2650.*` | BSD-3-Clause | MAME `src/devices/cpu/s2650` (Juergen Buchmueller) |
 | `app/src/main/cpp/cores/e0c6s46/*` | BSD-3-Clause | MAME `src/devices/cpu/e0c6200` (hap) - `MAME-e0c6200.txt` |
 | `app/src/main/cpp/cores/vt369/*` | GPL-2.0-or-later | MAME VT SoC + PPU incl. VT02/03, VT "4FFx" and SH6578 (BSD-3, David Haywood, Ernesto Corvi, Brad Oliver, Fabio Priuli), VT3xx sound CPU (BSD-3, David Haywood), VT369 ADPCM decoder (GPL-2.0+, NewRisingSun) and NES APU (GPL-2.0+, Matthew Conte) |
+| `app/src/main/cpp/cores/trkfld/g65816/*` | BSD-3-Clause | MAME G65816 CPU (Karl Stenerud; R. Belmont, Angelo Salese) |
+| `app/src/main/cpp/cores/trkfld/trkfld.*` | GPL-2.0-or-later | Port of MAME's trkfldch driver (BSD-3, David Haywood) |
 | `app/src/main/cpp/cores/spg2xx/unsp.*` | GPL-2.0-or-later | MAME u'nSP CPU (Segher Boessenkool, Ryan Holtz, David Haywood) |
 | `app/src/main/cpp/cores/spg2xx/*` (rest) | BSD-3-Clause | MAME SPG2xx devices (Ryan Holtz, David Haywood, Jonathan Gevaryahu), IMA ADPCM (Andrew Gardner, Aaron Giles), attotime/scheduler/screen timing (Aaron Giles); glue in spg2xx.cpp is GPL-2.0-or-later |
 | `app/src/main/cpp/cores/ngen/*` | BSD-3-Clause | PocketPlug (written from scratch; the I/O map follows MAME's BSD-3 `skeleton/ngen.cpp` notes by Barry Rodewald) |

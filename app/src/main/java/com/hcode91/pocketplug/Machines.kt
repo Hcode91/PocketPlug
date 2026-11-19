@@ -242,6 +242,19 @@ object Machines {
             skin = Skin.ARCADE_CABINET,
         ),
         MachineDef(
+            id = "abl4play",
+            title = "4 Player System 10-in-1",
+            subtitle = "TV console with four pads and ten party games for up to four players: Fortress "
+                + "Defender, Cannon Ball, Wizard Ball and more. Silent: its sound chip isn't known yet "
+                + "(Advance Bright; MAME set: abl4play)",
+            chip = "65C816-based TV game SoC",
+            region = "Hong Kong",
+            year = "200x",
+            roms = listOf(RomSpec("abl4play.bin", 0x800000L, 0x5d57fb70L)),
+            skin = Skin.ABL_TV,
+            badge = "fourplay",
+        ),
+        MachineDef(
             id = "ablkickb",
             title = "Kick Boxing",
             subtitle = "2006 TV game with motion sensors on both gloves and both feet: punch, kick and guard your "
