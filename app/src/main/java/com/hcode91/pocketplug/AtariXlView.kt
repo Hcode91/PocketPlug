@@ -25,10 +25,50 @@ import kotlin.math.hypot
  */
 class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
 
-    private val xe = model == MODEL_130XE
+    private val xe = model == MODEL_XE
     private val m400 = model == MODEL_400
-    /** console keys in a column right of the keys (130XE, 400) rather than a row above (1200XL) */
-    private val col = xe || m400
+    private val m800 = model == MODEL_800
+    private val xl = model == MODEL_800XL || model == MODEL_600XL
+    /** console keys in a column right of the keys (400, 800, 800XL, 600XL) */
+    private val col = m400 || m800 || xl
+    /** console keys in a row above the keys (1200XL: across the metal band; XE: at the top right) */
+    private val rowAbove = !col
+
+    /** Colours of each case: body, key well, keys, wide (control) keys, console keys. */
+    private class Style(
+        val bodyTop: Int, val bodyBottom: Int, val well: Int,
+        val keyTop: Int, val keySide: Int, val keyInk: Int,
+        val wideTop: Int, val wideSide: Int, val wideInk: Int,
+        val conTop: Int, val conSide: Int, val conInk: Int,
+        val flat: Boolean = false,
+    )
+
+    private val style = when (model) {
+        MODEL_XE -> Style(0xFFCCCAC4.toInt(), 0xFFB3B1AB.toInt(), 0xFFA9A7A1.toInt(),
+            0xFFE6E2D8.toInt(), 0xFFBDB8AC.toInt(), 0xFF4A4844.toInt(),
+            0xFFE6E2D8.toInt(), 0xFFBDB8AC.toInt(), 0xFF4A4844.toInt(),
+            0xFFC2C0BA.toInt(), 0xFF9C9A94.toInt(), 0xFF3C3B38.toInt())
+        MODEL_400 -> Style(0xFFDDD3BA.toInt(), 0xFFC2B597.toInt(), 0xFF3A2C22.toInt(),
+            0xFFCDBB92.toInt(), 0xFFA89670.toInt(), 0xFF3A2C22.toInt(),
+            0xFFDE8A3A.toInt(), 0xFFB56A24.toInt(), 0xFF2E2018.toInt(),
+            0xFFE2C66E.toInt(), 0xFFB79C4E.toInt(), 0xFF3A2C22.toInt(), flat = true)
+        MODEL_800 -> Style(0xFFDDD3BA.toInt(), 0xFFC2B597.toInt(), 0xFF3A2C22.toInt(),
+            0xFF5A4636.toInt(), 0xFF3A2C22.toInt(), 0xFFF0E6D2.toInt(),
+            0xFF6B5442.toInt(), 0xFF45352A.toInt(), 0xFFF0E6D2.toInt(),
+            0xFFE2B84E.toInt(), 0xFFB08A2E.toInt(), 0xFF3A2C22.toInt())
+        MODEL_800XL -> Style(0xFF443A31.toInt(), 0xFF2F2822.toInt(), 0xFF1E1A17.toInt(),
+            0xFF46464A.toInt(), 0xFF2A2A2D.toInt(), 0xFFF2F2F2.toInt(),
+            0xFF4E4E52.toInt(), 0xFF2E2E31.toInt(), 0xFFF2F2F2.toInt(),
+            0xFFB9BABC.toInt(), 0xFF86878A.toInt(), 0xFF2A2A2A.toInt())
+        MODEL_600XL -> Style(0xFF2E2D2C.toInt(), 0xFF1F1E1D.toInt(), 0xFF141413.toInt(),
+            0xFF333336.toInt(), 0xFF1C1C1E.toInt(), 0xFFF2F2F2.toInt(),
+            0xFF3A3A3D.toInt(), 0xFF202022.toInt(), 0xFFF2F2F2.toInt(),
+            0xFFD6D6D4.toInt(), 0xFFA4A4A2.toInt(), 0xFF2A2A2A.toInt())
+        else -> Style(0xFFE6DFCD.toInt(), 0xFFCFC6B0.toInt(), 0xFF2A2420.toInt(),   // 1200XL
+            0xFF4A413A.toInt(), 0xFF2E2823.toInt(), 0xFFF0E8D8.toInt(),
+            0xFF4A413A.toInt(), 0xFF2E2823.toInt(), 0xFFF0E8D8.toInt(),
+            0xFF5A524B.toInt(), 0xFF3B3530.toInt(), 0xFFF0E8D8.toInt())
+    }
 
     var onKey: ((Int, Boolean) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -48,8 +88,12 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         const val W = 336
         const val H = 240
         const val MODEL_1200XL = 0
-        const val MODEL_130XE = 1
+        /** 130XE, 65XE, 800XE */
+        const val MODEL_XE = 1
         const val MODEL_400 = 2
+        const val MODEL_800 = 3
+        const val MODEL_800XL = 4
+        const val MODEL_600XL = 5
         const val SHIFT = 64
         const val CONTROL = 65
         const val START = 66
@@ -94,13 +138,18 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         K("Z", 0x17), K("X", 0x16), K("C", 0x12), K("V", 0x10), K("B", 0x15), K("N", 0x23), K("M", 0x25),
         K(",", 0x20, shift = "["), K(".", 0x22, shift = "]"), K("/", 0x26, shift = "?"))
 
-    private val rows: List<List<K>> = if (col) listOf(
+    private val mainRows: List<List<K>> = listOf(
         numberRow + listOf(K("BACK S", 0x34, 1.25f, w, "DELETE"), K("BREAK", BREAK, 1.25f, w)),
         qRow + listOf(K("RETURN", 0x0c, 2f, w)),
-        aRow + listOf(if (m400) K("LOWR", 0x3c, 1.75f, w, "CAPS") else K("CAPS", 0x3c, 1.75f, w)),
+        aRow + listOf(if (m400 || m800) K("LOWR", 0x3c, 1.75f, w, "CAPS") else K("CAPS", 0x3c, 1.75f, w)),
         listOf(K("SHIFT", SHIFT, 2.25f, w)) + zRow + listOf(K("SHIFT", SHIFT, 2.25f, w), K("◪", 0x27, 1f, w)),
         listOf(K("", 0x21, 9f, w)),
-    ) else listOf(
+    )
+    private val rows: List<List<K>> = if (col) mainRows else if (xe) listOf(
+        // the XE's five slanted console keys, top right above the keyboard
+        listOf(K("", -1, 8.4f, Kind.LIGHTS), K("HELP", HELP, 1.42f, c), K("START", START, 1.42f, c),
+            K("SELECT", SELECT, 1.42f, c), K("OPTION", OPTION, 1.42f, c), K("RESET", RESET, 1.42f, c)),
+    ) + mainRows else listOf(
         listOf(K("RESET", RESET, 1.3f, c), K("", -1, 1.7f, Kind.LIGHTS), K("START", START, 1.2f, c), K("SELECT", SELECT, 1.2f, c),
             K("OPTION", OPTION, 1.2f, c), K("◪", 0x27, 1.05f, c), K("BREAK", BREAK, 1.15f, c), K("HELP", HELP, 1.05f, c),
             K("F1", 0x03, 1.05f, c), K("F2", 0x04, 1.05f, c), K("F3", 0x13, 1.05f, c), K("F4", 0x14, 1.05f, c)),
@@ -112,9 +161,9 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
     )
     // the console keys, top to bottom in a column right of the keyboard
     private val column: List<K> = when {
-        xe -> listOf(K("RESET", RESET, 1f, c), K("OPTION", OPTION, 1f, c),
+        xl -> listOf(K("RESET", RESET, 1f, c), K("OPTION", OPTION, 1f, c),
             K("SELECT", SELECT, 1f, c), K("START", START, 1f, c), K("HELP", HELP, 1f, c))
-        m400 -> listOf(K("RESET", RESET, 1f, c, "SYSTEM"), K("OPTION", OPTION, 1f, c),
+        m400 || m800 -> listOf(K("RESET", RESET, 1f, c, "SYSTEM"), K("OPTION", OPTION, 1f, c),
             K("SELECT", SELECT, 1f, c), K("START", START, 1f, c))
         else -> emptyList()
     }
@@ -186,7 +235,7 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         val keyRows = rows.size
         val kh = unit * 1.22f                 // keys a little taller than wide: easier to hit
         val bandH = unit * 1.1f
-        val caseH = bandH + kh * keyRows + unit * (if (col) 0.9f else 0.6f)
+        val caseH = bandH + kh * keyRows + unit * (if (col) 0.9f else 0.6f) - (if (xe) kh * 0.2f else 0f)
         case.set((wf - cw) / 2, tvBody.bottom + vh * 0.012f, (wf + cw) / 2, tvBody.bottom + vh * 0.012f + caseH)
         band.set(case.left, case.top, case.right, case.top + bandH)
         slot.set(case.centerX() - unit * 2.6f, band.top + bandH * 0.25f, case.centerX() + unit * 2.6f, band.top + bandH * 0.62f)
@@ -194,11 +243,11 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         val kbLeft = case.centerX() - kbW / 2
         keyWell.set(kbLeft - unit * 0.18f, band.bottom + unit * 0.12f, kbLeft + kbW + unit * 0.18f, case.bottom - unit * 0.25f)
         var y = band.bottom + unit * 0.3f
-        val mainW = rows.drop(if (col) 0 else 1).maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() }
+        val mainW = rows.drop(if (rowAbove) 1 else 0).maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() }
         val mainLeft = kbLeft
         for ((ri, r) in rows.withIndex()) {
             val total = r.sumOf { it.units.toDouble() }.toFloat()
-            val consoleRow = !col && ri == 0
+            val consoleRow = rowAbove && ri == 0
             val rowH = if (consoleRow) kh * 0.8f else kh
             // the space bar is centred under the main block
             var x = if (r.size == 1) mainLeft + (mainW - total) * unit / 2 else mainLeft
@@ -209,16 +258,24 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
             y += if (consoleRow) rowH + unit * 0.22f else rowH
         }
         // the 1200XL's console keys sit on the metal band, above the well of the main keys
-        if (!col) keyWell.top = keyByRow[0][0].rect.bottom + unit * 0.2f
+        if (rowAbove) keyWell.top = keyByRow[0][0].rect.bottom + unit * 0.2f
+        if (xe) {
+            // the XE has its keys in a light tray, the console keys above it on the case
+            keyWell.top = keyByRow[0][1].rect.bottom + unit * 0.15f
+        }
         if (col) {
             val cx0 = mainLeft + mainW * unit + unit * 0.35f
             var cy = band.bottom + unit * 0.3f
             val ch = kh * keyRows / columnKeys.size
             for (k in columnKeys) {
-                k.rect.set(cx0, cy + ch * 0.1f, cx0 + unit * 1.55f, cy + ch * 0.9f)
+                // the XLs print the key names beside the keys: narrower keys leave room
+                k.rect.set(cx0, cy + ch * 0.1f, cx0 + unit * (if (xl) 1.05f else 1.55f), cy + ch * 0.9f)
                 cy += ch
             }
             powerLight.set(cx0 + unit * 0.78f, band.top + bandH * 0.4f)
+        } else if (xe) {
+            // power light low on the front left
+            powerLight.set(case.left + unit * 0.9f, case.bottom - unit * 0.35f)
         } else {
             val l = keyByRow[0][1].rect
             lights.set(l)
@@ -252,6 +309,7 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         val tw = tvBody.width()
         paint.color = 0x66000000
         cv.drawRoundRect(tvBody.left + tw * 0.01f, tvBody.top + tw * 0.012f, tvBody.right + tw * 0.01f, tvBody.bottom + tw * 0.012f, tw * 0.04f, tw * 0.04f, paint)
+        paint.color = 0xFF000000.toInt()
         paint.shader = LinearGradient(0f, tvBody.top, 0f, tvBody.bottom, 0xFF4A4038.toInt(), 0xFF2E2823.toInt(), Shader.TileMode.CLAMP)
         cv.drawRoundRect(tvBody, tw * 0.04f, tw * 0.04f, paint)
         paint.shader = null
@@ -279,49 +337,80 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
 
     private fun drawComputer(cv: Canvas) {
         val r = unit * 0.4f
-        val bodyTop = when { xe -> 0xFFD6D3CC.toInt(); m400 -> 0xFFDDD3BA.toInt(); else -> 0xFFE6DFCD.toInt() }
-        val bodyBottom = when { xe -> 0xFFB9B6AE.toInt(); m400 -> 0xFFC2B597.toInt(); else -> 0xFFCFC6B0.toInt() }
+        val st = style
         paint.color = 0x77000000
         cv.drawRoundRect(case.left + unit * 0.1f, case.top + unit * 0.15f, case.right + unit * 0.1f, case.bottom + unit * 0.15f, r, r, paint)
-        paint.shader = LinearGradient(0f, case.top, 0f, case.bottom, bodyTop, bodyBottom, Shader.TileMode.CLAMP)
+        paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, case.top, 0f, case.bottom, st.bodyTop, st.bodyBottom, Shader.TileMode.CLAMP)
         cv.drawRoundRect(case, r, r, paint)
         paint.shader = null
-        if (m400) {
-            // the raised housing at the back with its hinged cartridge door
-            val hood = RectF(case.centerX() - unit * 4.2f, band.top + band.height() * 0.06f, case.centerX() + unit * 4.2f, band.bottom - band.height() * 0.02f)
-            paint.color = 0xFFB3A786.toInt()
-            cv.drawRoundRect(hood.left - unit * 0.1f, hood.top + unit * 0.08f, hood.right + unit * 0.1f, hood.bottom + unit * 0.1f, unit * 0.2f, unit * 0.2f, paint)
-            paint.shader = LinearGradient(0f, hood.top, 0f, hood.bottom, 0xFFE6DDC6.toInt(), 0xFFCDC1A2.toInt(), Shader.TileMode.CLAMP)
-            cv.drawRoundRect(hood, unit * 0.2f, unit * 0.2f, paint)
-            paint.shader = null
-            // vents at the right of the back
-            stroke.color = 0xFFA89C7C.toInt(); stroke.strokeWidth = unit * 0.05f
-            for (i in 0..4) {
-                val vy = band.top + band.height() * (0.25f + i * 0.13f)
-                cv.drawLine(case.right - unit * 2.4f, vy, case.right - unit * 0.6f, vy, stroke)
+        when {
+            m400 || m800 -> {
+                // the raised housing at the back with its hinged cartridge door (the 800's is wider: two slots)
+                val hw = if (m800) 5.2f else 4.2f
+                val hood = RectF(case.centerX() - unit * hw, band.top + band.height() * 0.06f, case.centerX() + unit * hw, band.bottom - band.height() * 0.02f)
+                paint.color = 0xFFB3A786.toInt()
+                cv.drawRoundRect(hood.left - unit * 0.1f, hood.top + unit * 0.08f, hood.right + unit * 0.1f, hood.bottom + unit * 0.1f, unit * 0.2f, unit * 0.2f, paint)
+                paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, hood.top, 0f, hood.bottom, 0xFFE6DDC6.toInt(), 0xFFCDC1A2.toInt(), Shader.TileMode.CLAMP)
+                cv.drawRoundRect(hood, unit * 0.2f, unit * 0.2f, paint)
+                paint.shader = null
+                stroke.color = 0xFFA89C7C.toInt(); stroke.strokeWidth = unit * 0.05f
+                for (i in 0..4) {
+                    val vy = band.top + band.height() * (0.25f + i * 0.13f)
+                    cv.drawLine(case.right - unit * 2.4f, vy, case.right - unit * 0.6f, vy, stroke)
+                }
             }
-        } else if (xe) {
-            // ribbed back with the cartridge slot through it
-            stroke.color = 0xFFA6A39B.toInt(); stroke.strokeWidth = unit * 0.06f
-            var gy = band.top + band.height() * 0.15f
-            while (gy < band.bottom - band.height() * 0.1f) {
-                cv.drawLine(band.left + unit * 0.4f, gy, band.right - unit * 0.4f, gy, stroke)
-                gy += band.height() * 0.14f
+            xl -> {
+                // beige top with louvres along the edges, the dark lower case around the keys
+                val top = RectF(case.left, case.top, case.right, band.bottom + unit * 0.05f)
+                paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, top.top, 0f, top.bottom, 0xFFE8E2D2.toInt(), 0xFFD8D0BC.toInt(), Shader.TileMode.CLAMP)
+                cv.drawRoundRect(top, r, r, paint)
+                cv.drawRect(top.left, top.centerY(), top.right, top.bottom, paint)
+                paint.shader = null
+                paint.color = 0xFF8E8778.toInt()
+                var gx = top.left + unit * 0.6f
+                while (gx < top.right - unit * 0.6f) {
+                    cv.drawRect(gx, top.top + unit * 0.05f, gx + unit * 0.12f, top.top + unit * 0.14f, paint)
+                    gx += unit * 0.34f
+                }
+                var gy = top.top + unit * 0.3f
+                while (gy < top.bottom - unit * 0.1f) {
+                    cv.drawRect(top.left + unit * 0.05f, gy, top.left + unit * 0.2f, gy + unit * 0.08f, paint)
+                    cv.drawRect(top.right - unit * 0.2f, gy, top.right - unit * 0.05f, gy + unit * 0.08f, paint)
+                    gy += unit * 0.24f
+                }
             }
-        } else {
-            // brushed metal band behind the console keys
-            val metal = RectF(case.left + unit * 0.15f, case.top + unit * 0.15f, case.right - unit * 0.15f,
-                keyByRow[0][0].rect.bottom + unit * 0.18f)
-            paint.shader = LinearGradient(0f, metal.top, 0f, metal.bottom,
-                intArrayOf(0xFFD5D6D4.toInt(), 0xFFA9ABA8.toInt(), 0xFFC4C5C2.toInt(), 0xFF9C9E9B.toInt()), null, Shader.TileMode.CLAMP)
-            cv.drawRoundRect(metal, r * 0.6f, r * 0.6f, paint)
-            paint.shader = null
-            stroke.color = 0x22000000; stroke.strokeWidth = unit * 0.015f
-            var gy = metal.top + unit * 0.05f
-            while (gy < metal.bottom) { cv.drawLine(metal.left, gy, metal.right, gy, stroke); gy += unit * 0.06f }
+            xe -> {
+                // slanted ribs across the back
+                stroke.color = 0xFFB0AEA8.toInt(); stroke.strokeWidth = unit * 0.07f
+                val bt = band.top + band.height() * 0.1f; val bb = band.bottom - band.height() * 0.05f
+                var gx = band.left + unit * 1.2f
+                while (gx < band.right - unit * 0.6f) {
+                    cv.drawLine(gx, bt, gx - unit * 0.5f, bb, stroke)
+                    gx += unit * 0.32f
+                }
+                // the ledge under the ribs
+                paint.color = 0xFFBDBBB5.toInt()
+                cv.drawRect(case.left + unit * 0.1f, band.bottom - unit * 0.05f, case.right - unit * 0.1f, band.bottom + unit * 0.08f, paint)
+            }
+            else -> {
+                // brushed metal band behind the console keys
+                val metal = RectF(case.left + unit * 0.15f, case.top + unit * 0.15f, case.right - unit * 0.15f,
+                    keyByRow[0][0].rect.bottom + unit * 0.18f)
+                paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, metal.top, 0f, metal.bottom,
+                    intArrayOf(0xFFD5D6D4.toInt(), 0xFFA9ABA8.toInt(), 0xFFC4C5C2.toInt(), 0xFF9C9E9B.toInt()), null, Shader.TileMode.CLAMP)
+                cv.drawRoundRect(metal, r * 0.6f, r * 0.6f, paint)
+                paint.shader = null
+                stroke.color = 0x22000000; stroke.strokeWidth = unit * 0.015f
+                var gy = metal.top + unit * 0.05f
+                while (gy < metal.bottom) { cv.drawLine(metal.left, gy, metal.right, gy, stroke); gy += unit * 0.06f }
+            }
         }
         // cartridge slot (tap: media menu)
-        paint.color = when { xe -> 0xFF8E8A82.toInt(); m400 -> 0xFFA99C7B.toInt(); else -> 0xFF7E7868.toInt() }
+        paint.color = when { xe -> 0xFF9E9C96.toInt(); m400 || m800 -> 0xFFA99C7B.toInt(); xl -> 0xFFA9A18E.toInt(); else -> 0xFF7E7868.toInt() }
         cv.drawRoundRect(slot.left - unit * 0.12f, slot.top - unit * 0.1f, slot.right + unit * 0.12f, slot.bottom + unit * 0.1f, unit * 0.1f, unit * 0.1f, paint)
         paint.color = 0xFF1A1714.toInt()
         cv.drawRoundRect(slot, unit * 0.06f, unit * 0.06f, paint)
@@ -330,7 +419,7 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         cv.drawText(mediaLabel ?: "tap: load a game", slot.centerX(), slot.centerY() + text.textSize * 0.36f, text)
 
         // keyboard well
-        paint.color = when { xe -> 0xFF2E2E31.toInt(); m400 -> 0xFF3A2C22.toInt(); else -> 0xFF2A2420.toInt() }
+        paint.color = style.well
         cv.drawRoundRect(keyWell, unit * 0.15f, unit * 0.15f, paint)
         for (k in keys) drawKey(cv, k)
 
@@ -345,12 +434,22 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
                 text.color = 0xFF2A2724.toInt(); text.textSize = unit * 0.16f
                 cv.drawText(names[i], x, l.bottom - l.height() * 0.1f, text)
             }
+        } else if (xe) {
+            paint.color = 0xFFFF3B2E.toInt()
+            cv.drawRoundRect(powerLight.x - unit * 0.3f, powerLight.y - unit * 0.04f, powerLight.x + unit * 0.3f, powerLight.y + unit * 0.04f, unit * 0.04f, unit * 0.04f, paint)
         } else {
             drawLed(cv, powerLight.x, powerLight.y, true, 0xFFFF3B2E.toInt())
-            text.color = 0xFF45423C.toInt(); text.textSize = unit * 0.2f
-            cv.drawText("POWER", powerLight.x, powerLight.y + unit * 0.42f, text)
+            text.color = if (xl) 0xFFBDB7A8.toInt() else 0xFF45423C.toInt(); text.textSize = unit * 0.2f
+            if (!xl) cv.drawText("POWER", powerLight.x, powerLight.y + unit * 0.42f, text)
         }
-        paint.color = when { xe -> 0xFFA8A59D.toInt(); m400 -> 0xFFB5A884.toInt(); else -> 0xFF8C8E8B.toInt() }
+        if (xl) {
+            // the 800XL / 600XL print the console key names beside the keys
+            text.color = 0xFFA8A296.toInt(); text.textSize = unit * 0.19f
+            text.textAlign = Paint.Align.LEFT
+            for (k in columnKeys) cv.drawText(k.label, k.rect.right + unit * 0.08f, k.rect.centerY() + text.textSize * 0.36f, text)
+            text.textAlign = Paint.Align.CENTER
+        }
+        paint.color = when { xe -> 0xFFB0AEA8.toInt(); m400 || m800 -> 0xFFB5A884.toInt(); xl -> 0xFFC7BFAB.toInt(); else -> 0xFF8C8E8B.toInt() }
         cv.drawRoundRect(menuPlate, unit * 0.08f, unit * 0.08f, paint)
         text.color = 0xFF2A2724.toInt(); text.textSize = minOf(menuPlate.height() * 0.42f, menuPlate.width() * 0.3f)
         text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
@@ -368,17 +467,13 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
     private fun drawKey(cv: Canvas, k: Key) {
         val r = k.rect
         val down = k.down || latched.contains(k)
+        val st = style
         val (top, side, ink) = when {
-            // the 400's flat membrane: tan squares, orange control keys, yellow console keys
-            m400 && k.kind == Kind.CONSOLE -> Triple(0xFFE2C66E.toInt(), 0xFFB79C4E.toInt(), 0xFF3A2C22.toInt())
-            m400 && k.kind == Kind.WIDE && k.code != 0x21 -> Triple(0xFFDE8A3A.toInt(), 0xFFB56A24.toInt(), 0xFF2E2018.toInt())
-            m400 -> Triple(0xFFCDBB92.toInt(), 0xFFA89670.toInt(), 0xFF3A2C22.toInt())
-            k.kind == Kind.CONSOLE && xe -> Triple(0xFFB4B1AA.toInt(), 0xFF8E8B84.toInt(), 0xFF2C2B29.toInt())
-            k.kind == Kind.CONSOLE -> Triple(0xFF5A524B.toInt(), 0xFF3B3530.toInt(), 0xFFF0E8D8.toInt())
-            xe -> Triple(0xFF57575D.toInt(), 0xFF38383C.toInt(), 0xFFF2F2F2.toInt())
-            else -> Triple(0xFF4A413A.toInt(), 0xFF2E2823.toInt(), 0xFFF0E8D8.toInt())
+            k.kind == Kind.CONSOLE -> Triple(st.conTop, st.conSide, st.conInk)
+            k.kind == Kind.WIDE && k.code != 0x21 -> Triple(st.wideTop, st.wideSide, st.wideInk)
+            else -> Triple(st.keyTop, st.keySide, st.keyInk)
         }
-        if (m400) {
+        if (st.flat) {
             // membrane: flat, it only darkens when pressed
             paint.color = if (down) side else top
             cv.drawRoundRect(r.left + unit * 0.03f, r.top + unit * 0.03f, r.right - unit * 0.03f, r.bottom - unit * 0.03f, unit * 0.05f, unit * 0.05f, paint)
@@ -429,6 +524,7 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         val s = b.width()
         paint.color = 0x77000000
         cv.drawRoundRect(b.left + s * 0.02f, b.top + s * 0.03f, b.right + s * 0.02f, b.bottom + s * 0.03f, s * 0.12f, s * 0.12f, paint)
+        paint.color = 0xFF000000.toInt()
         paint.shader = LinearGradient(0f, b.top, 0f, b.bottom, 0xFF2C2C2C.toInt(), 0xFF141414.toInt(), Shader.TileMode.CLAMP)
         cv.drawRoundRect(b, s * 0.12f, s * 0.12f, paint)
         paint.shader = null
@@ -466,8 +562,9 @@ class AtariXlView(ctx: Context, private val model: Int) : View(ctx) {
         val dw = d.width()
         paint.color = 0x77000000
         cv.drawRoundRect(d.left + dw * 0.015f, d.top + dw * 0.02f, d.right + dw * 0.015f, d.bottom + dw * 0.02f, dw * 0.04f, dw * 0.04f, paint)
-        paint.shader = LinearGradient(0f, d.top, 0f, d.bottom, when { xe -> 0xFFD6D3CC.toInt(); m400 -> 0xFFDDD3BA.toInt(); else -> 0xFFE6DFCD.toInt() },
-            when { xe -> 0xFFB3B0A8.toInt(); m400 -> 0xFFC2B597.toInt(); else -> 0xFFC9C0AA.toInt() }, Shader.TileMode.CLAMP)
+        paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, d.top, 0f, d.bottom, if (xl) 0xFFE6DFCD.toInt() else style.bodyTop,
+            if (xl) 0xFFC9C0AA.toInt() else style.bodyBottom, Shader.TileMode.CLAMP)
         cv.drawRoundRect(d, dw * 0.04f, dw * 0.04f, paint)
         paint.shader = null
         // dark front panel with the slot and door lever

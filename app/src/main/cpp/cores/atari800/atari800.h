@@ -11,7 +11,7 @@
 
 class Atari800Core : public Core {
 public:
-    enum Model { k1200XL, k130XE, k400, k400PAL };
+    enum Model { k1200XL, k130XE, k400, k400PAL, k800, k800PAL, k600XL, k800XL, k800XLPAL, k65XE, k800XE };
     explicit Atari800Core(Model m);
     ~Atari800Core() override;
 
@@ -55,7 +55,8 @@ private:
     void render();
     int pickKey() const;
     // BASIC in the machine: built into the 130XE, a cartridge on the 1200XL
-    bool basicFitted() const { return model_ == k130XE || basicCart_; }
+    bool basicFitted() const { return basicBuiltIn_ || basicCart_; }
+    bool basicBuiltIn_ = false;
     bool basicCart_ = false;
 
     Model model_;

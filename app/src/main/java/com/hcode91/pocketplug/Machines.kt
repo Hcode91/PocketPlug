@@ -4,7 +4,7 @@ package com.hcode91.pocketplug
 data class RomSpec(val name: String, val size: Long, val crc: Long)
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -337,6 +337,157 @@ object Machines {
             ),
         ),
         MachineDef(
+            id = "a800",
+            title = "800 Home Computer",
+            subtitle = "1979 Atari 8-bit computer with a full-travel keyboard, 48 KB and the cartridge door. Load your own disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a800)",
+            chip = "6502B, ANTIC, CTIA/GTIA, POKEY (Atari800)",
+            region = "USA",
+            year = "1979",
+            roms = listOf(
+                RomSpec("co12399b.rom", 0x800L, 0x6a5d766eL),
+                RomSpec("co12499b.rom", 0x1000L, 0xd818f3e8L),
+                RomSpec("co14599b.rom", 0x1000L, 0xc1690a9bL),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "800",
+            setup = listOf(
+                "With nothing loaded it starts in Memo Pad, a simple typing screen.",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+                "For BASIC: Menu, then \"BASIC cartridge\" plugs one in.",
+            ),
+        ),
+        MachineDef(
+            id = "a800pal",
+            title = "800 Home Computer (PAL)",
+            subtitle = "The European 800 (50 Hz). Import the a800 zip as well as a800pal: the floating-point chip is only in the a800 zip (MAME set: a800pal)",
+            chip = "6502B, ANTIC, CTIA/GTIA, POKEY (Atari800)",
+            region = "Europe",
+            year = "1980",
+            roms = listOf(
+                RomSpec("co12399b.rom", 0x800L, 0x6a5d766eL),
+                RomSpec("co15199.rom", 0x1000L, 0x8e547f56L),
+                RomSpec("co15299.rom", 0x1000L, 0xbe55b413L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "800",
+            setup = listOf(
+                "With nothing loaded it starts in Memo Pad, a simple typing screen.",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+                "For BASIC: Menu, then \"BASIC cartridge\" plugs one in.",
+            ),
+        ),
+        MachineDef(
+            id = "a800xl",
+            title = "800XL Home Computer",
+            subtitle = "1983 Atari 8-bit computer, 64 KB and BASIC built in. Load your own disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a800xl)",
+            chip = "6502C, ANTIC, GTIA, POKEY (Atari800)",
+            region = "USA",
+            year = "1983",
+            roms = listOf(
+                RomSpec("co60302a.rom", 0x2000L, 0xf0202fb3L),
+                RomSpec("co61598b.rom", 0x4000L, 0x1f9cd270L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "800xl",
+            setup = listOf(
+                "It starts in BASIC (type PRINT 2+2 and RETURN).",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+            ),
+        ),
+        MachineDef(
+            id = "a800xlp",
+            title = "800XL Home Computer (PAL)",
+            subtitle = "The European 800XL (50 Hz). Load your own disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a800xlp)",
+            chip = "6502C, ANTIC, GTIA, POKEY (Atari800)",
+            region = "Europe",
+            year = "1983",
+            roms = listOf(
+                RomSpec("co60302a.rom", 0x2000L, 0xf0202fb3L),
+                RomSpec("co61598b.rom", 0x4000L, 0x1f9cd270L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "800xl",
+            setup = listOf(
+                "It starts in BASIC (type PRINT 2+2 and RETURN).",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+            ),
+        ),
+        MachineDef(
+            id = "a600xl",
+            title = "600XL Home Computer",
+            subtitle = "1983 compact XL with BASIC built in; here with the 64 KB expansion. Import the a800xl (or a800xlp) zip as well: the BASIC chip is only there. Load your own disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a600xl)",
+            chip = "6502C, ANTIC, GTIA, POKEY (Atari800)",
+            region = "USA / Europe",
+            year = "1983",
+            roms = listOf(
+                RomSpec("co60302a.rom", 0x2000L, 0xf0202fb3L),
+                RomSpec("co62024.rom", 0x4000L, 0x643bcc98L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "600xl",
+            setup = listOf(
+                "It starts in BASIC (type PRINT 2+2 and RETURN).",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+            ),
+        ),
+        MachineDef(
+            id = "a65xe",
+            title = "65XE Home Computer",
+            subtitle = "1985 XE with 64 KB and BASIC built in. Import the a800xl zip as well: the OS chip is only there. Load your own disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a65xe)",
+            chip = "6502C, ANTIC, GTIA, POKEY (Atari800)",
+            region = "USA / Europe",
+            year = "1985",
+            roms = listOf(
+                RomSpec("co24947a.rom", 0x2000L, 0x7d684184L),
+                RomSpec("co61598b.rom", 0x4000L, 0x1f9cd270L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "65xe",
+            setup = listOf(
+                "It starts in BASIC (type PRINT 2+2 and RETURN).",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+            ),
+        ),
+        MachineDef(
+            id = "a800xe",
+            title = "800XE Home Computer",
+            subtitle = "1987 XE for Central and Eastern Europe (50 Hz), 64 KB and BASIC built in. Load your own disk, program, cartridge or tape files (.atr .xex .car .rom .cas) (MAME set: a800xe)",
+            chip = "6502C, ANTIC, GTIA, POKEY (Atari800)",
+            region = "Europe",
+            year = "1987",
+            roms = listOf(
+                RomSpec("co24947a.rom", 0x2000L, 0x7d684184L),
+                RomSpec("c300717.rom", 0x4000L, 0x29f133f7L),
+            ),
+            skin = Skin.ATARI_XL,
+            badge = "800xe",
+            setup = listOf(
+                "It starts in BASIC (type PRINT 2+2 and RETURN).",
+                "Tap the cartridge slot or the disk drive, then \"Load a game or program\" and pick your file (.atr .xex .car .rom .cas). The computer restarts with it; BASIC is switched off for games.",
+                "Games you've loaded stay in that menu for next time.",
+                "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
+                "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+            ),
+        ),
+        MachineDef(
             id = "a130xe",
             title = "130XE Home Computer",
             subtitle = "1985 Atari 8-bit computer with 128 KB and BASIC built in. Import the a800xl zip as well: "
@@ -357,6 +508,50 @@ object Machines {
                 "Games you've loaded stay in that menu for next time.",
                 "Steer with the joystick (drag the stick, red button = fire). Hold START / SELECT / OPTION as long as a game needs.",
                 "Multi-disk games: when it asks for the next disk, use \"Swap the disk in drive 1\" in the same menu.",
+            ),
+        ),
+        MachineDef(
+            id = "a7000",
+            title = "A7000 Desktop Computer",
+            subtitle = "1995 Acorn RISC OS 3.60 computer (ARM7500, 32 MHz), here with 32 MB. Floppies (.adf) and "
+                + "your own files through HostFS (MAME set: a7000)",
+            chip = "ARM7500 (RPCEmu)",
+            region = "UK",
+            year = "1995",
+            roms = listOf(
+                RomSpec("1203,101-01.bin", 0x200000L, 0x2eeded56L),
+                RomSpec("1203,102-01.bin", 0x200000L, 0x6db87d21L),
+            ),
+            skin = Skin.ACORN,
+            badge = "a7000",
+            setup = listOf(
+                "It starts RISC OS straight to the desktop: the icon bar along the bottom.",
+                "The screen is the mouse pad: drag to move the pointer, tap to click SELECT. Hold MENU on the mouse for RISC OS's menus (there are no menu bars), ADJUST for the right button.",
+                "Tap the floppy drive for disks and files: insert a floppy image (.adf), or copy a file into HostFS. HostFS files appear when you click the HostFS icon on the icon bar; they're kept in the app between visits.",
+                "Apps on the icon bar has the built-in applications (Draw, Paint, Edit, Maestro, ...).",
+                "Quit RISC OS programs before leaving: there are no save states on this machine.",
+            ),
+        ),
+        MachineDef(
+            id = "a7000p",
+            title = "A7000+ Desktop Computer",
+            subtitle = "1997 Acorn RISC OS 3.71 computer (ARM7500FE, 48 MHz, floating point), here with 32 MB. "
+                + "Floppies (.adf) and your own files through HostFS (MAME set: a7000p)",
+            chip = "ARM7500FE (RPCEmu)",
+            region = "UK",
+            year = "1997",
+            roms = listOf(
+                RomSpec("1203,261-01.bin", 0x200000L, 0x8e3c570aL),
+                RomSpec("1203,262-01.bin", 0x200000L, 0xcf4615b4L),
+            ),
+            skin = Skin.ACORN,
+            badge = "a7000p",
+            setup = listOf(
+                "It starts RISC OS straight to the desktop: the icon bar along the bottom.",
+                "The screen is the mouse pad: drag to move the pointer, tap to click SELECT. Hold MENU on the mouse for RISC OS's menus (there are no menu bars), ADJUST for the right button.",
+                "Tap the floppy drive for disks and files: insert a floppy image (.adf), or copy a file into HostFS. HostFS files appear when you click the HostFS icon on the icon bar; they're kept in the app between visits.",
+                "Apps on the icon bar has the built-in applications (Draw, Paint, Edit, Maestro, ...).",
+                "Quit RISC OS programs before leaving: there are no save states on this machine.",
             ),
         ),
         MachineDef(

@@ -13,6 +13,7 @@
 #include "cores/ngen/ngen.h"
 #include "cores/unixpc/unixpc.h"
 #include "cores/atari800/atari800.h"
+#include "cores/acorn/acorn.h"
 #include "cores/nixie4004/nixieclock.h"
 #include "cores/tm990/tm990.h"
 
@@ -114,6 +115,17 @@ Core* createCore(const std::string& id)
         return new Atari800Core(Atari800Core::k400);
     if (id == "a400pal")      // Atari 400, PAL (Atari800)
         return new Atari800Core(Atari800Core::k400PAL);
+    if (id == "a800") return new Atari800Core(Atari800Core::k800);
+    if (id == "a800pal") return new Atari800Core(Atari800Core::k800PAL);
+    if (id == "a600xl") return new Atari800Core(Atari800Core::k600XL);
+    if (id == "a800xl") return new Atari800Core(Atari800Core::k800XL);
+    if (id == "a800xlp") return new Atari800Core(Atari800Core::k800XLPAL);
+    if (id == "a65xe") return new Atari800Core(Atari800Core::k65XE);
+    if (id == "a800xe") return new Atari800Core(Atari800Core::k800XE);
+    if (id == "a7000")        // Acorn A7000 (RPCEmu), RISC OS 3.60
+        return new AcornCore(AcornCore::kA7000);
+    if (id == "a7000p")       // Acorn A7000+ (RPCEmu), RISC OS 3.71
+        return new AcornCore(AcornCore::kA7000Plus);
     if (id == "3b1")          // AT&T UNIX PC / PC 7300 / 3B1 (68010, FreeBee)
         return new UnixPcCore();
     if (id == "ngen")         // Convergent NGEN CP-001 / Burroughs B26 workstation (80186)

@@ -29,16 +29,6 @@ namespace {
 
 bool g_active = false;   // Atari800 is single-instance (globals)
 
-bool writeFile(const std::string& path, std::initializer_list<const std::vector<uint8_t>*> parts)
-{
-    FILE* f = fopen(path.c_str(), "wb");
-    if (!f) return false;
-    bool ok = true;
-    for (auto* p : parts) ok = ok && fwrite(p->data(), 1, p->size(), f) == p->size();
-    fclose(f);
-    return ok;
-}
-
 std::string dirOf(const std::string& p)
 {
     size_t s = p.find_last_of('/');
@@ -63,53 +53,94 @@ Atari800Core::~Atari800Core()
     }
 }
 
+namespace {
+
+// One row per model: how Atari800 is started and which ROM files make its OS.
+struct ModelInfo {
+    Atari800Core::Model model;
+    const char* machine;        // Atari800 machine switch
+    bool pal;
+    const char* osSwitch;       // "-osa_rom" / "-osb_rom" (400/800) or "-xlxe_rom"
+    std::vector<const char*> os;  // OS chips, in address order; joined into one image
+    const char* basic;          // built-in BASIC chip, or nullptr (BASIC is a cartridge)
+    const char* name;           // for messages and the joined OS file
+    const char* hint;           // where a missing file lives
+};
+
+const std::vector<ModelInfo>& models()
+{
+    static const std::vector<ModelInfo> m = {
+        { Atari800Core::k1200XL, "-1200", false, "-xlxe_rom", { "co60616b.rom", "co60617b.rom" }, nullptr, "1200XL", "" },
+        { Atari800Core::k130XE, "-xe", false, "-xlxe_rom", { "co61598b.rom" }, "co24947a.rom", "130XE",
+          " (the OS chip co61598b.rom is in the a800xl zip: import it too)" },
+        // 400 / 800 OS: floating point (2 KB at $D800) + two 4 KB chips ($E000, $F000).
+        // "-atari" is a 400 / 800 with 48 KB, the usual upgrade, so the bigger games fit.
+        { Atari800Core::k400, "-atari", false, "-osb_rom", { "co12399b.rom", "co12499b.rom", "co14599b.rom" }, nullptr, "400", "" },
+        { Atari800Core::k400PAL, "-atari", true, "-osa_rom", { "co12399b.rom", "co15199.rom", "co15299.rom" }, nullptr, "400 (PAL)",
+          " (co12399b.rom is in the a400 zip: import it too)" },
+        { Atari800Core::k800, "-atari", false, "-osb_rom", { "co12399b.rom", "co12499b.rom", "co14599b.rom" }, nullptr, "800", "" },
+        { Atari800Core::k800PAL, "-atari", true, "-osa_rom", { "co12399b.rom", "co15199.rom", "co15299.rom" }, nullptr, "800 (PAL)",
+          " (co12399b.rom is in the a800 zip: import it too)" },
+        // the 600XL had 16 KB; it runs here with 64 KB (the 1064 expansion) so XL software fits
+        { Atari800Core::k600XL, "-xl", false, "-xlxe_rom", { "co62024.rom" }, "co60302a.rom", "600XL",
+          " (BASIC, co60302a.rom, is in the a800xl zip: import it too)" },
+        { Atari800Core::k800XL, "-xl", false, "-xlxe_rom", { "co61598b.rom" }, "co60302a.rom", "800XL", "" },
+        { Atari800Core::k800XLPAL, "-xl", true, "-xlxe_rom", { "co61598b.rom" }, "co60302a.rom", "800XL (PAL)", "" },
+        // the 65XE is an 800XL in the XE case (64 KB)
+        { Atari800Core::k65XE, "-xl", false, "-xlxe_rom", { "co61598b.rom" }, "co24947a.rom", "65XE",
+          " (the OS chip co61598b.rom is in the a800xl zip: import it too)" },
+        { Atari800Core::k800XE, "-xl", true, "-xlxe_rom", { "c300717.rom" }, "co24947a.rom", "800XE", "" },
+    };
+    return m;
+}
+
+} // namespace
+
 bool Atari800Core::load(const std::vector<RomFile>& roms, std::string& error)
 {
     if (g_active) { error = "Only one Atari machine can run at a time"; return false; }
-    if (model_ == k1200XL) {
-        // the OS is two 8 KB chips ($C000, $E000); Atari800 wants one 16 KB image
-        const RomFile* lo = find(roms, "co60616b.rom");
-        const RomFile* hi = find(roms, "co60617b.rom");
-        if (!lo || !hi || lo->data.size() != 0x2000 || hi->data.size() != 0x2000) {
-            error = "Missing the 1200XL OS ROMs"; return false;
-        }
-        osPath_ = dirOf(lo->path) + "/.a1200xl-os.rom";
-        if (!writeFile(osPath_, { &lo->data, &hi->data })) { error = "Can't write " + osPath_; return false; }
-    } else if (model_ == k400 || model_ == k400PAL) {
-        // 400 / 800 OS: floating point (2 KB at $D800) + two 4 KB chips ($E000, $F000)
-        const RomFile* fp = find(roms, "co12399b.rom");
-        const RomFile* e = find(roms, model_ == k400 ? "co12499b.rom" : "co15199.rom");
-        const RomFile* f = find(roms, model_ == k400 ? "co14599b.rom" : "co15299.rom");
-        if (!fp || !e || !f || fp->data.size() != 0x800 || e->data.size() != 0x1000 || f->data.size() != 0x1000) {
-            error = model_ == k400 ? "Missing the 400 OS ROMs"
-                : "Missing the 400 OS ROMs (co12399b.rom is in the a400 zip: import it too)";
-            return false;
-        }
-        osPath_ = dirOf(e->path) + (model_ == k400 ? "/.a400-os.rom" : "/.a400pal-os.rom");
-        if (!writeFile(osPath_, { &fp->data, &e->data, &f->data })) { error = "Can't write " + osPath_; return false; }
+    const ModelInfo* mi = nullptr;
+    for (auto& m : models()) if (m.model == model_) mi = &m;
+    if (!mi) { error = "Unknown model"; return false; }
+
+    std::vector<const std::vector<uint8_t>*> parts;
+    std::string dir;
+    for (const char* n : mi->os) {
+        const RomFile* r = find(roms, n);
+        if (!r) { error = std::string("Missing ") + n + mi->hint; return false; }
+        parts.push_back(&r->data);
+        if (dir.empty()) dir = dirOf(r->path);
+    }
+    if (parts.size() == 1) {
+        osPath_ = find(roms, mi->os[0])->path;
     } else {
-        const RomFile* os = find(roms, "co61598b.rom");
-        const RomFile* basic = find(roms, "co24947a.rom");
-        if (!os || !basic) { error = "Missing the 130XE ROMs"; return false; }
-        osPath_ = os->path;
-        basicPath_ = basic->path;
+        osPath_ = dir + "/.atari-os-" + std::to_string(int(model_)) + ".rom";
+        FILE* f = fopen(osPath_.c_str(), "wb");
+        bool ok = f != nullptr;
+        for (auto* p : parts) ok = ok && fwrite(p->data(), 1, p->size(), f) == p->size();
+        if (f) fclose(f);
+        if (!ok) { error = "Can't write " + osPath_; return false; }
+    }
+    basicBuiltIn_ = mi->basic != nullptr;
+    if (mi->basic) {
+        const RomFile* b = find(roms, mi->basic);
+        if (!b) { error = std::string("Missing ") + mi->basic + mi->hint; return false; }
+        basicPath_ = b->path;
     }
 
-    const bool old = model_ == k400 || model_ == k400PAL;
     std::vector<std::string> args = {
         "atari800",
         "-config", "/dev/null",
-        model_ == k1200XL ? "-1200" : model_ == k130XE ? "-xe" : "-atari",
-        model_ == k400PAL ? "-pal" : "-ntsc",
-        // only the 130XE has BASIC inside: the others start with no cartridge (see setOption)
-        model_ == k130XE ? "-basic" : "-nobasic",
-        // ("-atari" is a 400 / 800 with 48 KB: the usual upgrade, so the bigger games fit)
-        old ? (model_ == k400 ? "-osb_rom" : "-osa_rom") : "-xlxe_rom", osPath_,
+        mi->machine,
+        mi->pal ? "-pal" : "-ntsc",
+        // machines without BASIC inside start with no cartridge (see setOption)
+        basicBuiltIn_ ? "-basic" : "-nobasic",
+        mi->osSwitch, osPath_,
         "-audio16", "-dsprate", "44100", "-nostereo",
     };
     if (!basicPath_.empty()) { args.push_back("-basic_rom"); args.push_back(basicPath_); }
     std::vector<char*> argv;
-    for (auto& a : args) if (!a.empty()) argv.push_back(const_cast<char*>(a.c_str()));
+    for (auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
     argv.push_back(nullptr);
     if (!libatari800_init(int(argv.size()) - 1, argv.data())) {
         error = "Atari800 failed to start";
@@ -163,7 +194,7 @@ int Atari800Core::pickKey() const
 
 void Atari800Core::setOption(int id, int value)
 {
-    if (id != 1 || model_ == k130XE || !loaded_) return;
+    if (id != 1 || basicBuiltIn_ || !loaded_) return;
     // a BASIC cartridge plugged into the 1200XL: on a machine without built-in
     // BASIC, Atari800 maps its BASIC ROM (Altirra BASIC, as this set has no
     // BASIC ROM) like a cartridge when BASIC isn't disabled
@@ -276,7 +307,7 @@ void Atari800Core::mediaEject(int drive)
 int Atari800Core::mediaActivity()
 {
     int a = busy_ > 0 ? 1 : 0;
-    if (model_ == k1200XL && loaded_) {
+    if ((model_ == k1200XL) && loaded_) {
         uint8_t pb = PIA_PORTB | PIA_PORTB_mask;
         if (!(pb & 0x04)) a |= 0x10;
         if (!(pb & 0x08)) a |= 0x20;

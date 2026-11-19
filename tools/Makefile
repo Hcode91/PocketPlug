@@ -19,9 +19,17 @@ A8 = $(CPP)/cores/atari800/a800
 A8SRC = $(wildcard $(A8)/*.c) $(wildcard $(A8)/libatari800/*.c) $(wildcard $(A8)/roms/*.c)
 COBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(CSRC))
 A8OBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(A8SRC))
+# the Acorn core (RPCEmu) is C as well
+AC = $(CPP)/cores/acorn
+ACSRC = $(wildcard $(AC)/*.c) $(wildcard $(AC)/rpcemu/*.c) $(wildcard $(AC)/rpcemu/filesystem/*.c) $(wildcard $(AC)/rpcemu/platform/*.c)
+ACOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(ACSRC))
 
-headless: $(SRC) $(COBJ) $(A8OBJ)
-	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ)
+headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ)
+	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) -lpthread
+
+obj/cores/acorn/%.o: $(AC)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -w -std=gnu99 -DRPCEMU_PLATFORM_LINUX -I$(AC)/rpcemu -I$(AC)/rpcemu/filesystem -I$(AC)/rpcemu/platform -c $< -o $@
 
 obj/cores/atari800/a800/%.o: $(A8)/%.c
 	@mkdir -p $(dir $@)

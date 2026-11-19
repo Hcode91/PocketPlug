@@ -22,6 +22,10 @@ controller.
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
 | TM 990/189 University Board (+ Video Board) | `990189`, `990189v` | TMS9980A + 2x TMS9901 (own cores), TMS9918 (own core) | University BASIC runs; the LED display and lights follow MAME frame-for-frame apart from a frame's lag in key echo; the video board's four colour demos run |
 | 1200XL Home Computer (Atari) | `a1200xl` | Atari800 (6502C, ANTIC, GTIA, POKEY, PIA) | Real 1200XL OS: logo, self test, function keys and the L1 / L2 lights; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
+| 800 Home Computer (Atari) | `a800`, `a800pal` | Atari800, 48 KB | Real OS: Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
+| 800XL / 600XL Home Computers (Atari) | `a800xl`, `a800xlp`, `a600xl` | Atari800, 64 KB | BASIC built in; loads disks, programs, cartridges and tapes |
+| 65XE / 800XE Home Computers (Atari) | `a65xe`, `a800xe` | Atari800, 64 KB | BASIC built in; loads disks, programs, cartridges and tapes |
+| A7000 / A7000+ Desktop Computers (Acorn) | `a7000`, `a7000p` | RPCEmu (ARM7500 / ARM7500FE, IOMD, VIDC20), 32 MB | RISC OS 3.60 / 3.71 start to the desktop; mouse, keyboard, floppies (.adf) and HostFS |
 | 400 Home Computer (Atari) | `a400`, `a400pal` | Atari800 (6502B, ANTIC, CTIA/GTIA, POKEY), 48 KB | Real OS rev. B (NTSC) / rev. A (PAL): Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
 | 130XE Home Computer (Atari) | `a130xe` | Atari800, 128 KB banked RAM | BASIC built in; loads disks, programs, cartridges and tapes |
 | PC 7300 / 3B1 Desktop (AT&T UNIX PC) | `3b1` | Motorola 68010 + MMU, 720x348 bitmap, WD2797 floppy, WD2010 hard disk, keyboard + mouse (FreeBee) | Installs the 3.51 Foundation set from floppies onto the emulated 64 MB hard disk, boots from it to the window manager; mouse and full keyboard |
@@ -59,6 +63,20 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `demo1800.u11` | 2 KB (2,048 bytes) | `8737dc4b` |
 | 1200XL Home Computer | `a1200xl` | `co60616b.rom` | 8 KB (8,192 bytes) | `6e29ec8d` |
 | | | `co60617b.rom` | 8 KB (8,192 bytes) | `d73ce29a` |
+| 800 Home Computer | `a800` | the three `a400` files: `co12399b.rom`, `co12499b.rom`, `co14599b.rom` | 2 + 4 + 4 KB | as `a400` |
+| 800 Home Computer (PAL) | `a800pal` | `co12399b.rom` (in the `a800` zip: import that too), `co15199.rom`, `co15299.rom` | 2 + 4 + 4 KB | as `a400pal` |
+| 800XL / 800XL (PAL) | `a800xl`, `a800xlp` | `co60302a.rom` (BASIC) | 8 KB (8,192 bytes) | `f0202fb3` |
+| | | `co61598b.rom` (OS) | 16 KB (16,384 bytes) | `1f9cd270` |
+| 600XL | `a600xl` | `co62024.rom` (OS) | 16 KB (16,384 bytes) | `643bcc98` |
+| | | `co60302a.rom` (BASIC; in the `a800xl` zip: import that too) | 8 KB (8,192 bytes) | `f0202fb3` |
+| 65XE | `a65xe` | `co24947a.rom` (BASIC) | 8 KB (8,192 bytes) | `7d684184` |
+| | | `co61598b.rom` (OS; in the `a800xl` zip: import that too) | 16 KB (16,384 bytes) | `1f9cd270` |
+| 800XE | `a800xe` | `co24947a.rom` (BASIC) | 8 KB (8,192 bytes) | `7d684184` |
+| | | `c300717.rom` (OS) | 16 KB (16,384 bytes) | `29f133f7` |
+| A7000 | `a7000` | `1203,101-01.bin` | 2 MB (2,097,152 bytes) | `2eeded56` |
+| | | `1203,102-01.bin` | 2 MB (2,097,152 bytes) | `6db87d21` |
+| A7000+ | `a7000p` | `1203,261-01.bin` | 2 MB (2,097,152 bytes) | `8e3c570a` |
+| | | `1203,262-01.bin` | 2 MB (2,097,152 bytes) | `cf4615b4` |
 | 400 Home Computer | `a400` | `co12399b.rom` | 2 KB (2,048 bytes) | `6a5d766e` |
 | | | `co12499b.rom` | 4 KB (4,096 bytes) | `d818f3e8` |
 | | | `co14599b.rom` | 4 KB (4,096 bytes) | `c1690a9b` |
@@ -279,7 +297,7 @@ Back) for the menu.
   retirement setting. The display and settings are kept between visits.
 - A real keyboard: 1 or S = SELECT, 2 or B = BROWSE.
 
-### 1200XL, 130XE and 400 Home Computers
+### Atari 8-bit Home Computers (400, 800, 600XL, 800XL, 1200XL, 65XE, 130XE, 800XE)
 
 Import the MAME `a1200xl` zip for the 1200XL, `a400` for the 400 (for the PAL
 400 import `a400pal` and `a400` too: the floating-point chip is only in `a400`). For the 130XE import the `a130xe`
@@ -294,6 +312,15 @@ front:
   L1 lights when the keyboard is locked (CONTROL + F1), L2 for the international
   characters (CONTROL + F4). With nothing loaded it shows its logo; HELP starts
   the self test.
+- **800**: the 400's beige case with the wider cartridge housing (two slots),
+  brown full-travel keys and gold console keys. Memo Pad when empty; 48 KB.
+- **800XL / 600XL**: beige top with louvres over the dark keyboard (brown on the
+  800XL, black on the 600XL), with the silver RESET / OPTION / SELECT / START /
+  HELP keys down the right, named beside them. BASIC built in. The 600XL runs
+  with 64 KB (the 1064 expansion) so XL software fits.
+- **65XE / 800XE / 130XE**: light grey case with slanted ribs, light keys and
+  the five console keys (HELP, START, SELECT, OPTION, RESET) at the top right.
+  BASIC built in. (The 130XE skin was redrawn to match: it has the same case.)
 - **400**: beige case with the raised cartridge housing at the back and the flat
   membrane keyboard (tan keys, orange control keys), with SYSTEM RESET, OPTION,
   SELECT and START in yellow on the right. With nothing loaded it starts in Memo
@@ -320,6 +347,31 @@ front:
   Esc, Tab, Caps Lock = CAPS, `'` = `+`, `\` = `*`, `[` `]` = `<` `>`,
   `` ` `` = Inverse, F1-F4, F5 = START, F6 = SELECT, F7 = OPTION, F8 = HELP,
   F9 / Break = BREAK, F10 = RESET. The arrow keys and Alt steer the joystick.
+
+### A7000 and A7000+ Desktop Computers
+
+Import the MAME `a7000` or `a7000p` zip (the `rpc600` and keyboard zips aren't
+needed). The machine is RPCEmu (interpreter build); RISC OS 3.60 (A7000) or
+3.71 (A7000+) starts straight to the desktop with 32 MB of memory.
+
+Drawn as the desktop: the light grey monitor on the slim system unit (floppy
+drive, CD drive, power light), the keyboard and the three-button mouse.
+
+- **The screen is the mouse pad**: drag to move the pointer, tap to click
+  SELECT. Hold the mouse's buttons for SELECT, **MENU** (RISC OS has no menu
+  bars: menus pop up on the middle button) and ADJUST.
+- **Tap the floppy drive** for disks and files: insert a floppy image (`.adf`),
+  swap between ones you've used, eject, or **copy a file into HostFS**. HostFS is
+  a folder in the app's storage that RISC OS sees as a drive: click HostFS on the
+  icon bar. Common extensions get their RISC OS file type (`.zip` Archive,
+  `.txt` Text, `.bas` BASIC, `.jpg`, `.gif`, `.png`, `.htm`); a name with
+  `,xxx` keeps that type. Files saved to HostFS are kept between visits.
+- **MENU on the unit** (or Back) for reset and quit. No save states: RPCEmu has
+  none.
+- The clock follows the instructions run (32 MHz, 48 MHz on the A7000+): on a
+  slow phone RISC OS runs slower rather than skipping.
+- A real keyboard works: Esc, F1-F12, Insert / Home / Page Up / Delete / End
+  (Copy) / Page Down and the arrows, as on the Acorn keyboard.
 
 ### PC 7300 / 3B1 Desktop
 
@@ -382,6 +434,9 @@ reset and the scanline toggle.
   MC68705 programmer boards (`705p3prg`, `705p5prg`, `705r3prg`, `705u3prg`,
   switches and lights only) and the 68k Single Board Computer (`68ksbc`, used
   only over a serial terminal).
+- Tried, not added: Retro Arcade FC A6Plus (`a6plus`). Its games live on an SD
+  card that isn't in the MAME set (`a6plus.chd`, and MAME doesn't emulate the
+  card either); with the flash chip alone it crashes at start.
 - Tried, not added: TimeTop Chaoji Zhishi Da Fuweng 1 / 2 (`6578cjz1`,
   `6578cjz2`). The SH6578 is supported in the VT core and the quiz runs to its
   title screen exactly as in MAME, but its answer pad talks over an
@@ -405,7 +460,8 @@ app/src/main/cpp/
   cores/vt369/          VT NES-on-a-chip family: VT02/03, VT "4FFx", VT369 (+ SH6578)
   cores/tm990/          TM 990/189: TMS9980A (tms9980.h), TMS9901s, TMS9918 (tms9918.h)
   cores/nixie4004/       Intel 4004 CPU (i4004.h) and the 4004 Nixie Clock board
-  cores/atari800/       1200XL / 130XE / 400: Atari800 (GPL-2+) as libatari800 in a800/, glue in atari800.cpp
+  cores/acorn/          A7000 / A7000+: RPCEmu (GPL-2+) in rpcemu/, host side in rpcemu_glue.c, acorn.cpp
+  cores/atari800/       Atari 8-bit computers: Atari800 (GPL-2+) as libatari800 in a800/, glue in atari800.cpp
   cores/unixpc/         PC 7300 / 3B1: FreeBee (GPL-3) + Musashi 68010, glue in unixpc.cpp
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/

@@ -43,7 +43,10 @@ class EmulatorActivity : Activity() {
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
     private var atari: AtariXlView? = null
+    private var acorn: AcornView? = null
     private var atariStick = 0
+    /** Atari models without BASIC inside: the menu plugs a BASIC cartridge in */
+    private val atariNoBasic = setOf("1200xl", "400", "800")
     // 3B1 mouse: motion gathered between frames
     private val mouseLock = Any()
     private var mouseDx = 0f
@@ -133,6 +136,18 @@ class EmulatorActivity : Activity() {
                 setContentView(v)
                 attachDisks()
             }
+            Skin.ACORN -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = AcornView(this, machine.badge == "a7000p").apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onDisks = { showAcornMenu() }
+                    onMouseMove = { dx, dy -> synchronized(mouseLock) { mouseDx += dx; mouseDy += dy } }
+                    onMouseButtons = { setTouch(0, it) }
+                }
+                acorn = v
+                setContentView(v)
+            }
             Skin.DESKTOP_3B1 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val v = Desktop3b1View(this).apply {
@@ -149,8 +164,11 @@ class EmulatorActivity : Activity() {
             Skin.ATARI_XL -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val v = AtariXlView(this, when (machine.badge) {
-                    "130xe" -> AtariXlView.MODEL_130XE
+                    "130xe", "65xe", "800xe" -> AtariXlView.MODEL_XE
                     "400" -> AtariXlView.MODEL_400
+                    "800" -> AtariXlView.MODEL_800
+                    "800xl" -> AtariXlView.MODEL_800XL
+                    "600xl" -> AtariXlView.MODEL_600XL
                     else -> AtariXlView.MODEL_1200XL
                 }).apply {
                     onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
@@ -160,7 +178,7 @@ class EmulatorActivity : Activity() {
                 }
                 atari = v
                 setContentView(v)
-                if (machine.badge != "130xe" && prefs.getBoolean("basic_${machine.id}", false))
+                if (machine.badge in atariNoBasic && prefs.getBoolean("basic_${machine.id}", false))
                     Native.setOption(handle, 1, 1)
             }
             Skin.NIXIE_CLOCK -> {
@@ -493,6 +511,44 @@ class EmulatorActivity : Activity() {
             .show()
     }
 
+    // ---- Acorn: floppies (.adf) and files copied into HostFS ----
+    private fun acornDir() = java.io.File(filesDir, "acorn").apply { mkdirs() }
+
+    private fun showAcornMenu() {
+        paused = true
+        val floppies = acornDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Insert a floppy image (.adf)..." to { pickAtari(PICK_ACORN_FLOPPY) }
+        for (f in floppies) items += "Insert ${f.nameWithoutExtension}" to { insertAcornFloppy(f) }
+        items += "Eject the floppy" to {
+            synchronized(coreLock) { Native.mediaEject(handle, 0) }
+            acorn?.floppyLabel = null
+        }
+        items += "Copy a file into HostFS..." to { pickAtari(PICK_ACORN_HOSTFS) }
+        if (floppies.isNotEmpty()) items += "Delete a floppy from the list..." to {
+            paused = true
+            AlertDialog.Builder(this)
+                .setTitle("Delete which floppy?")
+                .setItems(floppies.map { it.name }.toTypedArray()) { _, w -> floppies[w].delete(); paused = false }
+                .setOnCancelListener { paused = false }
+                .show()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Disks & files")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which -> paused = false; items[which].second() }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    private fun insertAcornFloppy(f: java.io.File) {
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 0, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        acorn?.floppyLabel = f.nameWithoutExtension
+    }
+
+    private val PICK_ACORN_FLOPPY = 46
+    private val PICK_ACORN_HOSTFS = 47
+
     private val PICK_ATARI = 44
     private val PICK_ATARI_D1 = 45
 
@@ -555,6 +611,25 @@ class EmulatorActivity : Activity() {
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) return
         when (requestCode) {
+            PICK_ACORN_FLOPPY, PICK_ACORN_HOSTFS -> {
+                var name = "file"
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) name = it.getString(0) ?: name
+                }
+                val safe = name.replace(Regex("[^A-Za-z0-9._ ,()-]"), "_").ifEmpty { "file" }
+                if (requestCode == PICK_ACORN_FLOPPY) {
+                    // RPCEmu tells the floppy format by the extension
+                    val dest = java.io.File(acornDir(), if (safe.contains('.')) safe else "$safe.adf")
+                    runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
+                    insertAcornFloppy(dest)
+                } else {
+                    val tmp = java.io.File(cacheDir, safe)
+                    runCatching { contentResolver.openInputStream(uri)?.use { i -> tmp.outputStream().use { i.copyTo(it) } } }
+                    val err = synchronized(coreLock) { Native.mediaInsert(handle, 2, tmp.absolutePath) }
+                    tmp.delete()
+                    Toast.makeText(this, err ?: "Copied into HostFS: click the HostFS icon on the icon bar", Toast.LENGTH_LONG).show()
+                }
+            }
             PICK_ATARI, PICK_ATARI_D1 -> {
                 var name = "game"
                 contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
@@ -707,17 +782,19 @@ class EmulatorActivity : Activity() {
                     val ev = keyQueue.poll() ?: break
                     Native.keyEvent(handle, ev and 0xff, ev and 0x100 != 0)
                 }
-                if (machine.skin == Skin.DESKTOP_3B1) {
+                if (machine.skin == Skin.DESKTOP_3B1 || machine.skin == Skin.ACORN) {
                     val (dx, dy) = synchronized(mouseLock) { (mouseDx to mouseDy).also { mouseDx = 0f; mouseDy = 0f } }
                     if (dx != 0f || dy != 0f) Native.setAnalog(handle, 9, dx, dy)
                 }
                 val r = Native.runFrame(handle, touchInputs or keyInputs, pixels, audio)
                 workstation?.indicators = Native.mediaActivity(handle)
                 atari?.indicators = Native.mediaActivity(handle)
+                acorn?.indicators = Native.mediaActivity(handle)
                 r
             }
             if (workstation != null) workstation?.updateFrame(pixels)
             else if (atari != null) atari?.updateFrame(pixels)
+            else if (acorn != null) acorn?.updateFrame(pixels)
             else if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
@@ -745,11 +822,11 @@ class EmulatorActivity : Activity() {
         val stateFile = cartFile?.let { RomStore.cartStateFile(this, machine, it) } ?: RomStore.stateFile(this, machine)
         val items = ArrayList<Pair<String, () -> Unit>>()
         items += "Resume" to {}
-        if (machine.skin != Skin.DESKTOP_3B1) items += "Save state" to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN) items += "Save state" to {
             val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
             Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
         }
-        if (machine.skin != Skin.DESKTOP_3B1) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
             if (stateFile.exists()) {
                 val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
                 Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()
@@ -799,7 +876,8 @@ class EmulatorActivity : Activity() {
         }
         if (workstation != null) items += "Disks..." to { showDiskMenu() }
         if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
-        if (atari != null && machine.badge != "130xe") {
+        if (acorn != null) items += "Disks & files..." to { showAcornMenu() }
+        if (atari != null && machine.badge in atariNoBasic) {
             val on = prefs.getBoolean("basic_${machine.id}", false)
             items += (if (on) "BASIC cartridge: plugged in" else "BASIC cartridge: not plugged in") to {
                 prefs.edit().putBoolean("basic_${machine.id}", !on).apply()
@@ -1148,7 +1226,50 @@ class EmulatorActivity : Activity() {
         atari?.externalMask = bits
     }
 
+    /** A real keyboard on the Acorn: Android key -> PS/2 set-2 code (0x90+ = E0 keys) */
+    private fun acornKey(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_ESCAPE -> 0x76
+        KeyEvent.KEYCODE_F1 -> 0x05; KeyEvent.KEYCODE_F2 -> 0x06; KeyEvent.KEYCODE_F3 -> 0x04; KeyEvent.KEYCODE_F4 -> 0x0c
+        KeyEvent.KEYCODE_F5 -> 0x03; KeyEvent.KEYCODE_F6 -> 0x0b; KeyEvent.KEYCODE_F7 -> 0x83; KeyEvent.KEYCODE_F8 -> 0x0a
+        KeyEvent.KEYCODE_F9 -> 0x01; KeyEvent.KEYCODE_F10 -> 0x09; KeyEvent.KEYCODE_F11 -> 0x78; KeyEvent.KEYCODE_F12 -> 0x07
+        KeyEvent.KEYCODE_GRAVE -> 0x0e
+        KeyEvent.KEYCODE_1 -> 0x16; KeyEvent.KEYCODE_2 -> 0x1e; KeyEvent.KEYCODE_3 -> 0x26; KeyEvent.KEYCODE_4 -> 0x25
+        KeyEvent.KEYCODE_5 -> 0x2e; KeyEvent.KEYCODE_6 -> 0x36; KeyEvent.KEYCODE_7 -> 0x3d; KeyEvent.KEYCODE_8 -> 0x3e
+        KeyEvent.KEYCODE_9 -> 0x46; KeyEvent.KEYCODE_0 -> 0x45
+        KeyEvent.KEYCODE_MINUS -> 0x4e; KeyEvent.KEYCODE_EQUALS -> 0x55; KeyEvent.KEYCODE_DEL -> 0x66
+        KeyEvent.KEYCODE_TAB -> 0x0d
+        KeyEvent.KEYCODE_Q -> 0x15; KeyEvent.KEYCODE_W -> 0x1d; KeyEvent.KEYCODE_E -> 0x24; KeyEvent.KEYCODE_R -> 0x2d
+        KeyEvent.KEYCODE_T -> 0x2c; KeyEvent.KEYCODE_Y -> 0x35; KeyEvent.KEYCODE_U -> 0x3c; KeyEvent.KEYCODE_I -> 0x43
+        KeyEvent.KEYCODE_O -> 0x44; KeyEvent.KEYCODE_P -> 0x4d
+        KeyEvent.KEYCODE_LEFT_BRACKET -> 0x54; KeyEvent.KEYCODE_RIGHT_BRACKET -> 0x5b
+        KeyEvent.KEYCODE_ENTER -> 0x5a; KeyEvent.KEYCODE_NUMPAD_ENTER -> 0x9d
+        KeyEvent.KEYCODE_CAPS_LOCK -> 0x58
+        KeyEvent.KEYCODE_A -> 0x1c; KeyEvent.KEYCODE_S -> 0x1b; KeyEvent.KEYCODE_D -> 0x23; KeyEvent.KEYCODE_F -> 0x2b
+        KeyEvent.KEYCODE_G -> 0x34; KeyEvent.KEYCODE_H -> 0x33; KeyEvent.KEYCODE_J -> 0x3b; KeyEvent.KEYCODE_K -> 0x42
+        KeyEvent.KEYCODE_L -> 0x4b
+        KeyEvent.KEYCODE_SEMICOLON -> 0x4c; KeyEvent.KEYCODE_APOSTROPHE -> 0x52; KeyEvent.KEYCODE_POUND -> 0x5d
+        KeyEvent.KEYCODE_SHIFT_LEFT -> 0x12; KeyEvent.KEYCODE_SHIFT_RIGHT -> 0x59
+        KeyEvent.KEYCODE_BACKSLASH -> 0x61
+        KeyEvent.KEYCODE_Z -> 0x1a; KeyEvent.KEYCODE_X -> 0x22; KeyEvent.KEYCODE_C -> 0x21; KeyEvent.KEYCODE_V -> 0x2a
+        KeyEvent.KEYCODE_B -> 0x32; KeyEvent.KEYCODE_N -> 0x31; KeyEvent.KEYCODE_M -> 0x3a
+        KeyEvent.KEYCODE_COMMA -> 0x41; KeyEvent.KEYCODE_PERIOD -> 0x49; KeyEvent.KEYCODE_SLASH -> 0x4a
+        KeyEvent.KEYCODE_CTRL_LEFT -> 0x14; KeyEvent.KEYCODE_CTRL_RIGHT -> 0x91
+        KeyEvent.KEYCODE_ALT_LEFT -> 0x11; KeyEvent.KEYCODE_ALT_RIGHT -> 0x90
+        KeyEvent.KEYCODE_SPACE -> 0x29
+        KeyEvent.KEYCODE_INSERT -> 0x92; KeyEvent.KEYCODE_MOVE_HOME -> 0x93; KeyEvent.KEYCODE_PAGE_UP -> 0x94
+        KeyEvent.KEYCODE_FORWARD_DEL -> 0x95; KeyEvent.KEYCODE_MOVE_END -> 0x96; KeyEvent.KEYCODE_PAGE_DOWN -> 0x97
+        KeyEvent.KEYCODE_DPAD_UP -> 0x98; KeyEvent.KEYCODE_DPAD_LEFT -> 0x99
+        KeyEvent.KEYCODE_DPAD_DOWN -> 0x9a; KeyEvent.KEYCODE_DPAD_RIGHT -> 0x9b
+        else -> -1
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (acorn != null) {
+            val k = acornKey(keyCode)
+            if (k < 0) return super.onKeyDown(keyCode, event)
+            if (event.repeatCount == 0) keyQueue.add(k or 0x100)
+            return true
+        }
         if (atari != null) {
             val s = atariStickBit(keyCode)
             if (s != 0) { setAtariStick(atariStick or s); return true }
@@ -1187,6 +1308,12 @@ class EmulatorActivity : Activity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (acorn != null) {
+            val k = acornKey(keyCode)
+            if (k < 0) return super.onKeyUp(keyCode, event)
+            keyQueue.add(k)
+            return true
+        }
         if (atari != null) {
             val s = atariStickBit(keyCode)
             if (s != 0) { setAtariStick(atariStick and s.inv()); return true }

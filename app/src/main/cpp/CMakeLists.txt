@@ -30,12 +30,20 @@ file(GLOB A800_C_SOURCES CONFIGURE_DEPENDS ${A800}/*.c ${A800}/libatari800/*.c $
 set_source_files_properties(${A800_C_SOURCES} PROPERTIES
     COMPILE_FLAGS "-std=gnu99 -O2 -w -I${A800}")
 
+# Acorn A7000 / A7000+: RPCEmu (GPL-2+), interpreter build, in C
+set(ACORN ${CMAKE_CURRENT_SOURCE_DIR}/cores/acorn)
+file(GLOB ACORN_C_SOURCES CONFIGURE_DEPENDS ${ACORN}/*.c ${ACORN}/rpcemu/*.c
+    ${ACORN}/rpcemu/filesystem/*.c ${ACORN}/rpcemu/platform/*.c)
+set_source_files_properties(${ACORN_C_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-std=gnu99 -O2 -w -DRPCEMU_PLATFORM_LINUX -I${ACORN}/rpcemu -I${ACORN}/rpcemu/filesystem -I${ACORN}/rpcemu/platform")
+
 add_library(pocketplug SHARED
     jni_bridge.cpp
     core_registry.cpp
     ${CORE_SOURCES}
     ${UNIXPC_C_SOURCES}
-    ${A800_C_SOURCES})
+    ${A800_C_SOURCES}
+    ${ACORN_C_SOURCES})
 
 target_include_directories(pocketplug PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(pocketplug PRIVATE POCKETPLUG "MUSASHI_CNF=\"../m68kconf.h\"")
