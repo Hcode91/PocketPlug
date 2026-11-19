@@ -29,6 +29,9 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/unixpc/freebee/*` (except `musashi/`) | GPL-3.0 | FreeBee 3B1 emulator (Philip Pemberton and contributors, github.com/philpem/freebee) - `GPL-3.0.txt`. Changed for PocketPlug: no SDL (keyboard, disk timers and dialer audio driven by the core), no TOML config, no serial PTY, ROMs passed in memory |
 | `app/src/main/cpp/cores/unixpc/freebee/musashi/*` | MIT | Musashi 680x0 core (Karl Stenerud et al., FreeBee's fork) - `musashi/readme.txt`; SoftFloat (John R. Hauser) - `musashi/softfloat/README.txt` |
 | `app/src/main/cpp/cores/unixpc/unixpc.*` | GPL-3.0-or-later | PocketPlug glue around FreeBee (main loop after FreeBee's `main.c`) |
+| `app/src/main/cpp/common/chd/chd.*` | GPL-2.0-or-later | PocketPlug CHD v5 reader (format, map and huffman decoding follow MAME's BSD-3 `chd.cpp` / `chdcodec.cpp` / `huffman.cpp` by Aaron Giles) |
+| `app/src/main/cpp/common/chd/lzma/*` | Public domain | LZMA SDK decoder (Igor Pavlov), as in MAME's `3rdparty/lzma` |
+| `app/src/main/cpp/common/chd/flac/*` | BSD-3-Clause | libFLAC 1.4.3 decoder (Josh Coalson, Xiph.Org Foundation), as in MAME's `3rdparty/flac` - `flac/COPYING.Xiph`. Only the decoder files, with a plain-C `config.h` |
 | everything else | BSD-3-Clause | PocketPlug - `BSD-3-Clause-PocketPlug.txt` |
 
 BSD-3-Clause code is compatible with, and distributed here under, the GPL.

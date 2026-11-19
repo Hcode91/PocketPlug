@@ -10,6 +10,8 @@
 #pragma once
 #include "../../core_api.h"
 #include "../../common/m6502.h"
+#include "../../common/chd/chd.h"
+#include <memory>
 #include <vector>
 
 struct Vt369Config {
@@ -27,11 +29,15 @@ struct Vt369Config {
     int soc = 0;
     int palMode = 1;               // extended palette: 0 = VT03 (YUV), 1 = PAL_MODE_NEW_RGB
     bool ntscDmaBug = false;       // VT02/03: OAM / palette DMA shifted by one byte (not force_bad_dma)
+    std::string sdName;            // SD card image in the set (4310-4328 controller), empty = none
+    bool i2cSecurity = false;      // A6Plus security chip on 414b (I2C address E0)
+    bool spiFlashWrites = false;   // 4350 SPI controller can erase / program the flash (in memory only)
 };
 
 class Vt369Core : public Core {
 public:
     explicit Vt369Core(const Vt369Config& c);
+    ~Vt369Core() override;
     bool load(const std::vector<RomFile>& roms, std::string& error) override;
     void reset() override;
     void runFrame() override;
@@ -78,6 +84,51 @@ private:
         int32_t timerLines;                         // scanlines until the timer IRQ, -1 = off
         uint32_t rng;
     } m_sh;
+    // SD card controller (4310-4328; worked out from the A6Plus menu code)
+    struct Sd {
+        uint8_t arg[4], flags, cmd;        // 4310-4313 argument (LE), 4314 flags, 4315 command
+        uint8_t resp[16];                  // 4318- response, least significant byte first
+        uint8_t done, err;                 // 4326 bit 0, 4327 bit 7
+        uint8_t ctl[0x20];                 // other registers, as written
+        bool app;                          // last command was CMD55
+        uint16_t rca;
+        uint32_t blockLen;
+        uint8_t buf[512];
+        uint32_t bufPos, bufLen;
+        uint32_t nextBlock;                // multi-block read: next block number
+        bool multi;
+        uint8_t dma[0x10], dmaDone;        // 4340-434f
+    } m_sd;
+    struct Spi {
+        uint8_t reg[0x10] = {};
+        uint8_t cmd[300] = {};
+        int len = 0;
+        uint32_t readPos = 0;
+        bool wel = false;
+    } m_spi;
+    uint8_t spiRead(uint16_t a);
+    void spiWrite(uint16_t a, uint8_t d);
+    void spiEnd();
+    static const size_t FLASH_BLOCKS = 0x2000000 >> 16;     // 64 KB blocks of a flash up to 32 MB
+    uint8_t m_flashDirty[FLASH_BLOCKS / 8] = {};
+    void flashDirty(uint32_t at) { if ((at >> 16) < FLASH_BLOCKS) m_flashDirty[at >> 19] |= uint8_t(1 << ((at >> 16) & 7)); }
+    struct I2c {
+        bool scl = true, sda = true, sdaOut = true, readMode = false, nack = false;
+        int state = 0, bits = 0;
+        uint8_t shift = 0, reg = 0, cur = 0;
+        uint32_t pos = 0;
+    } m_i2c;
+    void i2cLines();
+    uint8_t i2cByte();
+    FILE* m_sdFile = nullptr;
+    std::unique_ptr<ChdFile> m_sdChd;
+    bool sdPresent() const { return m_sdFile || m_sdChd; }
+    uint64_t m_sdSize = 0;
+    uint8_t sdRead(uint16_t a);
+    void sdWrite(uint16_t a, uint8_t d);
+    void sdCommand();
+    void sdDma();
+    bool sdReadBlock(uint64_t byteAddr);
     uint8_t shCpuRead(uint16_t a);
     void shCpuWrite(uint16_t a, uint8_t d);
     uint8_t shPpuRead(uint32_t a);

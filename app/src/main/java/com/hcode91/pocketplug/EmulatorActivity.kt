@@ -245,7 +245,7 @@ class EmulatorActivity : Activity() {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val level = prefs.getInt("volume_${machine.id}", 0).coerceIn(0, ArcadeCabinetView.VOLUME_LEVELS - 1)
                 volume = VOLUME_STEPS[level]
-                val v = ArcadeCabinetView(this).apply {
+                val v = ArcadeCabinetView(this, a6 = machine.id == "a6plus").apply {
                     volumeLevel = level
                     onInput = { setTouch(0, it) }
                     onMenu = { showMenu() }

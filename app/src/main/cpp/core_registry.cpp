@@ -83,6 +83,16 @@ Core* createCore(const std::string& id)
         c.bank41e6 = true;
         return new Vt369Core(c);
     }
+    if (id == "a6plus") {     // A6Plus mini arcade cabinet (VT369 + SD card)
+        Vt369Config c;
+        c.romName = "w25q64jv.u3";
+        c.romSize = 0x800000;
+        c.ntscDmaBug = true;
+        c.sdName = "a6plus.chd";
+        c.i2cSecurity = true;
+        c.spiFlashWrites = true;
+        return new Vt369Core(c);
+    }
     if (id == "88in1joy") {   // Play Vision Joystick88 (VT02/03, 4 MB)
         Vt369Config c;
         c.romName = "88in1joystick.bin";

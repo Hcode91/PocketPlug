@@ -19,7 +19,9 @@ import kotlin.random.Random
  * Tap the marquee for the menu. Input bits follow the VT369 controller:
  * A 0x01, B 0x02, Select 0x04, Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80.
  */
-class ArcadeCabinetView(ctx: Context) : View(ctx) {
+class ArcadeCabinetView(ctx: Context, private val a6: Boolean = false) : View(ctx) {
+    // a6 = true: the A6Plus type (white and blue cabinet, red ball-top stick,
+    // eight red action buttons and small SELECT / START / RESET buttons)
 
     var onInput: ((Int) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -52,6 +54,20 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
     private val stick = PointF(); private var stickR = 0f
     private val btnA = PointF(); private var aR = 0f
     private val btnReset = PointF(); private val btnStart = PointF(); private val btnVol = PointF(); private var smallR = 0f
+    private val btnSelect = PointF()
+    // A6Plus: 2 rows x 4 buttons; bits, with turbo marked 0x10000 (A) / 0x20000 (B)
+    private val a6Buttons = Array(8) { PointF() }
+    private val a6Bits = intArrayOf(0x20000, 0x10000, 0x20000, 0x10000, 0x02, 0x01, 0x02, 0x01)
+    private val a6Labels = arrayOf("TB", "TA", "TB", "TA", "B", "A", "B", "A")
+    private var turboOn = true
+    private val turboTick = object : Runnable {
+        override fun run() {
+            if (pointers.values.none { it and 0x30000 != 0 }) return
+            turboOn = !turboOn
+            pushMask()
+            postDelayed(this, 50)
+        }
+    }
     private var art: Bitmap? = null
 
     // touch
@@ -92,12 +108,28 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
         btnReset.set(l + cw * 0.40f, panel.top + panel.height() * 0.25f)
         btnStart.set(l + cw * 0.56f, panel.top + panel.height() * 0.40f)
         btnVol.set(l + cw * 0.84f, panel.top + panel.height() * 0.25f)
+        if (a6) {
+            stick.set(l + cw * 0.2f, panel.top + panel.height() * 0.62f)
+            aR = cw * 0.052f
+            for (i in 0 until 8) {
+                val col = i % 4; val row = i / 4
+                a6Buttons[i].set(l + cw * (0.47f + col * 0.13f) + (if (row == 1) -cw * 0.02f else 0f),
+                    panel.top + panel.height() * (if (row == 0) 0.34f else 0.68f))
+            }
+            smallR = cw * 0.026f
+            val sy = lower.top + cw * 0.07f
+            btnSelect.set(cab.centerX() - cw * 0.2f, sy)
+            btnStart.set(cab.centerX(), sy)
+            btnReset.set(cab.centerX() + cw * 0.2f, sy)
+            coinDoor.offset(0f, cw * 0.1f)
+        }
         art = makeArt(w, h)
     }
 
     // ---------------- artwork (all original) ----------------
 
     private fun makeArt(w: Int, h: Int): Bitmap {
+        if (a6) return makeA6Art(w, h)
         val bm = Bitmap.createBitmap(max(1, w), max(1, h), Bitmap.Config.ARGB_8888)
         val c = Canvas(bm)
         val cw = cab.width()
@@ -172,10 +204,57 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
         return bm
     }
 
+    /** White cabinet with blue side panels and a blue wave across the front (original artwork). */
+    private fun makeA6Art(w: Int, h: Int): Bitmap {
+        val bm = Bitmap.createBitmap(max(1, w), max(1, h), Bitmap.Config.ARGB_8888)
+        val c = Canvas(bm)
+        val cw = cab.width()
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        // blue side panel
+        val side = Path().apply {
+            moveTo(cab.right, cab.top + cw * 0.02f); lineTo(cab.right + cw * 0.08f, cab.top + cw * 0.06f)
+            lineTo(cab.right + cw * 0.08f, cab.bottom - cw * 0.02f); lineTo(cab.right, cab.bottom); close()
+        }
+        p.color = Color.WHITE; p.shader = LinearGradient(cab.right, 0f, cab.right + cw * 0.08f, 0f, 0xFF1E5FD0.toInt(), 0xFF0F3A8C.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(side, p); p.shader = null
+        // white front with a soft shade
+        p.color = Color.WHITE; p.shader = LinearGradient(cab.left, 0f, cab.right, 0f,
+            intArrayOf(0xFFF4F6FA.toInt(), 0xFFFFFFFF.toInt(), 0xFFE2E6EE.toInt()), floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
+        c.drawRect(cab, p); p.shader = null
+        // blue trim down both edges
+        p.color = 0xFF1F63D8.toInt()
+        c.drawRect(cab.left, cab.top, cab.left + cw * 0.035f, cab.bottom, p)
+        c.drawRect(cab.right - cw * 0.035f, cab.top, cab.right, cab.bottom, p)
+        // a wave of blue across the lower door
+        val wave = Path().apply {
+            moveTo(cab.left, lower.top + cw * 0.3f)
+            cubicTo(cab.left + cw * 0.3f, lower.top + cw * 0.18f, cab.left + cw * 0.6f, lower.top + cw * 0.42f, cab.right, lower.top + cw * 0.26f)
+            lineTo(cab.right, cab.bottom); lineTo(cab.left, cab.bottom); close()
+        }
+        p.color = Color.WHITE; p.shader = LinearGradient(0f, lower.top, 0f, cab.bottom, 0xFF3C82F0.toInt(), 0xFF123E9A.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(wave, p); p.shader = null
+        val wave2 = Path().apply {
+            moveTo(cab.left, lower.top + cw * 0.36f)
+            cubicTo(cab.left + cw * 0.35f, lower.top + cw * 0.26f, cab.left + cw * 0.65f, lower.top + cw * 0.5f, cab.right, lower.top + cw * 0.33f)
+        }
+        val sp = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = cw * 0.012f; color = 0xCCFFFFFF.toInt() }
+        c.drawPath(wave2, sp)
+        // a few pixel stars on the blue
+        val rnd = Random(6)
+        p.color = 0xFFFFFFFF.toInt()
+        repeat(30) {
+            val x = cab.left + cw * 0.06f + rnd.nextFloat() * cw * 0.88f
+            val y = lower.top + cw * 0.5f + rnd.nextFloat() * (cab.bottom - lower.top - cw * 0.55f)
+            if (!coinDoor.contains(x, y)) { p.alpha = 120 + rnd.nextInt(135); c.drawRect(x, y, x + cw * 0.008f, y + cw * 0.008f, p) }
+        }
+        p.alpha = 255
+        return bm
+    }
+
     // ---------------- drawing ----------------
 
     override fun onDraw(c: Canvas) {
-        c.drawColor(0xFF0B0814.toInt())
+        c.drawColor(if (a6) 0xFF101826.toInt() else 0xFF0B0814.toInt())
         val cw = cab.width()
         art?.let { c.drawBitmap(it, 0f, 0f, null) }
         drawMarquee(c, cw)
@@ -190,12 +269,13 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
         paint.color = Color.WHITE; paint.shader = LinearGradient(screen.left, screen.top, screen.right, screen.bottom, 0x14FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
         c.drawRect(screen, paint); paint.color = Color.WHITE; paint.shader = null
 
-        drawPanel(c, cw)
+        if (a6) drawA6Panel(c, cw) else drawPanel(c, cw)
         drawCoinDoor(c, cw)
         drawVolumeOsd(c, cw)
     }
 
     private fun drawMarquee(c: Canvas, cw: Float) {
+        if (a6) { drawA6Marquee(c, cw); return }
         val m = marquee
         paint.color = 0xFF0E0A16.toInt()
         c.drawRoundRect(m.left, m.top, m.right + cw * 0.06f, m.bottom + cw * 0.02f, cw * 0.02f, cw * 0.02f, paint)
@@ -258,6 +338,59 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
         c.drawText("Reset", btnReset.x, btnReset.y - smallR * 1.6f, label)
         c.drawText("Start", btnStart.x, btnStart.y + smallR * 3.0f, label)
         c.drawText("Volume", btnVol.x, btnVol.y - smallR * 1.6f, label)
+    }
+
+    private fun drawA6Marquee(c: Canvas, cw: Float) {
+        val m = marquee
+        paint.color = 0xFF0C2E6E.toInt()
+        c.drawRoundRect(m.left, m.top, m.right + cw * 0.06f, m.bottom + cw * 0.02f, cw * 0.02f, cw * 0.02f, paint)
+        paint.color = Color.WHITE; paint.shader = LinearGradient(0f, m.top, 0f, m.bottom, 0xFF2F7BF0.toInt(), 0xFF1446B0.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(m, cw * 0.02f, cw * 0.02f, paint); paint.color = Color.WHITE; paint.shader = null
+        paint.color = Color.WHITE; paint.shader = RadialGradient(m.centerX(), m.centerY(), m.width() * 0.5f, 0x50FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawRect(m, paint); paint.color = Color.WHITE; paint.shader = null
+        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD_ITALIC)
+            textSize = m.height() * 0.4f; textSkewX = -0.12f; color = Color.WHITE
+            setShadowLayer(m.height() * 0.05f, 0f, m.height() * 0.03f, 0xFF0A2050.toInt())
+        }
+        c.drawText("RETRO ARCADE", m.centerX(), m.top + m.height() * 0.52f, tp)
+        val sp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            textSize = m.height() * 0.19f; color = 0xFFFFD84A.toInt(); letterSpacing = 0.25f
+        }
+        c.drawText("8-BIT GAMES", m.centerX(), m.top + m.height() * 0.82f, sp)
+    }
+
+    private fun drawA6Panel(c: Canvas, cw: Float) {
+        val pnl = Path().apply {
+            moveTo(panel.left + cw * 0.04f, panel.top); lineTo(panel.right - cw * 0.04f, panel.top)
+            lineTo(panel.right, panel.bottom - cw * 0.03f); lineTo(panel.left, panel.bottom - cw * 0.03f); close()
+        }
+        paint.color = Color.WHITE; paint.shader = LinearGradient(0f, panel.top, 0f, panel.bottom, 0xFF2A6EE0.toInt(), 0xFF184BB0.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(pnl, paint); paint.color = Color.WHITE; paint.shader = null
+        paint.color = 0xFF0E2F70.toInt()
+        c.drawRect(panel.left, panel.bottom - cw * 0.03f, panel.right, panel.bottom, paint)
+        stroke.color = 0xFFBFD6FF.toInt(); stroke.strokeWidth = cw * 0.004f
+        c.drawPath(pnl, stroke)
+
+        val held = touchMask or externalMask
+        drawJoystick(c, cw, held)
+        val pressed = HashSet<Int>()
+        for (v in pointers.values) if (v and 0x100 != 0) pressed += (v shr 20) and 7
+        label.textSize = aR * 0.62f; label.color = 0xFFE8F0FF.toInt()
+        for (i in 0 until 8) {
+            val b = a6Buttons[i]
+            drawRedButton(c, b, aR, i in pressed || (held and a6Bits[i] and 0xff != 0 && pointers.isEmpty()))
+            c.drawText(a6Labels[i], b.x, b.y + aR * 1.85f, label)
+        }
+        // small buttons on the door below the panel
+        label.textSize = cw * 0.036f; label.color = 0xFF1A3C80.toInt()
+        drawRedButton(c, btnSelect, smallR, held and 0x04 != 0)
+        drawRedButton(c, btnStart, smallR, held and 0x08 != 0)
+        drawRedButton(c, btnReset, smallR, false)
+        c.drawText("SELECT", btnSelect.x, btnSelect.y + smallR * 2.9f, label)
+        c.drawText("START", btnStart.x, btnStart.y + smallR * 2.9f, label)
+        c.drawText("RESET", btnReset.x, btnReset.y + smallR * 2.9f, label)
     }
 
     private fun drawRedButton(c: Canvas, p: PointF, r: Float, down: Boolean) {
@@ -360,6 +493,14 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
     }
 
     private fun hit(x: Float, y: Float): Int {
+        if (a6) {
+            if (hypot(x - stick.x, y - (stick.y - stickR * 0.8f)) < stickR * 2.6f && x < a6Buttons[4].x - aR * 1.2f) return 0x1000 or stickMaskAt(x, y)
+            for (i in 0 until 8) if (hypot(x - a6Buttons[i].x, y - a6Buttons[i].y) < aR * 1.5f) return a6Bits[i] or 0x100 or (i shl 20)
+            if (hypot(x - btnSelect.x, y - btnSelect.y) < smallR * 2.6f) return 0x04
+            if (hypot(x - btnStart.x, y - btnStart.y) < smallR * 2.6f) return 0x08
+            if (hypot(x - btnReset.x, y - btnReset.y) < smallR * 2.6f) return 0x2000
+            return 0
+        }
         if (hypot(x - stick.x, y - (stick.y - stickR * 0.8f)) < stickR * 2.6f && x < (stick.x + btnReset.x) / 2 + stickR) return 0x1000 or stickMaskAt(x, y)
         if (hypot(x - btnA.x, y - btnA.y) < aR * 1.7f) return 0x01
         if (hypot(x - btnStart.x, y - btnStart.y) < smallR * 2.6f) return 0x08
@@ -384,7 +525,10 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
                         volumeShownAt = SystemClock.uptimeMillis()
                         onVolume?.invoke(volumeLevel)
                     }
-                    else -> pointers[e.getPointerId(i)] = b
+                    else -> {
+                        pointers[e.getPointerId(i)] = b
+                        if (b and 0x30000 != 0) { turboOn = true; removeCallbacks(turboTick); postDelayed(turboTick, 50) }
+                    }
                 }
             }
             MotionEvent.ACTION_MOVE -> {
@@ -398,10 +542,18 @@ class ArcadeCabinetView(ctx: Context) : View(ctx) {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> pointers.remove(e.getPointerId(e.actionIndex))
             MotionEvent.ACTION_CANCEL -> pointers.clear()
         }
-        var m = 0
-        for (v in pointers.values) m = m or (v and 0xff)
-        if (m != touchMask) { touchMask = m; onInput?.invoke(m) }
+        pushMask()
         invalidate()
         return true
+    }
+
+    private fun pushMask() {
+        var m = 0
+        for (v in pointers.values) {
+            m = m or (v and 0xff)
+            if (turboOn && v and 0x10000 != 0) m = m or 0x01
+            if (turboOn && v and 0x20000 != 0) m = m or 0x02
+        }
+        if (m != touchMask) { touchMask = m; onInput?.invoke(m); postInvalidate() }
     }
 }

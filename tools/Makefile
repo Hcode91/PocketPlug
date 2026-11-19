@@ -8,7 +8,7 @@ CFLAGS ?= -O2 -std=gnu99 -w
 DEFS = -DPOCKETPLUG '-DMUSASHI_CNF="../m68kconf.h"'
 CPP = ../app/src/main/cpp
 SRC = headless.cpp $(CPP)/core_registry.cpp \
-      $(wildcard $(CPP)/common/*.cpp) \
+      $(wildcard $(CPP)/common/*.cpp) $(CPP)/common/chd/chd.cpp \
       $(wildcard $(CPP)/cores/*/*.cpp)
 # the UNIX PC core (FreeBee + Musashi) is C
 FB = $(CPP)/cores/unixpc/freebee
@@ -24,8 +24,17 @@ AC = $(CPP)/cores/acorn
 ACSRC = $(wildcard $(AC)/*.c) $(wildcard $(AC)/rpcemu/*.c) $(wildcard $(AC)/rpcemu/filesystem/*.c) $(wildcard $(AC)/rpcemu/platform/*.c)
 ACOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(ACSRC))
 
-headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ)
-	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) -lpthread
+# CHD reading: the LZMA SDK and libFLAC's decoder, in C
+CHD = $(CPP)/common/chd
+CHDSRC = $(CHD)/lzma/LzmaDec.c $(wildcard $(CHD)/flac/*.c)
+CHDOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(CHDSRC))
+
+headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(CHDOBJ)
+	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(CHDOBJ) -lpthread -lz
+
+obj/common/chd/flac/%.o: $(CHD)/flac/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -w -std=gnu99 -DHAVE_CONFIG_H -I$(CHD)/flac/include -I$(CHD)/flac/src/include -c $< -o $@
 
 obj/cores/acorn/%.o: $(AC)/%.c
 	@mkdir -p $(dir $@)

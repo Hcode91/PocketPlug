@@ -15,6 +15,7 @@ controller.
 | 168-in-1 Game Phone Case | `168pcase` | VT369 (NES-on-a-chip) | Menu and games match MAME pixel-for-pixel in every tested frame (Contra, Panda Adventure, Aether, 60+ others); NES APU sound |
 | 36-in-1 Classic Games Phone Case | `36pcase` | VT369 + sound CPU, scrambled opcodes, internal ROM, serial protection chip | Language select, menu and games match MAME pixel-for-pixel in every tested frame; sound matches MAME's level |
 | 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
+| A6Plus Mini Arcade (912-in-1, SD card) | `a6plus` | VT369 + SD card controller, SPI flash writes, I2C security chip | Menu and games run, including the ones loaded from the card into flash (MAME's driver does not get past the start) |
 | 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
 | NGEN CP-001 Workstation (Convergent NGEN / Burroughs B26) | `ngen` | Intel 80186 + 8259 / 8254 / 8251, MC6845 text video, WD2797 floppy, WD1010 winchester | Boots BTOS 4.0 from floppy, installs it onto the emulated 10 MB hard disk and boots from there (MAME's driver does not boot) |
 | 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
@@ -49,6 +50,8 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `internal.bin` | 4 KB (4,096 bytes) | `da5850f0` |
 | | | `serial-rom.bin` | 256 bytes | `877fb90b` |
 | 240-in-1 Mini Arcade | `240in1ar` | `mw-106-2g.u3` | 128 MB (134,217,728 bytes) | `c46d2ca9` |
+| A6Plus Mini Arcade | `a6plus` | `w25q64jv.u3` | 8 MB (8,388,608 bytes) | `c62f9570` |
+| | | `a6plus.chd` (the SD card, imported on its own) | about 95 MB (CHD v5) | data SHA1 `ce8fb234` |
 | 265-in-1 Handheld | `265games` | `265games.bin` | 256 MB (268,435,456 bytes) | `761c92cb` |
 | NGEN CP-001 Workstation | `ngen` | `72-00414_80186_cpu.bin` | 4 KB (4,096 bytes) | `e1387a03` |
 | | | `72-00415_80186_cpu.bin` | 4 KB (4,096 bytes) | `a6dde7d9` |
@@ -296,6 +299,29 @@ Back) for the menu.
   retirement, 0 cycles through 1-3. Pressing SELECT five times goes to the
   retirement setting. The display and settings are kept between visits.
 - A real keyboard: 1 or S = SELECT, 2 or B = BROWSE.
+
+### A6Plus Mini Arcade
+
+Import the MAME `a6plus` zip (`w25q64jv.u3`), then import `a6plus.chd`, the
+SD card image, as a second file. The card stays compressed: PocketPlug reads
+it straight from the CHD (lzma, zlib, huff and flac hunks), so nothing is
+unpacked to storage. Drawn as a white and blue mini cabinet with a red
+ball-top stick, eight red buttons (**B** / **A** and turbo **TB** / **TA**,
+twice so either hand reaches them) and small **SELECT**, **START** and
+**RESET** buttons. Tap the marquee (or Back) for the menu.
+
+Pick 2 ENGLISH for the English list. Most of the 912 games are on the card:
+choosing one shows a loading screen while the menu copies it into the flash
+chip, as on the real machine, and RESET goes back to the list. Only the copy
+in memory changes, never the imported ROM. Save states keep the copied game.
+
+What it needed beyond MAME: the SD card controller (registers 4310-434f,
+worked out from the menu's code), the SPI flash controller's erase and
+page-program DMA (4350-435f), and the small I2C chip on port 414b that hands
+the games 60 bytes of tiny routines at start-up (pad, sprite and PPU address
+access). That chip isn't dumped; its contents are rebuilt from how the games
+call it. The games also set bit 4 of video register 201e, which on this unit
+keeps the NES palette.
 
 ### Atari 8-bit Home Computers (400, 800, 600XL, 800XL, 1200XL, 65XE, 130XE, 800XE)
 

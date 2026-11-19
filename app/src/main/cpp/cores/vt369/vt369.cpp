@@ -48,6 +48,7 @@ Vt369Core::Vt369Core(const Vt369Config& c) : m_cfg(c)
     std::memset(&m_s, 0, sizeof(m_s));
     std::memset(m_out, 0, sizeof(m_out));
     std::memset(m_bitmapBuf, 0, sizeof(m_bitmapBuf));
+    std::memset(&m_sd, 0, sizeof(m_sd));
     m_cpu.setBus(this, cpu_rd, cpu_wr);
     m_cpu.decimalEnabled = c.soc == 3;   // RP2A03 core; the SH6578 has a plain 6502
     m_cpu.interruptDelay = true;
@@ -88,14 +89,289 @@ bool Vt369Core::load(const std::vector<RomFile>& roms, std::string& error)
     }
     if (!m_cfg.protRomName.empty() && m_protRom.size() < 0x100) { error = "Missing " + m_cfg.protRomName; return false; }
     if (!m_cfg.internalRomName.empty() && m_internal.size() < 0x1000) { error = "Missing " + m_cfg.internalRomName; return false; }
+    if (!m_cfg.sdName.empty()) {
+        const RomFile* sd = nullptr;
+        for (auto& f : roms) if (f.name == m_cfg.sdName) sd = &f;
+        if (!sd) { error = "Missing the SD card image (" + m_cfg.sdName + ")"; return false; }
+        m_sdFile = fopen(sd->path.c_str(), "rb");
+        if (!m_sdFile) { error = "Can't open " + sd->path; return false; }
+        if (ChdFile::isChd(m_sdFile)) {
+            // MAME's compressed card image: read hunk by hunk, never unpacked
+            fclose(m_sdFile); m_sdFile = nullptr;
+            m_sdChd.reset(new ChdFile());
+            if (!m_sdChd->open(sd->path, error)) { error = "SD card image: " + error; return false; }
+            m_sdSize = m_sdChd->size();
+        } else {
+            fseek(m_sdFile, 0, SEEK_END);
+            m_sdSize = (uint64_t)ftello(m_sdFile);
+        }
+    }
     reset();
     return true;
+}
+
+Vt369Core::~Vt369Core()
+{
+    if (m_sdFile) fclose(m_sdFile);
+}
+
+// ---------------------------------------------------------------------------
+// The A6Plus's security chip: an I2C device at address E0 / E1 on port 414b
+// (SCL bit 7, SDA bit 6). The games read register C1 (60 bytes) into RAM at
+// 0106: four-byte stubs that stand in for hardware accesses they have been
+// patched to call (JSR $0126 for LDA $4016, $0132 for STA $2006, ...). The
+// chip isn't dumped; these stubs are worked out from how the games use them.
+// ---------------------------------------------------------------------------
+
+static const uint8_t kSecurityC1[60] = {
+    // 0106-0125: not used by the games seen: plain returns
+    0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+    0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+    0xad, 0x16, 0x40, 0x60,     // 0126: LDA $4016  (pad 1, read bit by bit)
+    0xad, 0x17, 0x40, 0x60,     // 012a: LDA $4017  (pad 2)
+    0x8d, 0x03, 0x20, 0x60,     // 012e: STA $2003  (sprite address, before sprite DMA)
+    0x8d, 0x06, 0x20, 0x60,     // 0132: STA $2006  (PPU address)
+    0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+};
+
+void Vt369Core::i2cLines()
+{
+    uint8_t dir = m_s.dir414x, out = m_s.data414b;
+    bool scl = (dir & 0x80) ? (out & 0x80) != 0 : true;
+    bool sdaM = (dir & 0x40) ? (out & 0x40) != 0 : true;
+    bool sda = sdaM && m_i2c.sdaOut;
+    auto& s = m_i2c;
+    if (scl && s.scl && s.sda && !sda) {               // start
+        s.state = 1; s.bits = 0; s.shift = 0; s.sdaOut = true;
+    } else if (scl && s.scl && !s.sda && sda) {        // stop
+        s.state = 0; s.sdaOut = true;
+    } else if (scl && !s.scl) {                        // clock rising: sample
+        if (s.state == 1 || s.state == 2) {            // receiving address / register
+            if (s.bits < 8) { s.shift = uint8_t((s.shift << 1) | (sdaM ? 1 : 0)); s.bits++; }
+        } else if (s.state == 3) {                     // sending: master acks after 8 bits
+            if (s.bits == 8) { s.nack = sdaM; }
+        }
+    } else if (!scl && s.scl) {                        // clock falling: drive
+        if (s.state == 1 || s.state == 2) {
+            if (s.bits == 8) {
+                if (s.state == 1) {
+                    if ((s.shift & 0xfe) == 0xe0) {
+                        s.sdaOut = false;              // ack
+                        s.readMode = s.shift & 1;
+                        s.bits = 9;
+                    } else { s.state = 0; }
+                } else {
+                    s.reg = s.shift; s.pos = 0;
+                    s.sdaOut = false; s.bits = 9;
+                }
+            } else if (s.bits == 9) {                  // ack clock done
+                s.sdaOut = true;
+                if (s.state == 1 && s.readMode) {
+                    s.state = 3; s.bits = 0;
+                    s.cur = i2cByte(); s.sdaOut = (s.cur & 0x80) != 0;
+                } else {
+                    s.state = 2; s.bits = 0; s.shift = 0;
+                }
+            }
+        } else if (s.state == 3) {
+            s.bits++;
+            if (s.bits < 8) s.sdaOut = ((s.cur << s.bits) & 0x80) != 0;
+            else if (s.bits == 8) s.sdaOut = true;     // release for the master's ack
+            else {                                     // next byte
+                s.bits = 0; s.pos++;
+                s.cur = i2cByte(); s.sdaOut = (s.cur & 0x80) != 0;
+            }
+        }
+    }
+    s.scl = scl; s.sda = sdaM && s.sdaOut;
+}
+
+uint8_t Vt369Core::i2cByte()
+{
+    if (m_i2c.reg == 0xc1 && m_i2c.pos < sizeof(kSecurityC1)) return kSecurityC1[m_i2c.pos];
+    return 0xff;
+}
+
+// ---------------------------------------------------------------------------
+// SPI flash controller (4350-435f), as the A6Plus loader uses it to copy a
+// game from the card into the program flash before starting it:
+//   4350 chip select (bit 7 set: deselect), 4352 command / address byte out,
+//   4353 byte exchange (write a dummy, read the reply), 4354 bit 0 busy,
+//   4356-4358 flash address, 435c-435d length, 435e-435f CPU source,
+//   4355 bit 0 starts a page-program DMA. Writes only change the copy of the
+//   flash in memory: the ROM file itself is never touched.
+// ---------------------------------------------------------------------------
+
+uint8_t Vt369Core::spiRead(uint16_t a)
+{
+    auto& s = m_spi;
+    switch (a) {
+    case 0x4353: {
+        uint8_t r = 0xff;
+        if (s.len && s.cmd[0] == 0x05) r = 0x00;                       // status: not busy
+        else if (s.len && s.cmd[0] == 0x35) r = 0x02;                  // status 2: quad enabled
+        else if (s.len && s.cmd[0] == 0x9f) { static const uint8_t id[3] = { 0xef, 0x40, 0x17 }; r = id[s.readPos++ % 3]; }
+        else if (s.len >= 4 && (s.cmd[0] == 0x03 || s.cmd[0] == 0x0b)) {
+            uint32_t addr = (uint32_t(s.cmd[1]) << 16 | s.cmd[2] << 8 | s.cmd[3]) + s.readPos++;
+            r = m_rom[addr & (m_rom.size() - 1)];
+        }
+        return r;
+    }
+    case 0x4354: return 0x00;                                          // never busy
+    default: return s.reg[a & 0x0f];
+    }
+}
+
+void Vt369Core::spiWrite(uint16_t a, uint8_t d)
+{
+    auto& s = m_spi;
+    s.reg[a & 0x0f] = d;
+    switch (a) {
+    case 0x4350:
+        if (d & 0x80) spiEnd();
+        s.len = 0; s.readPos = 0;
+        break;
+    case 0x4352:
+        if (s.len < sizeof(s.cmd)) s.cmd[s.len++] = d;
+        if (s.len == 1 && s.cmd[0] == 0x06) s.wel = true;
+        if (s.len == 1 && s.cmd[0] == 0x04) s.wel = false;
+        break;
+    case 0x4355:
+        if ((d & 0x01) && s.len && (s.cmd[0] == 0x32 || s.cmd[0] == 0x02) && s.wel) {
+            uint32_t addr = uint32_t(s.reg[8]) << 16 | s.reg[7] << 8 | s.reg[6];
+            uint16_t src = uint16_t(s.reg[0xf] << 8 | s.reg[0xe]);
+            uint32_t n = uint32_t(s.reg[0xd] << 8 | s.reg[0xc]);
+            if (n == 0 || n > 256) n = 256;
+            for (uint32_t i = 0; i < n; i++) {
+                uint32_t at = (addr & ~0xffu) | ((addr + i) & 0xff);       // wraps inside the page
+                m_rom[at & (m_rom.size() - 1)] &= cpuRead(uint16_t(src + i));
+                flashDirty(at & (m_rom.size() - 1));
+            }
+            s.wel = false;
+        }
+        break;
+    }
+}
+
+void Vt369Core::spiEnd()
+{
+    auto& s = m_spi;
+    if (!s.len || !s.wel) return;
+    uint32_t addr = s.len >= 4 ? (uint32_t(s.cmd[1]) << 16 | s.cmd[2] << 8 | s.cmd[3]) : 0;
+    uint32_t size = 0;
+    switch (s.cmd[0]) {
+    case 0x20: size = 0x1000; break;
+    case 0x52: size = 0x8000; break;
+    case 0xd8: size = 0x10000; break;
+    case 0x60: case 0xc7: addr = 0; size = (uint32_t)m_rom.size(); break;
+    case 0x02: case 0x32:                                              // page program by bytes
+        for (int i = 4; i < s.len; i++) {
+            uint32_t at = ((addr & ~0xffu) | ((addr + i - 4) & 0xff)) & (m_rom.size() - 1);
+            m_rom[at] &= s.cmd[i];
+            flashDirty(at);
+        }
+        s.wel = false;
+        return;
+    default: return;
+    }
+    if (s.len < 4 && size < m_rom.size()) return;
+    addr &= ~(size - 1);
+    if (addr < m_rom.size()) {
+        size_t n = std::min<size_t>(size, m_rom.size() - addr);
+        memset(&m_rom[addr], 0xff, n);
+        for (size_t o = 0; o < n; o += 0x1000) flashDirty(uint32_t(addr + o));
+    }
+    s.wel = false;
+}
+
+// ---------------------------------------------------------------------------
+// SD card controller (VT369 4310-4328), worked out from the A6Plus code:
+// 4314 = response flags, 4315 = command index, 4310-4313 = argument (LE);
+// writing 4313 sends the command. 4326 bit 0 = done, 4327 bit 7 = error
+// (4328 read acknowledges it). The response is at 4318-431b (MSB at 431b).
+// ---------------------------------------------------------------------------
+
+bool Vt369Core::sdReadBlock(uint64_t addr)
+{
+    if (!sdPresent() || addr + 512 > m_sdSize) return false;
+    m_sd.bufPos = 0;
+    if (m_sdChd) { m_sd.bufLen = m_sdChd->read(addr, m_sd.buf, 512) ? 512 : 0; return m_sd.bufLen == 512; }
+    fseeko(m_sdFile, (off_t)addr, SEEK_SET);
+    m_sd.bufLen = (uint32_t)fread(m_sd.buf, 1, 512, m_sdFile);
+    return m_sd.bufLen == 512;
+}
+
+void Vt369Core::sdCommand()
+{
+    uint32_t arg = m_sd.arg[0] | (m_sd.arg[1] << 8) | (m_sd.arg[2] << 16) | ((uint32_t)m_sd.arg[3] << 24);
+    uint32_t r = 0x900;                    // R1: transfer state, ready for data
+    m_sd.err = 0;
+    bool app = m_sd.app;
+    m_sd.app = false;
+    memset(m_sd.resp, 0, sizeof m_sd.resp);
+    switch (m_sd.cmd) {
+    case 0: r = 0; m_sd.multi = false; break;
+    case 8: r = arg & 0xfff; break;                                   // echo the check pattern
+    case 55: m_sd.app = true; r = 0x120; break;
+    case 41: r = app ? 0x80ff8000u : 0x900; break;                    // OCR: powered up, standard capacity
+    case 2: r = 0x12345678; break;
+    case 3: m_sd.rca = 0x1234; r = (m_sd.rca << 16) | 0x0500; break;
+    case 7: r = 0x700; break;
+    case 12: m_sd.multi = false; r = 0xb00; break;
+    case 16: m_sd.blockLen = arg; break;
+    case 17: case 18:
+        m_sd.multi = m_sd.cmd == 18;
+        m_sd.nextBlock = arg / 512 + 1;
+        if (!sdReadBlock(arg)) { m_sd.err = 1; }
+        break;
+    default: break;
+    }
+    for (int i = 0; i < 4; i++) m_sd.resp[i] = uint8_t(r >> (8 * i));
+    m_sd.done = 1;
+}
+
+// 4340-4341: CPU destination, 4342-4343: blocks - 1 (?), 4344-4347: card address;
+// writing 4347 copies the blocks into memory and sets 431c bit 0.
+void Vt369Core::sdDma()
+{
+    uint16_t dst = m_sd.dma[0] | (m_sd.dma[1] << 8);
+    uint32_t count = (m_sd.dma[2] | (m_sd.dma[3] << 8)) + 1;
+    uint32_t addr = m_sd.dma[4] | (m_sd.dma[5] << 8) | (m_sd.dma[6] << 16) | ((uint32_t)m_sd.dma[7] << 24);
+    for (uint32_t b = 0; b < count; b++) {
+        if (!sdReadBlock((uint64_t)addr + b * 512ull)) { m_sd.err = 1; break; }
+        for (int i = 0; i < 512; i++) cpuWrite(uint16_t(dst + b * 512 + i), m_sd.buf[i]);
+    }
+    m_sd.dmaDone = 1;
+}
+
+uint8_t Vt369Core::sdRead(uint16_t a)
+{
+    uint8_t v = 0;
+    if (a >= 0x4318 && a < 0x431c) v = m_sd.resp[a - 0x4318];
+    else if (a == 0x4326) v = m_sd.done;
+    else if (a == 0x4327) v = m_sd.err ? 0x80 : 0x00;
+    else if (a == 0x4328) { m_sd.err = 0; v = 0; }
+    else if (a == 0x431c) v = m_sd.dmaDone;
+    else v = a < 0x4330 ? m_sd.ctl[a - 0x4310] : m_sd.dma[a - 0x4340];
+    return v;
+}
+
+void Vt369Core::sdWrite(uint16_t a, uint8_t d)
+{
+    if (a >= 0x4310 && a < 0x4314) m_sd.arg[a - 0x4310] = d;
+    else if (a == 0x4314) m_sd.flags = d;
+    else if (a == 0x4315) m_sd.cmd = d & 0x3f;
+    else if (a >= 0x4340) { m_sd.dma[a - 0x4340] = d; if (a == 0x4347) sdDma(); }
+    else { m_sd.ctl[a - 0x4310] = d; }
+    if (a == 0x4313) { m_sd.done = 0; sdCommand(); }
 }
 
 void Vt369Core::reset()
 {
     // power-on: RAM cleared (MAME default fill)
     std::memset(&m_s, 0, sizeof(m_s));
+    m_spi = Spi(); m_i2c = I2c();
+    std::memset(&m_sd, 0, sizeof(m_sd));
     m_s.initialE000 = 0xff;
     m_s.clockMul = 1;
     m_s.nmiAt = -1;
@@ -460,6 +736,7 @@ void Vt369Core::aluW(int offset, uint8_t data)
  CPU address map (vt369_soc_introm_noswap_device::vt369_introm_map)
 *************************************************************************/
 
+#include <cstdio>
 uint8_t Vt369Core::cpuRead(uint16_t a)
 {
     catchUp();
@@ -523,7 +800,14 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
     case 0x4144: case 0x4145: case 0x4146: case 0x4147: return m_s.gpio414x[4 + (a - 0x4144)];
     case 0x4148: return m_s.dir414x;
     case 0x414a: return (0 & ~m_s.dir414x) | (m_s.data414a & m_s.dir414x);
-    case 0x414b: return (0 & ~m_s.dir414x) | (m_s.data414b & m_s.dir414x);
+    case 0x414b:
+        if (m_cfg.i2cSecurity) {
+            // the security chip pulls SDA (bit 6) low; the lines idle high
+            uint8_t in = 0xff;
+            if (!m_i2c.sdaOut) in &= ~0x40;
+            return (in & ~m_s.dir414x) | (m_s.data414b & m_s.dir414x);
+        }
+        return (0 & ~m_s.dir414x) | (m_s.data414b & m_s.dir414x);
     case 0x414f:
         if (m_cfg.case36) return (m_s.gpio414x[0x0f] & 0xe0) | (gpioBusR() & 0x1f);
         return m_s.gpio414x[0x0f];
@@ -540,7 +824,6 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
     case 0x415c: return 0xf0;
     case 0x418a:
 #ifdef VT_DEBUG
-        if (getenv("LOG418A")) printf("418a read frame %d\n", g_vtFrame);
 #endif
         return (uint8_t)rand();
     case 0x4199: return 0x02;
@@ -551,8 +834,9 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
         if (m_cfg.case36) return (m_s.gpio41ex[7] & 0xe3) | ((gpioBusR() >> 3) & 0x1c);
         return m_s.gpio41ex[7];
     case 0x41e8: case 0x41e9: case 0x41ea: case 0x41eb: return m_s.gpio41ex[7 + (a - 0x41e7)];
-    case 0x4326: return 0x01;
     }
+    if (sdPresent() && a >= 0x4310 && a < 0x4350) return sdRead(a);
+    if (m_cfg.spiFlashWrites && a >= 0x4350 && a < 0x4360) return spiRead(a);
     if (a >= 0x4130 && a < 0x413e) {
         int off = (a < 0x4138) ? a - 0x4130 : a - 0x4138;
         if (off < 6) return m_s.alu[off];
@@ -569,6 +853,8 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
 {
     catchUp();
     if (m_cfg.soc == 3) { shCpuWrite(a, d); return; }
+    if (sdPresent() && a >= 0x4310 && a < 0x4350) { sdWrite(a, d); return; }
+    if (m_cfg.spiFlashWrites && a >= 0x4350 && a < 0x4360) { spiWrite(a, d); return; }
 #ifdef VT_DEBUG
     if (g_vtFrame == g_vtLogFrame && ((a >= 0x2000 && a < 0x2030 && a != 0x2004 && a != 0x2007) || (a >= 0x4100 && a < 0x4120)))
         printf("W %04x %02x scan=%d dot=%d\n", a, d, m_s.scanline, (int)(m_s.dot % 341));
@@ -618,7 +904,7 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
     case 0x201a: m_s.videobank0Extra = d; return;
     case 0x201c: m_s.newvid1c = d; return;
     case 0x201d: m_s.newvid1d = d; return;
-    case 0x201e: m_s.newvid1e = d; return;
+    case 0x201e: m_s.newvid1e = m_cfg.i2cSecurity ? (d & 0x0f) : d; return;   // A6Plus: bit 4 alone keeps the NES palette
     case 0x201f: m_s.ext201f = d; return;
     case 0x2020: case 0x2021: case 0x2022: case 0x2023: m_s.tilebases[a & 3] = d; return;
     case 0x2024: m_s.lightgun2024 = d; return;
@@ -651,9 +937,9 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
         if (m_cfg.case36 && !(m_s.gpio414x[7] & 0x20) && (d & 0x20)) { m_s.gpio414x[7] = d; gpioBusW(); return; }
         m_s.gpio414x[7] = d; return;
     case 0x4144: case 0x4145: case 0x4146: m_s.gpio414x[4 + (a - 0x4144)] = d; return;
-    case 0x4148: m_s.dir414x = d; return;
+    case 0x4148: m_s.dir414x = d; if (m_cfg.i2cSecurity) i2cLines(); return;
     case 0x414a: m_s.data414a = d; return;
-    case 0x414b: m_s.data414b = d; return;
+    case 0x414b: m_s.data414b = d; if (m_cfg.i2cSecurity) i2cLines(); return;
     case 0x414c: case 0x414d: case 0x414e: case 0x414f: m_s.gpio414x[0xc + (a - 0x414c)] = d; return;
     case 0x4150: m_s.dir415x = d; return;
     case 0x4152:
@@ -802,7 +1088,6 @@ void Vt369Core::spuWrite(uint16_t a, uint8_t d)
         apuSyncTo(m_s.spuCycle / SPU_CYCLES_PER_DOT);
         m_s.dac[off] = d;
 #ifdef VT_DEBUG
-        if (getenv("LOGDAC") && g_vtFrame >= atoi(getenv("LOGDAC")) && g_vtFrame < atoi(getenv("LOGDAC"))+1) printf("dac %d %02x cyc=%lld per=%04x ctl=%02x\n", off, d, (long long)m_s.spuCycle, m_s.spuTimerPeriod, m_s.spuTimerCtrl);
 #endif
         if (off & 1) {
             int ch = (off & 2) >> 1;
@@ -1978,14 +2263,30 @@ bool Vt369Core::saveState(std::vector<uint8_t>& out)
     std::memcpy(out.data() + 4, &m_s, sizeof(m_s));
     put(m_bitmapBuf, sizeof(m_bitmapBuf));
     if (m_cfg.soc == 3) put(&m_sh, sizeof(m_sh));
+    if (m_cfg.spiFlashWrites) {
+        // the flash blocks the loader rewrote (the game copied from the card)
+        put(m_flashDirty, sizeof(m_flashDirty));
+        for (size_t b = 0; b < FLASH_BLOCKS; b++)
+            if (m_flashDirty[b >> 3] & (1 << (b & 7))) put(&m_rom[b << 16], 0x10000);
+    }
     return true;
 }
 
 bool Vt369Core::loadState(const std::vector<uint8_t>& in)
 {
     size_t need = 4 + sizeof(m_s) + 8 + 1 + sizeof(m_bitmapBuf) + (m_cfg.soc == 3 ? sizeof(m_sh) : 0);
-    if (in.size() != need) return false;
-    if (m_cfg.soc == 3) memcpy(&m_sh, in.data() + in.size() - sizeof(m_sh), sizeof(m_sh));
+    if (m_cfg.spiFlashWrites) {
+        if (in.size() < need + sizeof(m_flashDirty)) return false;
+        const uint8_t* mask = in.data() + need;
+        size_t blocks = 0;
+        for (size_t b = 0; b < FLASH_BLOCKS; b++) if (mask[b >> 3] & (1 << (b & 7))) blocks++;
+        if (in.size() != need + sizeof(m_flashDirty) + blocks * 0x10000) return false;
+        const uint8_t* q = mask + sizeof(m_flashDirty);
+        for (size_t b = 0; b < FLASH_BLOCKS; b++)
+            if (mask[b >> 3] & (1 << (b & 7))) { if ((b << 16) < m_rom.size()) memcpy(&m_rom[b << 16], q, 0x10000); q += 0x10000; }
+        memcpy(m_flashDirty, mask, sizeof(m_flashDirty));
+    } else if (in.size() != need) return false;
+    if (m_cfg.soc == 3) memcpy(&m_sh, in.data() + need - sizeof(m_sh), sizeof(m_sh));
     uint32_t magic; memcpy(&magic, in.data(), 4);
     if (magic != 0x42335456) return false;
     const uint8_t* p = in.data() + 4;

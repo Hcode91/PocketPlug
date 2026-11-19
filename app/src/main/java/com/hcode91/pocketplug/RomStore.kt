@@ -19,7 +19,10 @@ object RomStore {
     fun stateFile(ctx: Context, m: MachineDef, slot: Int = 0) =
         File(ctx.filesDir, "states").apply { mkdirs() }.let { File(it, "${m.id}_$slot.state") }
 
-    fun isReady(ctx: Context, m: MachineDef) = m.roms.all { romFile(ctx, m, it).length() == it.size }
+    fun isReady(ctx: Context, m: MachineDef) = m.roms.all {
+        val f = romFile(ctx, m, it)
+        if (it.size == RomSpec.ANY_SIZE) f.length() > 0 else f.length() == it.size
+    }
 
     fun delete(ctx: Context, m: MachineDef) { romDir(ctx, m).deleteRecursively() }
 
@@ -70,13 +73,16 @@ object RomStore {
                 }
                 else -> {
                     // A bare ROM file: accept it if it fits one of the set's files
-                    val name = queryName(ctx, uri) ?: "rom.bin"
+                    var name = queryName(ctx, uri) ?: "rom.bin"
+                    // a CHD image under another file name still goes to the set's .chd
+                    if (String(magic, Charsets.ISO_8859_1) == "MCompr")
+                        m.roms.firstOrNull { it.name.endsWith(".chd", true) }?.let { name = it.name }
                     tmp.inputStream().use { take(name, tmp.length(), it) }
                 }
             }
 
             progress("Checking…")
-            val bad = m.roms.filter { it.name in found && crc32(romFile(ctx, m, it)) != it.crc }.map { it.name }
+            val bad = m.roms.filter { it.name in found && it.size != RomSpec.ANY_SIZE && crc32(romFile(ctx, m, it)) != it.crc }.map { it.name }
             val missing = m.roms.map { it.name }.filter { it !in found && !romFile(ctx, m, m.roms.first { r -> r.name == it }).exists() }
             return ImportResult(found.toList(), missing, bad)
         } finally {

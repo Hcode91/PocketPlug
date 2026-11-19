@@ -63,7 +63,9 @@ Java_com_hcode91_pocketplug_Native_load(JNIEnv* env, jclass, jlong h, jobjectArr
         rf.name = jstr(env, (jstring)env->GetObjectArrayElement(names, i));
         std::string path = jstr(env, (jstring)env->GetObjectArrayElement(paths, i));
         rf.path = path;
-        if (!core->wantsRomPaths() && !readFile(path, rf.data)) {
+        // CHD images (hard disks, SD cards) are read in place by the core
+        bool inPlace = core->wantsRomPaths() || (rf.name.size() > 4 && rf.name.compare(rf.name.size() - 4, 4, ".chd") == 0);
+        if (!inPlace && !readFile(path, rf.data)) {
             std::string err = "Could not read " + rf.name;
             return env->NewStringUTF(err.c_str());
         }

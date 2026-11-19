@@ -1,7 +1,12 @@
 package com.hcode91.pocketplug
 
 /** One file of a ROM set, as listed by MAME. */
-data class RomSpec(val name: String, val size: Long, val crc: Long)
+data class RomSpec(val name: String, val size: Long, val crc: Long) {
+    companion object {
+        /** Size for files whose bytes vary with the tool that made them (CHD images): matched by name, not checked. */
+        const val ANY_SIZE = -1L
+    }
+}
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
 enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN }
@@ -217,6 +222,25 @@ object Machines {
             year = "201x",
             roms = listOf(RomSpec("mw-106-2g.u3", 0x8000000L, 0xc46d2ca9L)),
             skin = Skin.ARCADE_CABINET,
+        ),
+        MachineDef(
+            id = "a6plus",
+            title = "A6Plus Mini Arcade",
+            subtitle = "White and blue mini arcade cabinet: a 912-in-1 menu that loads the NES games from its SD card "
+                + "(MAME set: a6plus, with the a6plus.chd card image)",
+            chip = "VT369 (NES on a chip) + SD card",
+            region = "China / export",
+            year = "202x",
+            roms = listOf(
+                RomSpec("w25q64jv.u3", 0x800000L, 0xc62f9570L),
+                RomSpec("a6plus.chd", RomSpec.ANY_SIZE, 0L),
+            ),
+            skin = Skin.ARCADE_CABINET,
+            setup = listOf(
+                "Import the a6plus set (the flash ROM) and then the a6plus.chd SD card image: two separate imports.",
+                "Pick 2 ENGLISH with the stick, then START.",
+                "Games load from the card for a few seconds. Press RESET to get back to the game list.",
+            ),
         ),
         MachineDef(
             id = "265games",

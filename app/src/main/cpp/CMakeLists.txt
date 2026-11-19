@@ -37,14 +37,23 @@ file(GLOB ACORN_C_SOURCES CONFIGURE_DEPENDS ${ACORN}/*.c ${ACORN}/rpcemu/*.c
 set_source_files_properties(${ACORN_C_SOURCES} PROPERTIES
     COMPILE_FLAGS "-std=gnu99 -O2 -w -DRPCEMU_PLATFORM_LINUX -I${ACORN}/rpcemu -I${ACORN}/rpcemu/filesystem -I${ACORN}/rpcemu/platform")
 
+# CHD images: the LZMA SDK (public domain) and libFLAC's decoder (BSD-3), in C
+set(CHD ${CMAKE_CURRENT_SOURCE_DIR}/common/chd)
+file(GLOB CHD_FLAC_SOURCES CONFIGURE_DEPENDS ${CHD}/flac/*.c)
+set_source_files_properties(${CHD_FLAC_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-std=gnu99 -O2 -w -DHAVE_CONFIG_H -I${CHD}/flac/include -I${CHD}/flac/src/include")
+set_source_files_properties(${CHD}/lzma/LzmaDec.c PROPERTIES COMPILE_FLAGS "-O2 -w")
+
 add_library(pocketplug SHARED
     jni_bridge.cpp
     core_registry.cpp
     ${CORE_SOURCES}
     ${UNIXPC_C_SOURCES}
     ${A800_C_SOURCES}
-    ${ACORN_C_SOURCES})
+    ${ACORN_C_SOURCES}
+    ${CHD_FLAC_SOURCES}
+    ${CHD}/lzma/LzmaDec.c)
 
 target_include_directories(pocketplug PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(pocketplug PRIVATE POCKETPLUG "MUSASHI_CNF=\"../m68kconf.h\"")
-target_link_libraries(pocketplug log)
+target_link_libraries(pocketplug log z)
