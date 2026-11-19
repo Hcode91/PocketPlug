@@ -152,6 +152,9 @@ class EmulatorActivity : Activity() {
                     val os = prefs.getInt("os_${machine.id}", def)
                     if (os != def) Native.setOption(handle, 1, os)
                 }
+                // the core starts with 4 MB; "as sold" goes back to the original memory
+                if (machine.id in archiAsSold && !prefs.getBoolean("mem4_${machine.id}", true))
+                    Native.setOption(handle, 2, 0)
             }
             Skin.DESKTOP_3B1 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -528,6 +531,12 @@ class EmulatorActivity : Activity() {
         )
     }
 
+    /** Archimedes sold with less than 4 MB: their original memory */
+    private val archiAsSold = mapOf(
+        "aa305" to "512 KB", "aa310" to "1 MB", "aa4101" to "1 MB", "aa3000" to "1 MB",
+        "aa3010" to "1 MB", "aa3010_de" to "1 MB", "aa3020" to "2 MB", "aa4000" to "2 MB", "aa4" to "2 MB",
+    )
+
     private fun acornDir() = java.io.File(filesDir, "acorn").apply { mkdirs() }
 
     private fun showAcornMenu() {
@@ -893,6 +902,14 @@ class EmulatorActivity : Activity() {
         if (workstation != null) items += "Disks..." to { showDiskMenu() }
         if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
         if (acorn != null) items += "Disks & files..." to { showAcornMenu() }
+        archiAsSold[machine.id]?.let { sold ->
+            val up = prefs.getBoolean("mem4_${machine.id}", true)
+            items += (if (up) "Memory: 4 MB (upgraded)" else "Memory: $sold (as sold)") to {
+                prefs.edit().putBoolean("mem4_${machine.id}", !up).apply()
+                synchronized(coreLock) { Native.setOption(handle, 2, if (up) 0 else 1) }
+                Toast.makeText(this, (if (up) "$sold, as sold" else "4 MB") + ": the computer restarted", Toast.LENGTH_SHORT).show()
+            }
+        }
         archiOs[machine.id]?.let { (names, def) ->
             if (names.size > 1) {
                 val cur = prefs.getInt("os_${machine.id}", def).coerceIn(0, names.size - 1)

@@ -26,7 +26,8 @@ public:
     void setAnalog(int stick, float x, float y) override;
     // PS/2 set-2 codes, 0x90+ for the E0 keys (as the A7000 core)
     void keyEvent(int code, bool down) override;
-    // option 1: operating system, as an index into the machine's list
+    // option 1: operating system, as an index into the machine's list;
+    // option 2: memory, 1 = upgraded to 4 MB (default), 0 = as sold
     void setOption(int id, int value) override;
 
     // drive 0 / 1: floppies (.adf ...), drive 2: a file copied into HostFS
@@ -45,12 +46,14 @@ public:
 private:
     bool writeRom(int os, std::string& error);
     void writeConfig(int os);
+    void restart();
     std::string hostfsDir() const { return dataDir_ + "/hostfs"; }
 
     std::string id_;
     int model_ = -1;
     int os_ = -1;
     bool loaded_ = false;
+    bool upgraded_ = true;
     std::string dataDir_;
     std::vector<RomFile> roms_;
     std::vector<uint32_t> fb_;

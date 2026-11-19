@@ -67,7 +67,7 @@ const Model kModels[] = {
     { "aa440",     "a440",   0, 0, 0, 4096, "multisync", { 0, 1, 2, 3 }, 4, 3, false },
     { "aa4101",    "a410/1", 0, 1, 0, 1024, "multisync", { 2, 3, 4, 5, 6 }, 5, 1, false },
     { "aa540",     "a540",   4, 2, 0, 4096, "multisync", { 3, 4, 5, 6 }, 4, 3, false },
-    { "aa3000",    "a3000",  0, 1, 0, 2048, "multisync", { 2, 3, 4, 5, 6 }, 5, 4, false },
+    { "aa3000",    "a3000",  0, 1, 0, 1024, "multisync", { 2, 3, 4, 5, 6 }, 5, 4, false },
     { "aa5000",    "a5000",  3, 2, 1, 4096, "multisync", { 4, 5, 6 }, 3, 2, true },
     { "aa3010",    "a3010",  1, 2, 1, 1024, "multisync", { 7 }, 1, 0, false },
     { "aa3010_de", "a3010",  1, 2, 1, 1024, "multisync", { 8 }, 1, 0, false },
@@ -222,7 +222,7 @@ void ArchiCore::writeConfig(int os)
     fprintf(f, "machine = %s\n", m.machine);
     fprintf(f, "cpu_type = %d\nmemc_type = %d\nfpa = 0\nfpu_type = %d\n", m.cpu, m.memc, m.cpu >= 2 ? 0 : 1);
     fprintf(f, "fdc_type = %d\nst506_present = %d\n", m.fdc, m.fdc == 1 ? 0 : 1);
-    fprintf(f, "mem_size = %d\nrom_set = %s\nmonitor_type = %s\n", m.memKb, kOs[os].romset, m.monitor);
+    fprintf(f, "mem_size = %d\nrom_set = %s\nmonitor_type = %s\n", upgraded_ ? std::max(m.memKb, 4096) : m.memKb, kOs[os].romset, m.monitor);
     fprintf(f, "display_mode = 0\ndouble_scan = 1\nunique_id = %u\n", uid);
     if (m.disk && exists(dataDir_ + "/hd4.hdf")) {
         int c = 823, h = 4, s = 38;
@@ -239,7 +239,12 @@ void ArchiCore::writeConfig(int os)
 bool ArchiCore::load(const std::vector<RomFile>& roms, std::string& error)
 {
     if (model_ < 0) { error = "Unknown Archimedes model " + id_; return false; }
-    if (g_core) { error = "Only one Archimedes can run at a time"; return false; }
+    if (g_core && g_core != this) {
+        // the last machine's screen hasn't closed yet: this one takes over
+        if (g_core->loaded_) { cmos_save(); for (int d = 0; d < 4; d++) disc_close(d); }
+        g_core->loaded_ = false;
+        g_core = nullptr;
+    }
     const Model& m = kModels[model_];
     roms_ = roms;
     if (roms.empty()) { error = "No ROMs"; return false; }
@@ -332,9 +337,31 @@ void ArchiCore::reset()
     g_inFrame = false;
 }
 
+void ArchiCore::restart()
+{
+    if (!loaded_) return;
+    // reload the configuration and start again
+    g_inFrame = true;
+    if (setjmp(g_fatalJump)) { g_inFrame = false; loaded_ = false; return; }
+    cmos_save();
+    archi_glue_reload_config();
+    arc_reset();
+    g_inFrame = false;
+}
+
 void ArchiCore::setOption(int id, int value)
 {
-    if (id != 1 || model_ < 0) return;
+    if (model_ < 0) return;
+    if (id == 2) {
+        // memory: 1 = upgraded to 4 MB (the default), 0 = as sold
+        bool up = value != 0;
+        if (up == upgraded_) return;
+        upgraded_ = up;
+        if (os_ >= 0) writeConfig(os_);
+        restart();
+        return;
+    }
+    if (id != 1) return;
     const Model& m = kModels[model_];
     if (value < 0 || value >= m.nOs) return;
     int os = m.os[value];
@@ -343,14 +370,7 @@ void ArchiCore::setOption(int id, int value)
     if (!writeRom(os, e)) return;
     os_ = os;
     writeConfig(os);
-    if (!loaded_) return;
-    // the new OS needs its own settings: reload the configuration and restart
-    g_inFrame = true;
-    if (setjmp(g_fatalJump)) { g_inFrame = false; loaded_ = false; return; }
-    cmos_save();
-    archi_glue_reload_config();
-    arc_reset();
-    g_inFrame = false;
+    restart();     // the new OS needs its own settings
 }
 
 void ArchiCore::setInputs(uint32_t pressed)

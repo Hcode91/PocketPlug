@@ -335,8 +335,11 @@ as IDEDisc4 (PocketPlug sets *Configure IDEDiscs 1 for these machines).
 
 The machine is Arculator (Sarah Walker's Archimedes emulator), each model set
 up after its own presets: CPU (ARM2, ARM250 or ARM3 at 24 / 25 / 26 MHz),
-MEMC, memory (512 KB to 4 MB; the A3000 is given 2 MB), and old IO (WD1772)
-or new IO (82C711, IDE). The menu's **Operating system** picks among the ROMs
+MEMC, memory, and old IO (WD1772)
+or new IO (82C711, IDE). Every model starts with 4 MB, the usual upgrade, as many
+games won't start in less (Aggressor asks for 496 KB free, more than a 1 MB
+machine has under RISC OS 2); the menu's **Memory** goes back to the memory it
+was sold with. The menu's **Operating system** picks among the ROMs
 each machine shipped with or was upgraded to: Arthur 0.30 / 1.20 and RISC OS
 2.00 / 2.01 on the 305, 310 and 440; RISC OS 2.00 to 3.11 on the 410/1,
 540 and A3000; 3.00 to 3.11 on the A5000. The A3010s, A3020, A4000 and A4 have

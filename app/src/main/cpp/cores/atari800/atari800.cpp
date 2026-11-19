@@ -27,7 +27,7 @@ extern int LIBATARI800_raw_key;
 
 namespace {
 
-bool g_active = false;   // Atari800 is single-instance (globals)
+Atari800Core* g_owner = nullptr;   // Atari800 is single-instance (globals)
 
 std::string dirOf(const std::string& p)
 {
@@ -47,9 +47,9 @@ Atari800Core::Atari800Core(Model m) : model_(m), fb_(kW * kH, 0xff000000u) {}
 
 Atari800Core::~Atari800Core()
 {
-    if (loaded_) {
+    if (loaded_ && g_owner == this) {
         libatari800_exit();
-        g_active = false;
+        g_owner = nullptr;
     }
 }
 
@@ -98,7 +98,12 @@ const std::vector<ModelInfo>& models()
 
 bool Atari800Core::load(const std::vector<RomFile>& roms, std::string& error)
 {
-    if (g_active) { error = "Only one Atari machine can run at a time"; return false; }
+    if (g_owner && g_owner != this) {
+        // the last machine's screen hasn't closed yet: this one takes over
+        libatari800_exit();
+        g_owner->loaded_ = false;
+        g_owner = nullptr;
+    }
     const ModelInfo* mi = nullptr;
     for (auto& m : models()) if (m.model == model_) mi = &m;
     if (!mi) { error = "Unknown model"; return false; }
@@ -148,7 +153,8 @@ bool Atari800Core::load(const std::vector<RomFile>& roms, std::string& error)
     }
     LIBATARI800_raw_mode = 1;
     LIBATARI800_raw_key = AKEY_NONE;
-    g_active = loaded_ = true;
+    g_owner = this;
+    loaded_ = true;
     return true;
 }
 
