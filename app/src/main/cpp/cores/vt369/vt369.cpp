@@ -24,9 +24,9 @@ enum {
     PPU_CONTROL1_SPRITES = 0x10, PPU_CONTROL1_COLOR_EMPHASIS = 0xe0,
     PPU_STATUS_8SPRITES = 0x20, PPU_STATUS_SPRITE0_HIT = 0x40, PPU_STATUS_VBLANK = 0x80
 };
-static const int SCANLINES = 262, VBLANK_FIRST = 241, BOTTOM_VISIBLE = 239, W = 256;
+static const int BOTTOM_VISIBLE = 239, W = 256;   // scanlines / first vblank line: m_lines / m_vblankFirst (NTSC 262 / 241, PAL 312 / 291)
 static const int DOTS_PER_LINE = 341;
-static const int64_t DOTS_PER_FRAME = 341 * 262;          // one 60.0988 Hz screen frame
+static const int64_t DOTS_PER_FRAME = 341 * 262;          // one 60.0988 Hz screen frame (the VT369 LCD timer: NTSC only)
 static const int64_t OAM_DMA_DELAY_DOTS = 10739;          // 2 ms at 21.477 MHz / 4
 static const unsigned YUV444_COLOR = 0x40 * 8;
 static const int DOTS_PER_APU_SAMPLE = 12;      // APU stream runs at clock / 4
@@ -45,6 +45,7 @@ static const int SPU_CYCLES_PER_DOT = 4;
 
 Vt369Core::Vt369Core(const Vt369Config& c) : m_cfg(c)
 {
+    if (m_cfg.pal) { m_lines = 312; m_vblankFirst = 291; }
     std::memset(&m_s, 0, sizeof(m_s));
     std::memset(m_out, 0, sizeof(m_out));
     std::memset(m_bitmapBuf, 0, sizeof(m_bitmapBuf));
@@ -476,7 +477,7 @@ void Vt369Core::w410x(int offset, uint8_t data)
 // MMC3 compatibility (no scrambling)
 void Vt369Core::scrambled8000w(uint16_t offset, uint8_t data)
 {
-    static const uint8_t s8000[6] = { 4, 5, 0, 1, 2, 3 };
+    const uint8_t* s8000 = m_cfg.scramble8000;
     offset &= 0x7fff;
     uint16_t addr = offset + 0x8000;
     if (addr < 0xa000 && !(addr & 1)) {
@@ -778,7 +779,7 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
     case 0x2008: return m_s.spritehigh2008;
     case 0x2010: return m_s.extModes;
     case 0x2011: return m_s.extModes2;
-    case 0x2012: case 0x2013: case 0x2014: case 0x2015: case 0x2016: case 0x2017: return m_s.videobank0[a - 0x2012];
+    case 0x2012: case 0x2013: case 0x2014: case 0x2015: case 0x2016: case 0x2017: return m_s.videobank0[m_cfg.order2012[a - 0x2012]];
     case 0x2018: return m_s.videobank1;
     case 0x2019: return 0;
     case 0x201a: return m_s.videobank0Extra;
@@ -790,12 +791,37 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
     case 0x2020: case 0x2021: case 0x2022: case 0x2023: return m_s.tilebases[a & 3];
     case 0x2024: return m_s.lightgun2024;
     case 0x4015: apuSync(); return apuStatus();
-    case 0x4016: { uint8_t r = 0x40 | (m_s.latch0 & 1); m_s.latch0 >>= 1; return r; }
-    case 0x4017: { uint8_t r = 0x40 | (m_s.latch1 & 1); m_s.latch1 >>= 1; return r; }
+    case 0x4016:
+        if (m_cfg.board == 1) {
+            // ABL Pinball: bit 0 is the plunger, which has to keep toggling (low for
+            // as many reads as it's pulled back, then high for 5), bit 1 Select
+            m_s.plungerCount++;
+            if (m_s.plungerOff) {
+                if (m_s.plungerCount == 5) { m_s.plungerOff = 0; m_s.plungerCount = 0; }
+            } else if (m_s.plungerCount >= m_s.plungerHold || m_s.plungerCount >= 0x80) {
+                m_s.plungerOff = 1; m_s.plungerCount = 0;
+            }
+            return uint8_t(m_s.plungerOff | ((m_inputs & 0x04) ? 0x02 : 0));
+        } else { uint8_t r = 0x40 | (m_s.latch0 & 1); m_s.latch0 >>= 1; return r; }
+    case 0x4017:
+        if (m_cfg.board == 1) {
+            // Start, left / right flippers; bit 3 echoes $4016 bit 2, bit 4 has to change
+            uint8_t r = uint8_t(rand() & 0x10);
+            r |= (m_s.pinIn0 & 0x04) ? 0x00 : 0x08;
+            if (m_inputs & 0x08) r |= 0x01;
+            if (m_inputs & (0x40 | 0x02)) r |= 0x02;
+            if (m_inputs & (0x80 | 0x01)) r |= 0x04;
+            return r;
+        } else { uint8_t r = 0x40 | (m_s.latch1 & 1); m_s.latch1 >>= 1; return r; }
     case 0x4100: case 0x4101: case 0x4102: case 0x4103: case 0x4104: case 0x4105:
     case 0x4106: case 0x4107: case 0x4108: case 0x4109: case 0x410a: case 0x410b: return m_s.r410x[a - 0x4100];
-    case 0x410e: case 0x410f: return 0;
-    case 0x4119: return 0;                         // NTSC, 60 Hz
+    case 0x410e: return 0;
+    case 0x410f:
+        // ABL Ping Pong's speech chip: bit 4 acknowledges the strobe, bit 5 says its buffer is full
+        if (m_cfg.board == 2) return uint8_t((m_s.ppStrobe ? 0x10 : 0) | (m_s.ppCount >= PP_FIFO_FULL ? 0x20 : 0));
+        if (m_cfg.board == 1) return (m_inputs & 0x10) ? 0x80 : 0;                      // Pinball: nudge
+        return 0;
+    case 0x4119: return m_cfg.pal ? 0x18 : 0;      // PAL / 50 Hz flags
     case 0x411f: return m_s.r411f;
     case 0x4144: case 0x4145: case 0x4146: case 0x4147: return m_s.gpio414x[4 + (a - 0x4144)];
     case 0x4148: return m_s.dir414x;
@@ -899,7 +925,7 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
     case 0x2008: m_s.spritehigh2008 = d; return;
     case 0x2010: m_s.extModes = d; return;
     case 0x2011: m_s.extModes2 = d; return;
-    case 0x2012: case 0x2013: case 0x2014: case 0x2015: case 0x2016: case 0x2017: m_s.videobank0[a - 0x2012] = d; return;
+    case 0x2012: case 0x2013: case 0x2014: case 0x2015: case 0x2016: case 0x2017: m_s.videobank0[m_cfg.order2012[a - 0x2012]] = d; return;
     case 0x2018: m_s.videobank1 = d; return;
     case 0x201a: m_s.videobank0Extra = d; return;
     case 0x201c: m_s.newvid1c = d; return;
@@ -922,8 +948,19 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
         return;
     case 0x4014: vtDmaW(d); return;
     case 0x4015: apuSync(); apuWrite(0x15, d); return;
+    case 0x410f:
+        if (m_cfg.board == 2) { m_s.ppNibble = d & 0x0f; return; }
+        break;
     case 0x4016:
-        if ((d & 1) != (m_s.prevPort0 & 1) && (d & 1)) { m_s.latch0 = (uint8_t)m_inputs; m_s.latch1 = 0; }
+        if (m_cfg.board == 1) m_s.pinIn0 = d;
+        if (m_cfg.board == 2 && ((d >> 2) & 1) != m_s.ppStrobe) {
+            // a nibble is taken on each edge of bit 2: the high one rising, the low one falling
+            m_s.ppStrobe = (d >> 2) & 1;
+            // a full buffer refuses the byte (the game sees bit 5 and backs off)
+            if (m_s.ppStrobe) { m_s.ppHi = uint8_t(m_s.ppNibble << 4); m_s.ppRefuse = m_s.ppMode == 3 && m_s.ppCount >= PP_FIFO_FULL; }
+            else if (!m_s.ppRefuse) ppByte(uint8_t(m_s.ppHi | m_s.ppNibble));
+        }
+        if ((d & 1) != (m_s.prevPort0 & 1) && (d & 1)) { m_s.latch0 = (uint8_t)m_inputs; m_s.latch1 = m_cfg.twoPads ? uint8_t(m_inputs >> 8) : 0; }
         m_s.prevPort0 = d;
         return;
     case 0x4017: apuSync(); apuWrite(0x17, d); return;
@@ -1386,8 +1423,8 @@ void Vt369Core::lcdcRegsW(int offset, uint8_t data)
 void Vt369Core::hblankTick()
 {
     const bool blanked = (m_s.regs[PPU_CONTROL1] & (PPU_CONTROL1_BACKGROUND | PPU_CONTROL1_SPRITES)) == 0;
-    const bool vblank = (m_s.scanline >= VBLANK_FIRST - 1) && (m_s.scanline < SCANLINES - 1);
-    if (!blanked && ((m_s.scanline <= BOTTOM_VISIBLE) || (m_s.scanline == SCANLINES - 1)))
+    const bool vblank = (m_s.scanline >= m_vblankFirst - 1) && (m_s.scanline < m_lines - 1);
+    if (!blanked && ((m_s.scanline <= BOTTOM_VISIBLE) || (m_s.scanline == m_lines - 1)))
         m_s.regs[PPU_SPRITE_ADDRESS] = 0;
     m_s.renderAtHblank = !blanked;
     videoIrq(true, m_s.scanline, vblank, blanked);
@@ -1401,20 +1438,20 @@ void Vt369Core::scanlineTick()
         }
     }
     const bool blanked = (m_s.regs[PPU_CONTROL1] & (PPU_CONTROL1_BACKGROUND | PPU_CONTROL1_SPRITES)) == 0;
-    const bool vblank = (m_s.scanline >= VBLANK_FIRST - 1) && (m_s.scanline < SCANLINES - 1);
+    const bool vblank = (m_s.scanline >= m_vblankFirst - 1) && (m_s.scanline < m_lines - 1);
     videoIrq(false, m_s.scanline, vblank, blanked);
     updateScanline();
     m_s.scanline++;
-    if (m_s.scanline == VBLANK_FIRST) {
+    if (m_s.scanline == m_vblankFirst) {
         m_s.regs[PPU_STATUS] |= PPU_STATUS_VBLANK;
         if (m_s.regs[PPU_CONTROL0] & PPU_CONTROL0_NMI) {
             // fire the NMI a few CPU cycles into vblank (B-Wings), as MAME
             m_s.nmiAt = m_s.lineStart + 4 * (3 / m_s.clockMul);
         }
     }
-    if (m_s.scanline == SCANLINES - 1) {
+    if (m_s.scanline == m_lines - 1) {
         m_s.regs[PPU_STATUS] &= ~(PPU_STATUS_VBLANK | PPU_STATUS_SPRITE0_HIT | PPU_STATUS_8SPRITES);
-    } else if (m_s.scanline == SCANLINES) {
+    } else if (m_s.scanline == m_lines) {
         if (!blanked) m_s.refreshData = m_s.refreshLatch;
         m_s.scanline = 0;
     }
@@ -2141,11 +2178,23 @@ void Vt369Core::apuSample()
     acc += m_tndLut[m_s.tri.output][m_s.noi.output][m_s.dpcm.output];
     // sound CPU DACs: 0.2 each in MAME (our APU path is scaled by 0.6 below)
     acc += (m_s.dacOut[0] + m_s.dacOut[1]) * (0.2f / 0.6f / 32768.0f);
+    if (m_cfg.board == 2) {
+        // ABL Ping Pong's speech chip drains its buffer at a steady rate. Its data
+        // format is unknown (not PCM or OKI/IMA ADPCM), so the voice stays silent.
+        m_s.ppAcc += PP_RATE;
+        const uint32_t apuHz = m_cfg.pal ? 26601712 / 60 : 21477272 / 48;
+        if (m_s.ppAcc >= apuHz) {
+            m_s.ppAcc -= apuHz;
+            if (m_s.ppCount) { m_s.ppSample = m_s.ppFifo[m_s.ppHead]; m_s.ppHead = (m_s.ppHead + 1) & 0xff; m_s.ppCount--; }
+            else m_s.ppSample = 0x80;
+        }
+    }
     // box-filter down to 44.1 kHz
     m_s.resampleSum += acc;
     m_s.resampleN++;
     m_s.resampleAcc += 44100.0;
-    const double apuRate = 21477272.0 / 12.0 / 4.0;
+    // APU samples a second: the CPU clock / 4 (NTSC 21.477 MHz / 12, PAL 26.602 MHz / 15)
+    const double apuRate = m_cfg.pal ? 26601712.0 / 15.0 / 4.0 : 21477272.0 / 12.0 / 4.0;
     if (m_s.resampleAcc >= apuRate) {
         m_s.resampleAcc -= apuRate;
         double v = m_s.resampleSum / m_s.resampleN;
@@ -2155,6 +2204,25 @@ void Vt369Core::apuSample()
         m_s.dcPrevIn = v; m_s.dcPrevOut = y;
         int sv = (int)(y * 32767.0 * 0.6);
         m_audio.push_back((int16_t)std::clamp(sv, -32768, 32767));
+    }
+}
+
+// ABL Ping Pong's speech chip. Commands: 3 (2 argument bytes) picks a sample,
+// 4 starts streaming voice data into its buffer, and the stream is closed with 0 then 7.
+void Vt369Core::ppByte(uint8_t b)
+{
+    switch (m_s.ppMode) {
+    case 0:
+        if (b == 3) m_s.ppMode = 1;
+        else if (b == 4) { m_s.ppMode = 3; m_s.ppLast = 0x80; }
+        return;
+    case 1: m_s.ppMode = 2; return;
+    case 2: m_s.ppMode = 0; return;
+    default:
+        if (b == 7 && m_s.ppLast == 0) { m_s.ppMode = 0; return; }
+        m_s.ppLast = b;
+        if (m_s.ppCount < sizeof(m_s.ppFifo)) { m_s.ppFifo[(m_s.ppHead + m_s.ppCount) & 0xff] = b; m_s.ppCount++; }
+        return;
     }
 }
 
@@ -2225,7 +2293,11 @@ void Vt369Core::runFrame()
 #ifdef VT_DEBUG
     g_vtFrame++;
 #endif
-    // one full PPU frame (262 lines), ending after the last scanline
+    // one full PPU frame (262 or 312 lines), ending after the last scanline
+    if (m_cfg.board == 1) {
+        // the plunger: pulled back further the longer Down is held, springs back on release
+        m_s.plungerHold = (m_inputs & 0x20) ? uint8_t(std::min(0xbf, m_s.plungerHold + 6)) : 0;
+    }
     m_frameDone = false;
     while (!m_frameDone) {
         while (m_s.dot < nextEventDot()) {
@@ -2315,7 +2387,7 @@ uint8_t Vt369Core::shCpuRead(uint16_t a)
     if (a == 0x2008) return m_sh.colsel;
     if (a >= 0x2040 && a < 0x2080) return m_sh.pal[a - 0x2040];
     if (a < 0x4000) return 0;
-    if (a >= 0x8000) return m_rom[((uint32_t(m_sh.bank[(a >> 12) & 7]) << 12) | (a & 0xfff)) & (m_rom.size() - 1)];
+    if (a >= 0x8000) return m_rom[((uint32_t(m_sh.cartBank) << 20) | (uint32_t(m_sh.bank[(a >> 12) & 7]) << 12) | (a & 0xfff)) & (m_rom.size() - 1)];
     if (a >= 0x5000) return m_sh.ram5[a - 0x5000];
     switch (a) {
     case 0x4015: apuSync(); return apuStatus();
@@ -2348,8 +2420,10 @@ void Vt369Core::shCpuWrite(uint16_t a, uint8_t d)
     }
     case 0x4016:
         // the pads are latched on the falling edge, ignoring the plain 0-3 writes
-        if (d > 3 && ((m_sh.prevIo & 1) != (d & 1)) && !(d & 1)) { m_sh.ioLatch[0] = (uint8_t)m_inputs; m_sh.ioLatch[1] = 0; }
+        if ((d > 3 || m_cfg.board == 3) && ((m_sh.prevIo & 1) != (d & 1)) && !(d & 1)) { m_sh.ioLatch[0] = (uint8_t)m_inputs; m_sh.ioLatch[1] = 0; }
         m_sh.prevIo = d;
+        // ABL Wikid Joystick: bit 1 picks which 1 MB half of the 2 MB flash is the cartridge
+        if (m_cfg.board == 3 && m_rom.size() == 0x200000) m_sh.cartBank = (d >> 1) & 1;
         return;
     case 0x4027: m_sh.r4027 = d; return;
     case 0x4032:
@@ -2386,7 +2460,7 @@ void Vt369Core::shDma()
     m_inInst = false;
     for (int i = 0; i <= len; i++) {
         uint8_t v;
-        if (src & 0x8000) v = m_rom[(((src & 0x7fff) | ((m_sh.dmaBank & 0x1f) * 0x8000))) & (m_rom.size() - 1)];
+        if (src & 0x8000) v = m_rom[((uint32_t(m_sh.cartBank) << 20) | (src & 0x7fff) | ((m_sh.dmaBank & 0x1f) * 0x8000)) & (m_rom.size() - 1)];
         else v = shCpuRead(src & 0x7fff);
         if (m_sh.dmaControl & 0x20) shCpuWrite(dst, v);
         else shPpuWrite(dst, v);

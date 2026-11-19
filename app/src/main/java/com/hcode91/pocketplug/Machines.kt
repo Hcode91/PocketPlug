@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -240,6 +240,77 @@ object Machines {
             year = "201x",
             roms = listOf(RomSpec("mw-106-2g.u3", 0x8000000L, 0xc46d2ca9L)),
             skin = Skin.ARCADE_CABINET,
+        ),
+        MachineDef(
+            id = "ablkickb",
+            title = "Kick Boxing",
+            subtitle = "2006 TV game with motion sensors on both gloves and both feet: punch, kick and guard your "
+                + "way through a world tour (Advance Bright; MAME set: ablkickb)",
+            chip = "SunPlus SPG24x (u'nSP)",
+            region = "Hong Kong",
+            year = "2006",
+            roms = listOf(RomSpec("ablkickboxing.bin", 0x800000L, 0x61394c45L)),
+            skin = Skin.ABL_TV,
+            badge = "kickbox",
+        ),
+        MachineDef(
+            id = "ablmini",
+            title = "Double Players Mini Joystick 80-in-1",
+            subtitle = "Two little teal-and-white joysticks with ball tops and 80 NES-style games for two players "
+                + "(Advance Bright; MAME set: ablmini)",
+            chip = "VT02 / VT03 NES-on-a-chip (PAL)",
+            region = "Europe",
+            year = "200x",
+            roms = listOf(RomSpec("ablmini.bin", 0x800000L, 0xe65a2c3aL)),
+            skin = Skin.ABL_TV,
+            badge = "minijoy",
+        ),
+        MachineDef(
+            id = "ablpinb",
+            title = "Pinball",
+            subtitle = "Plug-in pinball: flipper buttons on both sides, a spring plunger and a nudge button, "
+                + "with five tables (Advance Bright; MAME set: ablpinb)",
+            chip = "VT02 / VT03 NES-on-a-chip (PAL)",
+            region = "Europe",
+            year = "200x",
+            roms = listOf(RomSpec("abl_pinball.bin", 0x200000L, 0xb2ce20fbL)),
+            skin = Skin.ABL_TV,
+            badge = "pinball",
+        ),
+        MachineDef(
+            id = "ablping",
+            title = "Super Ping Pong",
+            subtitle = "Table tennis played with a sensor bat. Tap the bat to swing. The umpire's voice chip "
+                + "isn't emulated, so it plays silently over the music (Advance Bright; MAME set: ablping)",
+            chip = "VT02 / VT03 NES-on-a-chip (PAL)",
+            region = "Europe",
+            year = "2006",
+            roms = listOf(RomSpec("abl_pingpong.bin", 0x200000L, 0xb31de1fbL)),
+            skin = Skin.ABL_TV,
+            badge = "pingpong",
+        ),
+        MachineDef(
+            id = "abltenni",
+            title = "Wireless Tennis",
+            subtitle = "2006 tennis with a wireless motion racket: press its button to toss, swing to serve and "
+                + "return (Advance Bright; MAME set: abltenni)",
+            chip = "SunPlus SPG24x (u'nSP)",
+            region = "Hong Kong",
+            year = "2006",
+            roms = listOf(RomSpec("ablpnpwirelesstennis.bin", 0x400000L, 0x66bd8ef1L)),
+            skin = Skin.ABL_TV,
+            badge = "tennis",
+        ),
+        MachineDef(
+            id = "ablwikid",
+            title = "Joystick 14-in-1",
+            subtitle = "Plug-and-play joystick with 14 games: space shooters, racing and puzzles "
+                + "(Advance Bright \"Wikid Joystick\"; MAME set: ablwikid)",
+            chip = "SH6578 NES-on-a-chip (PAL)",
+            region = "Europe",
+            year = "200x",
+            roms = listOf(RomSpec("mx29f1610atc.u2", 0x200000L, 0xf16abf79L)),
+            skin = Skin.JOYSTICK_TV,
         ),
         MachineDef(
             id = "a6plus",

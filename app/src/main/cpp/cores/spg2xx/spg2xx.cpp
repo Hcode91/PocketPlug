@@ -8,6 +8,8 @@
 
 #include "spg2xx.h"
 #include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -20,7 +22,7 @@ static const uint32_t SPG_XTAL = 27000000;
 // ---------------------------------------------------------------------------
 SpgMachine& spg2xx_io_device::machine() { return m_soc->m_machine; }
 SpgMachine& spg2xx_audio_device::machine() { return m_soc->m_machine; }
-uint32_t spg2xx_io_device::clock() { return SPG_XTAL * 2; }   // derived from the scaled CPU clock
+uint32_t spg2xx_io_device::clock() { return m_soc->m_cpuClock; }   // derived from the (scaled) CPU clock
 uint16_t spg_renderer_device::read_word(uint32_t a) { return m_soc->read_word(a); }
 
 void spg2xx_io_device::m_porta_out(int, uint16_t data, uint16_t) { m_soc->porta_w(data); }
@@ -29,6 +31,7 @@ void spg2xx_io_device::m_portc_out(int, uint16_t, uint16_t) { }
 uint16_t spg2xx_io_device::m_porta_in(int, uint16_t) { return m_soc->porta_r(); }
 uint16_t spg2xx_io_device::m_portb_in(int, uint16_t)
 {
+    if (m_soc->board() != 0) return m_soc->portb_r();
     // m489 "P2", active low: up 0x04, down 0x08, left 0x10, right 0x20, b1 0x40, b2 0x80
     uint32_t in = m_soc->m_inputs;
     uint16_t v = 0xffff;
@@ -42,10 +45,11 @@ uint16_t spg2xx_io_device::m_portb_in(int, uint16_t)
 }
 uint16_t spg2xx_io_device::m_portc_in(int, uint16_t)
 {
+    if (m_soc->board() != 0) return m_soc->portc_r();
     // "P3": start 0x01, active low
     return (m_soc->m_inputs & 0x40) ? 0xfffe : 0xffff;
 }
-uint16_t spg2xx_io_device::m_pal_read_cb() { return 1; }     // set_pal(true)
+uint16_t spg2xx_io_device::m_pal_read_cb() { return m_soc->isPal() ? 1 : 0; }     // set_pal()
 void spg2xx_io_device::m_timer_irq_cb(int s) { m_soc->timerirq_w(s); }
 void spg2xx_io_device::m_uart_adc_irq_cb(int s) { m_soc->uartirq_w(s); }
 void spg2xx_io_device::m_external_irq_cb(int s) { m_soc->extirq_w(s); }
@@ -179,10 +183,12 @@ Spg2xxCore::Spg2xxCore(const Spg2xxConfig& c) : m_cfg(c)
     memset(m_out, 0, sizeof(m_out));
     m_machine.m_icountptr = &m_cpu.m_core->m_icount;
     m_machine.m_cpu_run = [this]() { m_cpu.execute_run(); };
-    m_machine.set_cpu_clock(SPG_XTAL * 2);   // set_clock_scale(2.0) in the marc250 driver
+    // set_clock_scale(2.0) in the marc250 driver; the plain boards run at the crystal
+    m_cpuClock = c.board == 0 ? SPG_XTAL * 2 : SPG_XTAL;
+    m_machine.set_cpu_clock(m_cpuClock);
     m_cpu.set_bus(this);
     m_screen.m_machine = &m_machine;
-    m_screen.configure(320, 262, 239, HZ_TO_ATTOSECONDS(50));
+    m_screen.configure(320, 262, 239, HZ_TO_ATTOSECONDS(c.pal ? 50 : 60));
 
     m_spg_io.m_soc = this; m_spg_io.m_screen = &m_screen; m_spg_io.m_cpu = &m_cpu;
     m_spg_video.m_soc = this; m_spg_video.m_screen = &m_screen; m_spg_video.m_renderer = &m_renderer;
@@ -223,6 +229,15 @@ bool Spg2xxCore::load(const std::vector<RomFile>& roms, std::string& error)
         m_romWords = m_romCopy.size();
     }
     // ROM_LOAD16_WORD_SWAP on a little-endian host: words are stored low byte first
+    if (m_cfg.decryptAcFf) {
+        // spg2xx_game_state::decrypt_ac_ff
+        for (size_t i = 0; i < m_romWords; i++) {
+            uint16_t w = m_rom[i], o = 0;
+            static const int bits[16] = { 15, 13, 14, 12, 7, 6, 5, 4, 11, 10, 9, 8, 3, 1, 2, 0 };
+            for (int b = 0; b < 16; b++) if (w & (1 << bits[b])) o |= uint16_t(1 << (15 - b));
+            m_rom[i] = o ^ 0xfafa;
+        }
+    }
     for (size_t i = 0; i < m_cfg.romPatches.size(); i++)
         if (m_cfg.romPatches[i] < m_romWords) m_rom[m_cfg.romPatches[i]] = m_cfg.romPatchValues[i];
     startDevices();
@@ -282,8 +297,7 @@ void Spg2xxCore::reset()
     m_prev_porta = 0;
     m_prev_portb = 0;
     m_toggle = false;
-    switch_bank(31);
-    m_cpu.reset();
+    if (m_cfg.board == 0) { switch_bank(31); m_cpu.reset(); }
     m_pulse_timer2->adjust(attotime::never());
     m_toggle2 = false;
     m_audio.clear();
@@ -335,14 +349,81 @@ void Spg2xxCore::write_word(uint32_t a, uint16_t d)
 // ---------------------------------------------------------------------------
 uint16_t Spg2xxCore::porta_r()
 {
+    if (m_cfg.board != 0) {
+        // "P1", active high: up 0x01, down 0x02, left 0x04, right 0x08, button 1 0x10, button 2 0x20.
+        // Wireless Tennis leaves the rest low; Kick Boxing's are high (0x40 = no Coleco logo).
+        uint16_t v = uint16_t(m_inputs & 0x3f);
+        if (m_cfg.board == 2) v |= 0xffc0;
+        return v;
+    }
     uint16_t ret = 0xffff & ~0x6000;     // "P1" is all unused (active low)
     ret |= m_toggle ? 0x2000 : 0x0000;
     ret |= m_toggle2 ? 0x4000 : 0x0000;
     return ret;
 }
 
+uint16_t Spg2xxCore::portb_r()
+{
+    // ABL's wireless sensor receiver (Kick Boxing, Wireless Tennis): bit 5 says a
+    // reading is waiting on bits 0-4 (sensor in bits 3-4, reading in bits 0-2).
+    // The game acks with bit 6; the line stays up for one more read, then must
+    // read low once before the next reading.
+    uint16_t idle = m_cfg.board == 1 ? 0xffc0 : 0;   // tennis: the rest of the port idles high
+    if (m_rxDrop) { m_rxDrop = false; m_rxStrobe = false; return idle; }
+    if (m_rxAcked) { m_rxAcked = false; m_rxDrop = true; return uint16_t(idle | 0x20 | m_rxMsg); }
+    if (!m_rxStrobe) rxNext();
+    return m_rxStrobe ? uint16_t(idle | 0x20 | m_rxMsg) : idle;
+}
+
+void Spg2xxCore::rxSend(int ch, uint8_t sensor, uint8_t reading, uint8_t count)
+{
+    // Kick Boxing reads the sensor number with its bits swapped
+    uint8_t s = m_cfg.board == 2 ? uint8_t(((sensor & 1) << 1) | ((sensor >> 1) & 1)) : sensor;
+    m_rxCode[ch] = uint8_t((s << 3) | reading);
+    m_rxBurst[ch] = count;
+}
+
+void Spg2xxCore::sensorsFrame()
+{
+    uint32_t now = m_inputs >> 7;
+    uint32_t hit = now & ~m_rxPrev;
+    m_rxPrev = now;
+    if (m_cfg.board == 2) {
+        // input bits 7-11: left punch, right punch, left kick, right kick, guard.
+        // A swing reaches the game as a burst of readings (1-5) from that limb's
+        // sensor; it looks for several in a row. Reading 6 from both gloves is the guard.
+        for (int i = 0; i < 4; i++) if (hit & (1u << i)) rxSend(i, uint8_t(i), 3, 16);
+        if (now & 0x10) for (int i = 0; i < 2; i++) rxSend(i, uint8_t(i), 6, 2);
+    } else {
+        // input bit 7: swing, bit 8: the racket's button. A swing sweeps the
+        // racket's motion sensor through readings 1-5; the button reads 6.
+        if (hit & 1) m_rxSwing = 1;
+        if (m_rxSwing) { rxSend(0, 0, uint8_t((m_rxSwing + 1) / 2), 1); if (++m_rxSwing > 10) m_rxSwing = 0; }
+        if (now & 2) rxSend(1, 0, 6, 1);
+    }
+    m_rxReady = true;
+}
+
+void Spg2xxCore::rxNext()
+{
+    if (!m_rxReady) return;     // the receiver passes on one reading a frame
+    m_rxReady = false;
+    for (int n = 0; n < 8; n++) {
+        int i = (m_rxNext + n) & 7;
+        if (!m_rxBurst[i]) continue;
+        m_rxBurst[i]--;
+        m_rxNext = (i + 1) & 7;
+        m_rxMsg = m_rxCode[i];
+        m_rxStrobe = true;
+        return;
+    }
+}
+
+uint16_t Spg2xxCore::portc_r() { return 0xffff; }
+
 void Spg2xxCore::porta_w(uint16_t data)
 {
+    if (m_cfg.board != 0) return;
     if ((data & 0x1000) != (m_prev_porta & 0x1000))
     {
         if (!(data & 0x1000))
@@ -356,6 +437,8 @@ void Spg2xxCore::porta_w(uint16_t data)
 
 void Spg2xxCore::portb_w(uint16_t data)
 {
+    if (m_cfg.board != 0 && (data & 0x40) && m_rxStrobe && !m_rxDrop) m_rxAcked = true;
+    if (m_cfg.board != 0) return;
     if ((m_cpu.pc() < 0x2000) && (data != 0x00ff) && (data != 0x0000))
     {
         static const uint8_t banks[32] = {
@@ -416,6 +499,7 @@ void Spg2xxCore::vblank_end()
 void Spg2xxCore::runFrame()
 {
     m_frameDone = false;
+    if (m_cfg.board != 0) sensorsFrame();
     while (!m_frameDone) {
         m_machine.timeslice(attotime::never());
         m_machine.execute_timers();
@@ -467,7 +551,7 @@ struct Reader {
 
 #define SPG_STATE(X) \
     X(m_ram) X(m_scrollram) X(m_hcompram) X(m_paletteram) X(m_spriteram) X(m_fiq_vector) \
-    X(m_current_bank) X(m_prev_porta) X(m_prev_portb) X(m_toggle) X(m_toggle2) \
+    X(m_current_bank) X(m_rng) X(m_rxPrev) X(m_rxStrobe) X(m_rxAcked) X(m_rxDrop) X(m_rxReady) X(m_rxMsg) X(m_rxNext) X(m_rxCode) X(m_rxBurst) X(m_rxSwing) X(m_prev_porta) X(m_prev_portb) X(m_toggle) X(m_toggle2) \
     X(m_cpu.m_local_core) \
     X(m_machine.m_basetime) X(m_machine.m_cpu_localtime) X(m_machine.m_seq_counter) \
     X(m_screen.m_vblank_start_time) X(m_screen.m_vblank_end_time) X(m_screen.m_last_partial_scan) X(m_screen.m_last_partial_reset) X(m_screen.m_frame_number) \

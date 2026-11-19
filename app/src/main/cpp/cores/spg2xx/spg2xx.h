@@ -10,6 +10,7 @@
 // spg_lite.h.
 
 #pragma once
+#include <cstdlib>
 #include "../../core_api.h"
 #include "spg_lite.h"
 #include "unsp.h"
@@ -396,6 +397,9 @@ struct Spg2xxConfig {
     std::string romName;
     uint64_t romSize = 0;
     bool marc250 = true;          // marc250/265games security pulses + banking
+    int board = 0;                // 0 = marc250, 1 = plain spg2xx_game_state (abltenni), 2 = ABL Kick Boxing
+    bool pal = true;              // 50 Hz and the PAL flag; NTSC boards run at 60 Hz
+    bool decryptAcFf = false;     // init_ablkickb: bitswap + xor 0xfafa on every word
     std::vector<uint32_t> romPatches;   // word index | (value in a parallel list)
     std::vector<uint16_t> romPatchValues;
 };
@@ -412,7 +416,7 @@ public:
     const uint32_t* frameBuffer() const override { return m_out; }
     int frameWidth() const override { return 320; }
     int frameHeight() const override { return 240; }
-    double refreshRate() const override { return 50.0; }
+    double refreshRate() const override { return m_cfg.pal ? 50.0 : 60.0; }
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     // bits: Up, Down, Left, Right, Button 1, Button 2, Start
@@ -460,6 +464,19 @@ public:
 
     // driver (spg2xx_game_marc250_state)
     uint16_t porta_r();
+    uint16_t portb_r();
+    uint16_t portc_r();
+    uint32_t m_cpuClock = 54000000;
+    int board() const { return m_cfg.board; }
+    bool isPal() const { return m_cfg.pal; }
+    uint32_t m_rng = 1;
+    // ABL's wireless sensor receiver on port B
+    void sensorsFrame();
+    void rxNext();
+    void rxSend(int ch, uint8_t sensor, uint8_t reading, uint8_t count);
+    uint32_t m_rxPrev = 0;
+    bool m_rxStrobe = false, m_rxAcked = false, m_rxDrop = false, m_rxReady = false;
+    uint8_t m_rxSwing = 0, m_rxMsg = 0, m_rxNext = 0, m_rxCode[8] = {}, m_rxBurst[8] = {};
     void porta_w(uint16_t data);
     void portb_w(uint16_t data);
     void switch_bank(uint32_t bank) { if ((int)bank != m_current_bank) m_current_bank = bank; }

@@ -39,6 +39,7 @@ class EmulatorActivity : Activity() {
     private var handheld: HandheldView? = null
     private var nixie: NixieClockView? = null
     private var joypad: JoystickPadView? = null
+    private var ablPad: AblPadView? = null
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -215,6 +216,16 @@ class EmulatorActivity : Activity() {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val m = JoystickPadView(this).apply { onInput = { setTouch(0, it) } }
                 joypad = m
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.92f)
+                    add(m, 0.8f)
+                })
+            }
+            Skin.ABL_TV -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val m = AblPadView(this, machine.badge).apply { onInput = { setTouch(0, it) } }
+                ablPad = m
                 setContentView(StackLayout(this).apply {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)
@@ -961,6 +972,7 @@ class EmulatorActivity : Activity() {
         Skin.PHONE_CASE, Skin.ARCADE_CABINET -> caseKeyBit(code)
         Skin.HANDHELD -> handheldKeyBit(code)
         Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
+        Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
         Skin.NIXIE_CLOCK -> when (code) {
             KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_BUTTON_A -> NixieClockView.SELECT
             KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_B, KeyEvent.KEYCODE_BUTTON_B -> NixieClockView.BROWSE
@@ -1045,6 +1057,19 @@ class EmulatorActivity : Activity() {
             if (x < -0.5f) m = m or 0x40
             if (x > 0.5f) m = m or 0x80
             if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m }
+            return true
+        }
+        if (machine.skin == Skin.ABL_TV && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            fun bit(code: Int) = AblPadView.keyBit(machine.badge, code)
+            var m = 0
+            if (y < -0.5f) m = m or bit(KeyEvent.KEYCODE_DPAD_UP)
+            if (y > 0.5f) m = m or bit(KeyEvent.KEYCODE_DPAD_DOWN)
+            if (x < -0.5f) m = m or bit(KeyEvent.KEYCODE_DPAD_LEFT)
+            if (x > 0.5f) m = m or bit(KeyEvent.KEYCODE_DPAD_RIGHT)
+            if (m != stickMask) { stickMask = m; setTouch(3, m); ablPad?.externalMask = keyInputs or m }
             return true
         }
         if (machine.skin == Skin.APVS_1292 && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -1356,6 +1381,7 @@ class EmulatorActivity : Activity() {
         arcade?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
+        ablPad?.externalMask = keyInputs or stickMask
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
@@ -1398,6 +1424,7 @@ class EmulatorActivity : Activity() {
         arcade?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
+        ablPad?.externalMask = keyInputs or stickMask
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true

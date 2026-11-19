@@ -21,6 +21,12 @@ controller.
 | 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
+| Pinball (Advance Bright TV game) (PAL) | `ablpinb` | VT02 / VT03 PAL, plunger and flipper inputs | Logo, table menu and all tables run as in MAME; plunger, flippers and nudge work |
+| Super Ping Pong (Advance Bright sensor bat) (PAL) | `ablping` | VT02 / VT03 "sports" PAL + the bat's speech chip handshake | Menus and matches play (MAME's driver stops after the menu); the umpire's voice is silent (its data format is unknown) |
+| Double Players Mini Joystick 80-in-1 (Advance Bright) (PAL) | `ablmini` | VT02 / VT03 Waixing PAL, 8 MB, two pads | Menu and games match MAME's frames; two players |
+| Joystick 14-in-1 (Advance Bright "Wikid Joystick") (PAL) | `ablwikid` | SH6578 PAL, 2 MB in two halves | Menu and games match MAME's frames |
+| Wireless Tennis (Advance Bright) | `abltenni` | SunPlus SPG24x + the wireless racket receiver | Menus match MAME; serving and rallies play with the on-screen racket (MAME's driver can't get past "press the button") |
+| Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
 | TM 990/189 University Board (+ Video Board) | `990189`, `990189v` | TMS9980A + 2x TMS9901 (own cores), TMS9918 (own core) | University BASIC runs; the LED display and lights follow MAME frame-for-frame apart from a frame's lag in key echo; the video board's four colour demos run |
 | 1200XL Home Computer (Atari) | `a1200xl` | Atari800 (6502C, ANTIC, GTIA, POKEY, PIA) | Real 1200XL OS: logo, self test, function keys and the L1 / L2 lights; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
 | 800 Home Computer (Atari) | `a800`, `a800pal` | Atari800, 48 KB | Real OS: Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
@@ -61,6 +67,12 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | 4004 Nixie Clock | `4004clk` | `clock.u30` to `clock.u45` (16 files) | 256 bytes each | `3d8608a5` ... `a8d419ef` (checked one by one) |
 | 500-in-1 Handheld Game | `500in1hh` | `500in1.bin` | 16 MB (16,777,216 bytes) | `50f44c1a` |
 | Joystick88 | `88in1joy` | `88in1joystick.bin` | 4 MB (4,194,304 bytes) | `86b8d819` |
+| Pinball | `ablpinb` | `abl_pinball.bin` | 2 MB (2,097,152 bytes) | `b2ce20fb` |
+| Super Ping Pong | `ablping` | `abl_pingpong.bin` | 2 MB (2,097,152 bytes) | `b31de1fb` |
+| Double Players Mini Joystick 80-in-1 | `ablmini` | `ablmini.bin` | 8 MB (8,388,608 bytes) | `e65a2c3a` |
+| Joystick 14-in-1 | `ablwikid` | `mx29f1610atc.u2` | 2 MB (2,097,152 bytes) | `f16abf79` |
+| Wireless Tennis | `abltenni` | `ablpnpwirelesstennis.bin` | 4 MB (4,194,304 bytes) | `66bd8ef1` |
+| Kick Boxing | `ablkickb` | `ablkickboxing.bin` | 8 MB (8,388,608 bytes) | `61394c45` |
 | TM 990/189 University Board | `990189` | `990-469.u32` | 2 KB (2,048 bytes) | `08df7edb` |
 | | | `990-469.u33` | 4 KB (4,096 bytes) | `e9b4ac1b` |
 | TM 990/189 + Video Board | `990189v` | the two `990189` files, plus `demo1000.u13` | 2 KB (2,048 bytes) | `c0e16685` |
@@ -258,6 +270,24 @@ Import the MAME `88in1joy` zip. The TV shows the games; under it is the
 horseshoe joystick: drag the ball-top stick, tap A / B, the TURBO buttons fire
 A or B repeatedly while held, and SELECT / START sit in the middle. The TV's
 MENU button (or Back) has save states and reset.
+
+### Advance Bright TV games
+
+Import each MAME zip (`ablpinb`, `ablping`, `ablmini`, `ablwikid`, `abltenni`,
+`ablkickb`). The TV shows the game; under it is the controller the box came
+with. Tap the TV (or Back) for the menu.
+
+- Pinball: the red domes on each side are the flippers; hold PULL to draw the
+  plunger back (longer = harder) and let go to launch. NUDGE shakes the table.
+- Super Ping Pong: tap the bat's red rubber to swing (it is also OK in the
+  menus); the handle has up, down and cancel.
+- Mini Joystick 80-in-1: one joystick per player, each with A, B, SELECT and START.
+- Joystick 14-in-1: the horseshoe joystick, as for Joystick88.
+- Wireless Tennis: the receiver's arrows and OK work the menus. In a match, tap
+  the yellow SERVE button on the racket handle to toss, then tap or swipe the
+  strings to swing.
+- Kick Boxing: tap a glove to punch, a foot to kick, GUARD to block; the
+  receiver's arrows and OK work the menus.
 
 ### 500-in-1 Handheld Game
 

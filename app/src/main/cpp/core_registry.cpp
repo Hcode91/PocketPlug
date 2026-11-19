@@ -3,6 +3,7 @@
 //
 // Add new machines here. Each entry picks a core and its configuration.
 
+#include <algorithm>
 #include "core_api.h"
 #include "cores/vt1682/vt1682.h"
 #include "cores/vc4000/vc4000.h"
@@ -110,6 +111,67 @@ Core* createCore(const std::string& id)
         c.soc = 1;
         c.palMode = 0;
         c.crypt = 3;
+        return new Vt369Core(c);
+    }
+    if (id == "abltenni") {   // ABL Wireless Tennis (SPG24x, 60 Hz, motion racket on the buttons)
+        Spg2xxConfig c;
+        c.romName = "ablpnpwirelesstennis.bin";
+        c.romSize = 0x400000;
+        c.board = 1;
+        c.pal = false;
+        return new Spg2xxCore(c);
+    }
+    if (id == "ablkickb") {   // ABL Kick Boxing (SPG24x, 60 Hz, encrypted ROM)
+        Spg2xxConfig c;
+        c.romName = "ablkickboxing.bin";
+        c.romSize = 0x800000;
+        c.board = 2;
+        c.pal = false;
+        c.decryptAcFf = true;
+        return new Spg2xxCore(c);
+    }
+    if (id == "ablpinb") {    // ABL Pinball (VT02/03 PAL, plunger and flippers)
+        Vt369Config c;
+        c.romName = "abl_pinball.bin";
+        c.romSize = 0x200000;
+        c.soc = 2;
+        c.palMode = 0;
+        c.pal = true;
+        c.board = 1;
+        return new Vt369Core(c);
+    }
+    if (id == "ablping") {    // ABL Ping Pong (VT02/03 "sports" PAL, sensor bat on the extended IO port)
+        Vt369Config c;
+        c.romName = "abl_pingpong.bin";
+        c.romSize = 0x200000;
+        c.soc = 2;
+        c.palMode = 0;
+        c.pal = true;
+        c.board = 2;
+        const uint8_t order[6] = { 2, 5, 0, 4, 3, 1 };
+        std::copy(order, order + 6, c.order2012);
+        return new Vt369Core(c);
+    }
+    if (id == "ablmini") {    // ABL Double Players Mini Joystick 80-in-1 (VT02/03 Waixing PAL, 8 MB)
+        Vt369Config c;
+        c.romName = "ablmini.bin";
+        c.romSize = 0x800000;
+        c.soc = 2;
+        c.palMode = 0;
+        c.pal = true;
+        const uint8_t scr[6] = { 3, 2, 1, 0, 5, 4 }, order[6] = { 1, 0, 5, 4, 3, 2 };
+        std::copy(scr, scr + 6, c.scramble8000);
+        std::copy(order, order + 6, c.order2012);
+        c.twoPads = true;
+        return new Vt369Core(c);
+    }
+    if (id == "ablwikid") {   // ABL Wikid Joystick 14-in-1 (SH6578 PAL, 2 MB in two 1 MB halves)
+        Vt369Config c;
+        c.romName = "mx29f1610atc.u2";
+        c.romSize = 0x200000;
+        c.soc = 3;
+        c.pal = true;
+        c.board = 3;
         return new Vt369Core(c);
     }
     if (id == "990189")       // TI TM 990/189 University Board

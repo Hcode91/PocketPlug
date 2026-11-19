@@ -32,6 +32,18 @@ struct Vt369Config {
     std::string sdName;            // SD card image in the set (4310-4328 controller), empty = none
     bool i2cSecurity = false;      // A6Plus security chip on 414b (I2C address E0)
     bool spiFlashWrites = false;   // 4350 SPI controller can erase / program the flash (in memory only)
+    // VT02/03 PAL (Dendy-style timing as MAME's PPU_VT03PAL): 312 lines, vblank
+    // from line 291, CPU at 26.6017 MHz / 15 (still 3 PPU dots a cycle), 50 Hz
+    bool pal = false;
+    // VT02/03: how the MMC3-style $8001 writes reach the six CHR bank registers
+    // (MAME set_8000_scramble), and the order of $2012-$2017 (Waixing SoCs swap them)
+    uint8_t scramble8000[6] = { 4, 5, 0, 1, 2, 3 };
+    uint8_t order2012[6] = { 0, 1, 2, 3, 4, 5 };
+    bool twoPads = false;          // a second pad on $4017 (input bits 8-15)
+    // board extras: 1 = ABL Pinball (plunger on $4016 bit 0, $4016 bit 2 echoed
+    // on $4017 bit 3), 2 = ABL Ping Pong (speech chip on the $410f extended IO
+    // port), 3 = ABL Wikid Joystick (SH6578, $4016 bit 1 picks the 1 MB half)
+    int board = 0;
 };
 
 class Vt369Core : public Core {
@@ -44,7 +56,7 @@ public:
     const uint32_t* frameBuffer() const override { return m_out; }
     int frameWidth() const override { return 256; }
     int frameHeight() const override { return 240; }
-    double refreshRate() const override { return 60.0988; }
+    double refreshRate() const override { return m_cfg.pal ? 50.0070 : 60.0988; }
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     // bits: A, B, Select, Start, Up, Down, Left, Right (as MAME's vt369 IO0)
@@ -58,6 +70,7 @@ public:
 
 private:
     Vt369Config m_cfg;
+    int m_lines = 262, m_vblankFirst = 241;
     std::vector<uint8_t> m_rom;     // 4 MB SPI flash image
     M6502 m_cpu;
     M6502 m_spu;                    // sound CPU (runs at the 21.47 MHz master clock)
@@ -81,6 +94,7 @@ private:
         uint8_t bank[8];
         uint8_t dmaControl, dmaBank, dmaSrc[2], dmaDst[2], dmaLen[2];
         uint8_t irqMask, timerVal, prevIo, ioLatch[2], extPlane[2], r4027;
+        uint8_t cartBank;                           // ABL Wikid: which 1 MB half is mapped
         int32_t timerLines;                         // scanlines until the timer IRQ, -1 = off
         uint32_t rng;
     } m_sh;
@@ -163,6 +177,11 @@ private:
         uint8_t gpio414x[0x10], gpio415x[0x10], gpio41ex[0x10];
         // controller
         uint8_t latch0, latch1, prevPort0;
+        uint8_t plungerOff, plungerCount, pinIn0, plungerHold;   // ABL Pinball
+        // ABL Ping Pong: the speech chip on the extended IO port, fed a nibble at a time
+        uint8_t ppStrobe, ppNibble, ppHi, ppMode, ppLast, ppRefuse, ppSample, ppFifo[256];
+        uint16_t ppHead, ppCount;
+        uint32_t ppAcc;
         // CPU timing
         int32_t clockMul;          // 1, or 3 when 411c bit 7 is set
         // ---- PPU ----
@@ -332,6 +351,9 @@ private:
     void apuWrite(int offset, uint8_t value);
     uint8_t apuStatus();
     void apuSync();
+    void ppByte(uint8_t b);
+    static constexpr int PP_FIFO_FULL = 64;
+    static constexpr uint32_t PP_RATE = 12000;
     void apuSyncTo(int64_t now);
     void apuSample();
     void apuSquare(State::Square* chan);
