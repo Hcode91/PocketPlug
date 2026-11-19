@@ -384,7 +384,7 @@ void ArchiCore::runFrame()
     int dx = int(mx_), dy = int(my_);
     mx_ -= dx; my_ -= dy;
     int b = int((buttons_ & 1) | (buttons_ & 2 ? 4 : 0) | (buttons_ & 4 ? 2 : 0));
-    archi_glue_mouse(dx, -dy, b);
+    archi_glue_mouse(dx, dy, b);
 
     // 1/60 s = 5/3 of Arculator's 1/100 s steps
     runAcc_ += 100.0 / 60.0;
