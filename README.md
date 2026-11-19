@@ -21,6 +21,8 @@ controller.
 | 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
+| Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
+| Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
 | 4 Player System 10-in-1 (Advance Bright) | `abl4play` | 65C816 TV game SoC ("trkfldch": tile layers, sprites, YUV palette, DMA) | Menu and all games start and play, up to four players; matches MAME's frames. No sound (unknown, as in MAME) |
 | Pinball (Advance Bright TV game) (PAL) | `ablpinb` | VT02 / VT03 PAL, plunger and flipper inputs | Logo, table menu and all tables run as in MAME; plunger, flippers and nudge work |
 | Super Ping Pong (Advance Bright sensor bat) (PAL) | `ablping` | VT02 / VT03 "sports" PAL + the bat's speech chip handshake | Menus and matches play (MAME's driver stops after the menu); the umpire's voice is silent (its data format is unknown) |
@@ -68,6 +70,9 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | 4004 Nixie Clock | `4004clk` | `clock.u30` to `clock.u45` (16 files) | 256 bytes each | `3d8608a5` ... `a8d419ef` (checked one by one) |
 | 500-in-1 Handheld Game | `500in1hh` | `500in1.bin` | 16 MB (16,777,216 bytes) | `50f44c1a` |
 | Joystick88 | `88in1joy` | `88in1joystick.bin` | 4 MB (4,194,304 bytes) | `86b8d819` |
+| Mephisto Academy | `academy` | `academy_engl.16k`, `academy_engl.32k` | 32 KB each | `ebda6674`, `a967922b` |
+| | | `hd44780_a00.bin` (from MAME's `hd44780` zip) | 4 KB (4,096 bytes) | `e459877c` |
+| Novag Accord | `accord` | `novag_875_31x0b87p` | 4 KB (4,096 bytes) | `4d77b7db` |
 | 4 Player System 10-in-1 | `abl4play` | `abl4play.bin` | 8 MB (8,388,608 bytes) | `5d57fb70` |
 | Pinball | `ablpinb` | `abl_pinball.bin` | 2 MB (2,097,152 bytes) | `b2ce20fb` |
 | Super Ping Pong | `ablping` | `abl_pingpong.bin` | 2 MB (2,097,152 bytes) | `b31de1fb` |
@@ -272,6 +277,20 @@ Import the MAME `88in1joy` zip. The TV shows the games; under it is the
 horseshoe joystick: drag the ball-top stick, tap A / B, the TURBO buttons fire
 A or B repeatedly while held, and SELECT / START sit in the middle. The TV's
 MENU button (or Back) has save states and reset.
+
+### Chess computers (Mephisto Academy, Novag Accord)
+
+Import the MAME zip (`academy` also needs MAME's `hd44780` zip, the LCD's
+character ROM). Play on the board as on the real one: tap a piece to lift it
+(it fades and shows in HAND), then tap the square to put it down; tapping an
+occupied square captures. Under the board: spawn a new piece by tapping it in
+the panel then a square, REMOVE drops the piece in hand, RESET puts all pieces
+back, CLEAR empties the board, MENU has save states and reset.
+
+- Academy: the computer shows its moves with the LEDs in the squares and on
+  the LCD; ENT and CL together start a new game.
+- Accord: press-sensory, so you also "press" the computer's pieces to move
+  them. Its moves light the rank and file LEDs; GO makes it move.
 
 ### Advance Bright TV games
 

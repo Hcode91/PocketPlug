@@ -16,6 +16,11 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/s2650.*` | BSD-3-Clause | MAME `src/devices/cpu/s2650` (Juergen Buchmueller) |
 | `app/src/main/cpp/cores/e0c6s46/*` | BSD-3-Clause | MAME `src/devices/cpu/e0c6200` (hap) - `MAME-e0c6200.txt` |
 | `app/src/main/cpp/cores/vt369/*` | GPL-2.0-or-later | MAME VT SoC + PPU incl. VT02/03, VT "4FFx" and SH6578 (BSD-3, David Haywood, Ernesto Corvi, Brad Oliver, Fabio Priuli), VT3xx sound CPU (BSD-3, David Haywood), VT369 ADPCM decoder (GPL-2.0+, NewRisingSun) and NES APU (GPL-2.0+, Matthew Conte) |
+| `app/src/main/cpp/common/hd6301*` | BSD-3-Clause | MAME 6800/6801 instruction set (Aaron Giles), peripherals after MAME's hd6301x |
+| `app/src/main/cpp/common/hd44780.*` | BSD-3-Clause | Port of MAME's HD44780 (Sandro Ronco) |
+| `app/src/main/cpp/common/chessboard.h` | BSD-3-Clause | Logic of MAME's sensorboard (hap) |
+| `app/src/main/cpp/common/w65c02.*` | GPL-2.0-or-later | Own W65C02S core |
+| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
 | `app/src/main/cpp/cores/trkfld/g65816/*` | BSD-3-Clause | MAME G65816 CPU (Karl Stenerud; R. Belmont, Angelo Salese) |
 | `app/src/main/cpp/cores/trkfld/trkfld.*` | GPL-2.0-or-later | Port of MAME's trkfldch driver (BSD-3, David Haywood) |
 | `app/src/main/cpp/cores/spg2xx/unsp.*` | GPL-2.0-or-later | MAME u'nSP CPU (Segher Boessenkool, Ryan Holtz, David Haywood) |

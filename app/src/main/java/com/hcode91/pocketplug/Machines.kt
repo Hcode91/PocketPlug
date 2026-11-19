@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -240,6 +240,35 @@ object Machines {
             year = "201x",
             roms = listOf(RomSpec("mw-106-2g.u3", 0x8000000L, 0xc46d2ca9L)),
             skin = Skin.ARCADE_CABINET,
+        ),
+        MachineDef(
+            id = "academy",
+            title = "Academy Chess Computer",
+            subtitle = "1989 magnetic-sensor chess computer with a 2-line LCD and a red LED in every square. "
+                + "Import the academy zip and MAME's hd44780 zip (the LCD's character ROM). "
+                + "(Hegener + Glaser Mephisto Academy; MAME set: academy)",
+            chip = "W65C02 @ 4.9 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1989",
+            roms = listOf(
+                RomSpec("academy_engl.16k", 0x8000L, 0xebda6674L),
+                RomSpec("academy_engl.32k", 0x8000L, 0xa967922bL),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "academy",
+        ),
+        MachineDef(
+            id = "accord",
+            title = "Accord Chess Computer",
+            subtitle = "1987 press-sensory chess computer: press a piece's square to lift it and its new square "
+                + "to put it down; LEDs beside the ranks and files show its moves (Novag Accord; MAME set: accord)",
+            chip = "Hitachi HD6301X0 @ 8 MHz",
+            region = "Hong Kong",
+            year = "1987",
+            roms = listOf(RomSpec("novag_875_31x0b87p", 0x1000L, 0x4d77b7dbL)),
+            skin = Skin.CHESS,
+            badge = "accord",
         ),
         MachineDef(
             id = "abl4play",

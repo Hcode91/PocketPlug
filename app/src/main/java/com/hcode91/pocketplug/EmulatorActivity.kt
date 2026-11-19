@@ -40,6 +40,7 @@ class EmulatorActivity : Activity() {
     private var nixie: NixieClockView? = null
     private var joypad: JoystickPadView? = null
     private var ablPad: AblPadView? = null
+    private var chess: ChessComputerView? = null
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -221,6 +222,16 @@ class EmulatorActivity : Activity() {
                     add(tv, 0.92f)
                     add(m, 0.8f)
                 })
+            }
+            Skin.CHESS -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = ChessComputerView(this, machine.badge).apply {
+                    onInput = { setTouch(0, it) }
+                    onBoard = { code -> keyQueue.add(code or 0x100) }
+                    onMenu = { showMenu() }
+                }
+                chess = v
+                setContentView(v)
             }
             Skin.ABL_TV -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -836,6 +847,7 @@ class EmulatorActivity : Activity() {
             else if (arcade != null) arcade?.updateFrame(pixels)
             else if (handheld != null) handheld?.updateFrame(pixels)
             else if (nixie != null) nixie?.updateFrame(pixels)
+            else if (chess != null) chess?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
