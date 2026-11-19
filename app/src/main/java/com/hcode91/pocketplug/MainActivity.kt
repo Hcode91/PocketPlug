@@ -262,6 +262,7 @@ class MainActivity : Activity() {
                 for (p in ps.sortedBy { it.doc.name.lowercase() }) {
                     val r = p.result!!
                     append("   ${p.doc.name}")
+                    if (r.title != null && !p.doc.name.startsWith(r.title)) append("  = ${r.title}")
                     if (p.companionOf != null) append("  (with ${p.companionOf.name})")
                     else if (r.machine != null && Machines.all.any { it.id == r.machine }) append("  ★ PocketPlug")
                     append("\n")

@@ -22,11 +22,15 @@ public:
     bool read(uint64_t offset, uint8_t* dst, size_t len);
     // hard-disk geometry from the 'GDDD' metadata (CYLS:..,HEADS:..,SECS:..)
     bool diskGeometry(int& cyls, int& heads, int& secs);
+    // a metadata entry's text, by its four-letter tag ("CHT2" track 1, "DVD " ...)
+    bool metadata(const char* tag4, std::string& out, int which = 0);
+    uint32_t hunkBytes() const { return m_hunkBytes; }
 
 private:
     struct Entry { uint8_t type; uint64_t offset; uint32_t length; };
     bool hunk(uint32_t index, uint8_t* dst, int depth = 0);
     bool decode(uint32_t codec, const uint8_t* src, uint32_t len, uint8_t* dst);
+    bool decodeCd(uint32_t codec, const uint8_t* src, uint32_t len, uint8_t* dst);
 
     FILE* m_f = nullptr;
     uint64_t m_logical = 0;
@@ -40,3 +44,10 @@ private:
     struct Slot { uint32_t hunk = 0xffffffff; uint32_t age = 0; std::vector<uint8_t> data; } m_cache[CACHE];
     uint32_t m_clock = 0;
 };
+
+// The start of the disc inside a CD / DVD / GD-ROM CHD, for identifying it:
+// sectors 0-17 laid out like an image file (2048-byte sectors for MODE1 /
+// MODE2_FORM1 and DVDs, 2352-byte raw sectors otherwise), so the ISO 9660
+// volume descriptor and the boot sector sit where they would in a .iso / .bin.
+// kind: "cd", "dvd", "gd" or "" (not a disc). False if it can't be read.
+bool chdDiscHead(const std::string& path, std::vector<uint8_t>& out, std::string& kind);

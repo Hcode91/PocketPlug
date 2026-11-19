@@ -142,19 +142,27 @@ FLAC__StreamDecoderWriteStatus flacWrite(const FLAC__StreamDecoder*, const FLAC_
 }
 void flacError(const FLAC__StreamDecoder*, FLAC__StreamDecoderErrorStatus, void*) {}
 
+bool flacDecode(const uint8_t* src, uint32_t len, uint8_t* dst, uint32_t outBytes, uint32_t bs, bool big);
+
 bool flacHunk(const uint8_t* src, uint32_t len, uint8_t* dst, uint32_t hunkBytes)
 {
     if (len < 2 || (src[0] != 'L' && src[0] != 'B')) return false;
-    FlacCtx x;
-    x.out = dst; x.outMax = hunkBytes; x.big = src[0] == 'B';
     uint32_t bs = hunkBytes / 4;
     while (bs > 2048) bs /= 2;
+    return flacDecode(src + 1, len - 1, dst, hunkBytes, bs, src[0] == 'B');
+}
+
+// FLAC frames with no stream header (16-bit stereo, 44.1 kHz), as MAME's codecs write them
+bool flacDecode(const uint8_t* src, uint32_t len, uint8_t* dst, uint32_t outBytes, uint32_t bs, bool big)
+{
+    FlacCtx x;
+    x.out = dst; x.outMax = outBytes; x.big = big;
     uint8_t h[0x2a] = { 'f', 'L', 'a', 'C', 0x80, 0, 0, 0x22 };
     h[8] = uint8_t(bs >> 8); h[9] = uint8_t(bs); h[10] = uint8_t(bs >> 8); h[11] = uint8_t(bs);
     uint32_t v = (44100u << 4) | (1u << 1);       // rate, 2 channels - 1
     h[0x12] = uint8_t(v >> 16); h[0x13] = uint8_t(v >> 8); h[0x14] = uint8_t(v); h[0x15] = 0xf0;  // 16 bits
     x.in.assign(h, h + sizeof(h));
-    x.in.insert(x.in.end(), src + 1, src + len);
+    x.in.insert(x.in.end(), src, src + len);
     FLAC__StreamDecoder* d = FLAC__stream_decoder_new();
     if (!d) return false;
     bool ok = FLAC__stream_decoder_init_stream(d, flacRead, nullptr, nullptr, nullptr, nullptr,
@@ -267,7 +275,62 @@ bool ChdFile::decode(uint32_t codec, const uint8_t* src, uint32_t len, uint8_t* 
         return !b.overflow();
     }
     if (codec == tag("flac")) return flacHunk(src, len, dst, m_hunkBytes);
+    if (codec == tag("cdlz") || codec == tag("cdzl") || codec == tag("cdfl")) return decodeCd(codec, src, len, dst);
     return false;                                         // cdlz / cdzl / avhu ... aren't for disks
+}
+
+// CD hunks: frames of 2352 bytes of sector data + 96 of subcode. cdlz / cdzl:
+// a bitmap of sectors whose sync and ECC were left out, the sector data's
+// compressed length, the sector data (lzma / deflate), then the subcode
+// (deflate). cdfl: the sector data as FLAC (big-endian samples), then the
+// subcode. Only the sector data is needed here: the subcode is left as zeros,
+// and left-out ECC isn't rebuilt (the sync bytes are).
+bool ChdFile::decodeCd(uint32_t codec, const uint8_t* src, uint32_t len, uint8_t* dst)
+{
+    static const uint8_t kSync[12] = { 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 };
+    const uint32_t frames = m_hunkBytes / 2448;
+    if (!frames) return false;
+    std::vector<uint8_t> data(frames * 2352);
+    memset(dst, 0, m_hunkBytes);
+    if (codec == tag("cdfl")) {
+        uint32_t bs = frames * 2352 / 4;
+        while (bs > 2352) bs /= 2;
+        if (!flacDecode(src, len, data.data(), frames * 2352, bs, true)) return false;
+        for (uint32_t f = 0; f < frames; f++) memcpy(dst + f * 2448, &data[f * 2352], 2352);
+        return true;
+    }
+    uint32_t lenBytes = m_hunkBytes < 65536 ? 2 : 3;
+    uint32_t eccBytes = (frames + 7) / 8;
+    uint32_t head = eccBytes + lenBytes;
+    if (len < head) return false;
+    uint32_t base = lenBytes == 3 ? (uint32_t(src[eccBytes]) << 16 | src[eccBytes + 1] << 8 | src[eccBytes + 2])
+                                  : (uint32_t(src[eccBytes]) << 8 | src[eccBytes + 1]);
+    if (head + base > len) return false;
+    const uint8_t* p = src + head;
+    uint32_t want = frames * 2352;
+    if (codec == tag("cdlz")) {
+        uint8_t props[5] = { uint8_t((2 * 5 + 0) * 9 + 3) };
+        uint32_t dict = want < 4096 ? 4096 : want;
+        props[1] = uint8_t(dict); props[2] = uint8_t(dict >> 8); props[3] = uint8_t(dict >> 16); props[4] = uint8_t(dict >> 24);
+        SizeT outLen = want, inLen = base;
+        ELzmaStatus st;
+        if (LzmaDecode(data.data(), &outLen, p, &inLen, props, 5, LZMA_FINISH_ANY, &st, &kLzAlloc) != SZ_OK || outLen != want) return false;
+    } else {
+        z_stream z = {};
+        if (inflateInit2(&z, -15) != Z_OK) return false;
+        z.next_in = const_cast<uint8_t*>(p); z.avail_in = base;
+        z.next_out = data.data(); z.avail_out = want;
+        int r = inflate(&z, Z_FINISH);
+        bool ok = (r == Z_STREAM_END || r == Z_OK || r == Z_BUF_ERROR) && z.avail_out == 0;
+        inflateEnd(&z);
+        if (!ok) return false;
+    }
+    for (uint32_t f = 0; f < frames; f++) {
+        uint8_t* s = dst + f * 2448;
+        memcpy(s, &data[f * 2352], 2352);
+        if (src[f / 8] & (1 << (f % 8))) memcpy(s, kSync, sizeof kSync);
+    }
+    return true;
 }
 
 bool ChdFile::hunk(uint32_t index, uint8_t* dst, int depth)
@@ -280,6 +343,25 @@ bool ChdFile::hunk(uint32_t index, uint8_t* dst, int depth)
     if (fseeko(m_f, off_t(e.offset), SEEK_SET) || fread(m_comp.data(), 1, e.length, m_f) != e.length) return false;
     if (e.type == 4) { memcpy(dst, m_comp.data(), m_hunkBytes); return true; }
     return decode(m_codecs[e.type], m_comp.data(), e.length, dst);
+}
+
+bool ChdFile::metadata(const char* tag4, std::string& out, int which)
+{
+    uint64_t at = m_metaOff;
+    for (int n = 0; at && n < 256; n++) {
+        uint8_t mh[16];
+        if (fseeko(m_f, off_t(at), SEEK_SET) || fread(mh, 1, 16, m_f) != 16) return false;
+        uint32_t len = uint32_t(mh[5]) << 16 | mh[6] << 8 | mh[7];
+        uint64_t next = be64(mh + 8);
+        if (be32(mh) == tag(tag4) && which-- == 0) {
+            out.resize(len);
+            if (len && fread(&out[0], 1, len, m_f) != len) return false;
+            while (!out.empty() && out.back() == 0) out.pop_back();
+            return true;
+        }
+        at = next;
+    }
+    return false;
 }
 
 bool ChdFile::diskGeometry(int& cyls, int& heads, int& secs)
@@ -321,5 +403,55 @@ bool ChdFile::read(uint64_t offset, uint8_t* dst, size_t len)
         memcpy(dst, s->data.data() + at, k);
         dst += k; offset += k; len -= k;
     }
+    return true;
+}
+
+bool chdDiscHead(const std::string& path, std::vector<uint8_t>& out, std::string& kind)
+{
+    ChdFile chd;
+    std::string err, meta;
+    out.clear(); kind.clear();
+    if (!chd.open(path, err)) return false;
+    const int kSectors = 18;
+    if (chd.metadata("DVD ", meta)) {
+        kind = "dvd";
+        out.resize(kSectors * 2048);
+        return chd.read(0, out.data(), out.size());
+    }
+    bool gd = false;
+    if (!chd.metadata("CHT2", meta) && !chd.metadata("CHTR", meta)) {
+        if (!chd.metadata("CHGD", meta)) return false;
+        gd = true;
+    }
+    kind = gd ? "gd" : "cd";
+    // "TRACK:1 TYPE:MODE1_RAW SUBTYPE:NONE FRAMES:1234 PREGAP:150 PGTYPE:VMODE1 ..."
+    char type[32] = {}, pgtype[32] = {};
+    int pregap = 0;
+    if (const char* t = strstr(meta.c_str(), "TYPE:")) sscanf(t + 5, "%31s", type);
+    if (const char* t = strstr(meta.c_str(), "PREGAP:")) sscanf(t + 7, "%d", &pregap);
+    if (const char* t = strstr(meta.c_str(), "PGTYPE:")) sscanf(t + 7, "%31s", pgtype);
+    std::string ty = type;
+    int size = 2352, skip = 0;
+    if (ty == "MODE1" || ty == "MODE2_FORM1") size = 2048;
+    else if (ty == "MODE2" || ty == "MODE2_FORM_MIX") { size = 2336; skip = 0; }
+    else if (ty == "MODE2_FORM2") size = 2324;
+    else if (ty == "AUDIO") return true;                 // an audio CD: nothing to look at
+    int first = pgtype[0] == 'V' ? pregap : 0;           // a pregap stored in the file comes first
+    int outSize = size == 2048 ? 2048 : 2352;
+    out.assign(size_t(kSectors) * outSize, 0);
+    std::vector<uint8_t> frame(2448);
+    static const uint8_t kSync[12] = { 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 };
+    for (int s = 0; s < kSectors; s++) {
+        if (!chd.read(uint64_t(first + s) * 2448, frame.data(), 2448)) return false;
+        uint8_t* d = &out[size_t(s) * outSize];
+        if (size == 2048 || size == 2352) memcpy(d, frame.data(), size);
+        else {
+            // MODE2 without the sync and header: put them back so it reads like a raw sector
+            memcpy(d, kSync, 12);
+            d[15] = 2;
+            memcpy(d + 16, frame.data(), size);
+        }
+    }
+    (void)skip;
     return true;
 }

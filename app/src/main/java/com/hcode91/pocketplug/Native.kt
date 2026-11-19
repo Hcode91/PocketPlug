@@ -29,4 +29,6 @@ object Native {
     @JvmStatic external fun mediaEject(handle: Long, drive: Int)
     /** Bit n = drive n busy recently. */
     @JvmStatic external fun mediaActivity(handle: Long): Int
+    /** The sorter: the first sectors of the disc in a CHD, after a kind byte ('c' CD, 'd' DVD, 'g' GD-ROM); null if not a disc */
+    @JvmStatic external fun chdDiscHead(path: String): ByteArray?
 }

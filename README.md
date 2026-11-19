@@ -319,6 +319,11 @@ Back) for the menu.
   (PlayStation, PS2, PSP, Saturn, Dreamcast, Mega-CD, PC Engine CD, GameCube,
   Wii, CD-i), and otherwise by unambiguous extensions. A `.cue` / `.gdi` /
   `.m3u` takes its tracks with it.
+- Disc CHDs: first by their SHA1 against MAME's software lists (about 11,600
+  CD / GD-ROM / DVD / hard disk images: PlayStation, Saturn, Dreamcast,
+  Mega-CD, PC Engine CD, CD-i, FM Towns, CD32 ...), which names the exact game
+  too; otherwise the disc inside is read (the CHD reader decodes the cdlz /
+  cdzl / cdfl CD codecs) and identified by its boot sector like a loose image.
 
 Nothing moves until you've seen where everything will go; files it can't
 identify stay where they are, and a name already taken in the target folder

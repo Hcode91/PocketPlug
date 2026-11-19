@@ -7,7 +7,7 @@
 # images (SHA1). Only names, years, makers and checksums are taken: facts,
 # no code. Usage: mkromindex.py <mame source dir> <out romindex.bin.gz>
 #
-# Format (little endian), after the magic "PPRX" and u16 version 1:
+# Format (little endian), after the magic "PPRX" and u16 version 2:
 #   u32 nSets, then per set: name, description, maker, year as u8-length
 #       strings, u8 kind (A arcade, C console / plug-and-play, K computer,
 #       S other system, D device / BIOS ROMs), u16 parent (0xffff none),
@@ -15,8 +15,12 @@
 #   u32 nRoms, then nRoms x (u32 crc), (u32 size, 0 = unknown), (u16 set),
 #       sorted by crc
 #   u32 nDisks, then nDisks x (20-byte sha1, u16 set)
+#   u16 nLists, then per software list (hash/*.xml with disks): name, description
+#   u32 nSoftDisks, then per disk image in those lists: 20-byte sha1, u16 list,
+#       the disk's name (Redump-style: "Crash Bandicoot (Europe)") as a u8-length string
 
 import gzip, os, re, struct, sys
+import xml.etree.ElementTree as ET
 
 src, out = sys.argv[1], sys.argv[2]
 
@@ -174,7 +178,7 @@ def s8(s):
     b = s.encode('utf-8')[:255]
     return bytes([len(b)]) + b
 
-body = bytearray(b'PPRX' + struct.pack('<H', 1))
+body = bytearray(b'PPRX' + struct.pack('<H', 2))
 body += struct.pack('<I', len(names))
 for n in names:
     k, parent, year, maker, desc = machines.get(n, ('D', '0', '', '', ''))
@@ -196,7 +200,35 @@ body += struct.pack('<I', len(drows))
 for sha, s in drows:
     body += sha + struct.pack('<H', s)
 
+# software lists: the CD / DVD / hard disk images MAME knows by SHA1
+lists, soft = [], []
+hashdir = os.path.join(src, 'hash')
+for fn in sorted(os.listdir(hashdir)) if os.path.isdir(hashdir) else []:
+    if not fn.endswith('.xml'):
+        continue
+    path = os.path.join(hashdir, fn)
+    if '<disk ' not in open(path, encoding='utf-8', errors='replace').read():
+        continue
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError:
+        continue
+    li = len(lists)
+    lists.append((root.get('name', fn[:-4]), root.get('description', '')))
+    for sw in root.iter('software'):
+        for d in sw.iter('disk'):
+            sha = d.get('sha1')
+            if sha and len(sha) == 40 and d.get('status') != 'nodump':
+                soft.append((bytes.fromhex(sha), li, d.get('name') or sw.findtext('description') or sw.get('name')))
+body += struct.pack('<H', len(lists))
+for n, desc in lists:
+    body += s8(n) + s8(desc)
+body += struct.pack('<I', len(soft))
+for sha, li, n in soft:
+    body += sha + struct.pack('<H', li) + s8(n)
+
 with gzip.open(out, 'wb', compresslevel=9) as f:
     f.write(body)
+print('lists', len(lists), 'soft disks', len(soft))
 print('sets', len(names), 'machines', len(machines), 'roms', len(rows), 'disks', len(drows),
       'bytes', len(body), '->', os.path.getsize(out))

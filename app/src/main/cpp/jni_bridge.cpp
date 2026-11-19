@@ -194,3 +194,20 @@ Java_com_hcode91_pocketplug_Native_mediaActivity(JNIEnv*, jclass, jlong h)
 {
     return h ? ((Core*)(intptr_t)h)->mediaActivity() : 0;
 }
+
+#include "common/chd/chd.h"
+
+// The sorter: the first sectors of the disc in a CHD (see chdDiscHead), with
+// a one-byte kind in front ('c' CD, 'd' DVD, 'g' GD-ROM); null if it isn't a disc.
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_hcode91_pocketplug_Native_chdDiscHead(JNIEnv* env, jclass, jstring path)
+{
+    std::vector<uint8_t> head;
+    std::string kind;
+    if (!chdDiscHead(jstr(env, path), head, kind) || kind.empty()) return nullptr;
+    jbyteArray a = env->NewByteArray(jsize(head.size() + 1));
+    jbyte k = jbyte(kind[0]);
+    env->SetByteArrayRegion(a, 0, 1, &k);
+    if (!head.empty()) env->SetByteArrayRegion(a, 1, jsize(head.size()), reinterpret_cast<const jbyte*>(head.data()));
+    return a;
+}

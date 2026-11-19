@@ -53,7 +53,8 @@ class FolderSorter(private val ctx: Context, private val tree: Uri) {
         return out
     }
 
-    private inner class DocSource(val doc: Doc) : SortSource {
+    inner class DocSource(val doc: Doc) : SortSource {
+        fun fd() = cr.openFileDescriptor(uri(doc.id), "r")
         override val name get() = doc.name
         override val size get() = doc.size
         override fun channel(): SeekableByteChannel {
@@ -152,6 +153,13 @@ class FolderSorter(private val ctx: Context, private val tree: Uri) {
             index ?: ctx.assets.open("romindex.bin.gz").use { RomIndex.load(it) }.also { index = it }
         }
 
-        fun sorter(ctx: Context) = RomSorter(index(ctx), File(ctx.cacheDir, "sort").apply { mkdirs() })
+        fun sorter(ctx: Context) = RomSorter(index(ctx), File(ctx.cacheDir, "sort").apply { mkdirs() }) { src ->
+            // the native CHD reader, through the file's descriptor
+            (src as? FolderSorter.DocSource)?.let { ds ->
+                ds.fd()?.use { pfd ->
+                    Native.chdDiscHead("/proc/self/fd/${pfd.fd}")?.let { a -> if (a.isEmpty()) null else a[0].toInt().toChar() to a.copyOfRange(1, a.size) }
+                }
+            }
+        }
     }
 }

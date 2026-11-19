@@ -21,7 +21,12 @@ class RomIndex private constructor(
     val kinds: CharArray, val parents: IntArray, val romCounts: IntArray,
     private val crcs: IntArray, private val sizes: IntArray, private val sets: IntArray,
     private val disks: Map<String, List<Int>>,
+    val listNames: Array<String>, val listDescs: Array<String>,
+    private val softDisks: Map<String, Pair<Int, String>>,
 ) {
+    /** A disc / disk image in MAME's software lists: (list index, its name) */
+    fun softDisk(sha1Hex: String) = softDisks[sha1Hex]
+
     private val byName = HashMap<String, Int>(names.size * 2).apply { names.forEachIndexed { i, n -> put(n, i) } }
 
     fun setNamed(n: String) = byName[n]
@@ -51,6 +56,7 @@ class RomIndex private constructor(
             val b = ByteBuffer.wrap(d).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             val magic = String(d, 0, 4, Charsets.US_ASCII)
             require(magic == "PPRX") { "not a ROM index" }
+            val version = (d[4].toInt() and 0xff) or ((d[5].toInt() and 0xff) shl 8)
             b.position(6)
             fun str(): String { val l = b.get().toInt() and 0xff; val s = String(d, b.position(), l, Charsets.UTF_8); b.position(b.position() + l); return s }
             val n = b.int
@@ -71,7 +77,20 @@ class RomIndex private constructor(
                 val sha = ByteArray(20); b.get(sha)
                 disks.getOrPut(sha.joinToString("") { "%02x".format(it) }) { ArrayList() } += b.short.toInt() and 0xffff
             }
-            return RomIndex(names, descs, makers, years, kinds, parents, counts, crcs, sizes, sets, disks)
+            var listNames = emptyArray<String>(); var listDescs = emptyArray<String>()
+            val soft = HashMap<String, Pair<Int, String>>()
+            if (version >= 2) {
+                val nl = b.short.toInt() and 0xffff
+                listNames = Array(nl) { "" }; listDescs = Array(nl) { "" }
+                for (i in 0 until nl) { listNames[i] = str(); listDescs[i] = str() }
+                val ns = b.int
+                for (i in 0 until ns) {
+                    val sha = ByteArray(20); b.get(sha)
+                    val li = b.short.toInt() and 0xffff
+                    soft[sha.joinToString("") { "%02x".format(it) }] = li to str()
+                }
+            }
+            return RomIndex(names, descs, makers, years, kinds, parents, counts, crcs, sizes, sets, disks, listNames, listDescs, soft)
         }
     }
 }
@@ -95,9 +114,15 @@ class FileSource(private val f: File, override val name: String = f.name) : Sort
  * [how] says what identified it. [companions] are files that belong with it (a .cue's tracks).
  */
 data class SortResult(val folder: String, val label: String, val how: String, val machine: String? = null,
-                      val companions: List<String> = emptyList())
+                      val companions: List<String> = emptyList(), val title: String? = null)
 
-class RomSorter(private val index: RomIndex, private val tempDir: File) {
+/**
+ * [discHead] reads the first sectors of the disc inside a CD / DVD / GD-ROM CHD
+ * (native code on Android): a kind ('c', 'd', 'g') and the sectors, laid out as
+ * in an image file; null where that isn't available.
+ */
+class RomSorter(private val index: RomIndex, private val tempDir: File,
+                private val discHead: ((SortSource) -> Pair<Char, ByteArray>?)? = null) {
 
     private data class Entry(val name: String, val size: Long, val crc: Int?)
 
@@ -212,6 +237,11 @@ class RomSorter(private val index: RomIndex, private val tempDir: File) {
                 if (String(h, 0, 8, Charsets.US_ASCII) != "MComprHD") return null
                 if (be32(h, 12) != 5) return SortResult("Disc images", "CHD (old version)", "a CHD older than version 5")
                 val sha = h.copyOfRange(84, 104).joinToString("") { "%02x".format(it) }
+                // a disc in MAME's software lists: the exact game
+                index.softDisk(sha)?.let { (li, disk) ->
+                    val sys = listSystem(li)
+                    return SortResult("Games/$sys", sys, "its SHA1 is in MAME's ${index.listNames[li]} list", title = disk)
+                }
                 val owners = index.setsForDisk(sha).distinct()
                 if (owners.size == 1) return mameResult(owners[0], "a MAME disk image")
                 if (owners.size > 1) {
@@ -235,6 +265,16 @@ class RomSorter(private val index: RomIndex, private val tempDir: File) {
                 tags
             }
         } catch (_: Exception) { return null }
+        // otherwise read the disc itself: its boot sector or ISO 9660 system name
+        if ("CHT2" in meta || "CHTR" in meta || "CHCD" in meta || "DVD " in meta) {
+            discHead?.let { read ->
+                val got = try { read(src) } catch (_: Exception) { null }
+                if (got != null) {
+                    val size = if (got.first == 'd') 4_700_000_000L else 700_000_000L
+                    discSystem(got.second, size)?.let { return SortResult("Games/$it", it, "the disc inside the CHD") }
+                }
+            }
+        }
         return when {
             "CHGD" in meta -> SortResult("Games/Sega Dreamcast", "Sega Dreamcast", "a GD-ROM in a CHD")
             "DVD " in meta -> SortResult("Disc images/DVD", "DVD image", "a DVD in a CHD")
@@ -243,6 +283,24 @@ class RomSorter(private val index: RomIndex, private val tempDir: File) {
             else -> null
         }
     }
+
+    /** Folder name for a software list: the console, without "CD-ROMs" and the like */
+    private fun listSystem(li: Int): String {
+        val n = index.listNames[li]
+        known[n]?.let { return it }
+        return clean(index.listDescs[li].replace(Regex("\\s*(CD-ROMs?|GD-ROMs?|DVD-ROMs?|DVDs?|discs?|hard disks?|HDDs?|software|images?)\\b.*$", RegexOption.IGNORE_CASE), "")
+            .ifEmpty { n })
+    }
+
+    private val known = mapOf(
+        "psx" to "Sony PlayStation", "saturn" to "Sega Saturn", "dc" to "Sega Dreamcast",
+        "megacd" to "Sega Mega-CD", "megacdj" to "Sega Mega-CD", "segacd" to "Sega Mega-CD",
+        "pcecd" to "NEC PC Engine CD", "pcfx" to "NEC PC-FX", "cdi" to "Philips CD-i",
+        "fmtowns_cd" to "Fujitsu FM Towns", "cd32" to "Commodore Amiga CD32", "cdtv" to "Commodore CDTV",
+        "neocd" to "SNK Neo Geo CD", "3do" to "Panasonic 3DO", "pippin" to "Apple Pippin",
+        "jaguar_cd" to "Atari Jaguar CD", "amiga_cd" to "Commodore Amiga", "pc98_cd" to "NEC PC-98",
+        "mac_cdrom" to "Apple Macintosh", "vsmile_cd" to "VTech V.Smile Pro", "ibm5170_cdrom" to "IBM PC compatible",
+    )
 
     // ---- .cue / .gdi / .m3u: the sheet decides, its files go with it ----
 
