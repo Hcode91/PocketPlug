@@ -7,7 +7,7 @@ import java.io.File
 /** Runs the sorter over a folder of real files when SORT_TEST_DIR is set (local check, not CI). */
 class RomSorterTest {
     private fun sorter(): RomSorter {
-        val idx = File("src/main/assets/romindex.bin.gz").inputStream().use { RomIndex.load(it) }
+        val idx = File("src/main/assets/romindex.pprx").inputStream().use { RomIndex.load(it) }
         return RomSorter(idx, File(System.getProperty("java.io.tmpdir")))
     }
 

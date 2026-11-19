@@ -150,7 +150,7 @@ class FolderSorter(private val ctx: Context, private val tree: Uri) {
 
         @Volatile private var index: RomIndex? = null
         fun index(ctx: Context): RomIndex = index ?: synchronized(this) {
-            index ?: ctx.assets.open("romindex.bin.gz").use { RomIndex.load(it) }.also { index = it }
+            index ?: ctx.assets.open("romindex.pprx").use { RomIndex.load(it) }.also { index = it }
         }
 
         fun sorter(ctx: Context) = RomSorter(index(ctx), File(ctx.cacheDir, "sort").apply { mkdirs() }) { src ->

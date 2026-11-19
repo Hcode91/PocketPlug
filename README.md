@@ -328,7 +328,7 @@ Back) for the menu.
 Nothing moves until you've seen where everything will go; files it can't
 identify stay where they are, and a name already taken in the target folder
 goes to `Sorted/Duplicates`. ★ marks sets PocketPlug runs. The index
-(`app/src/main/assets/romindex.bin.gz`, 39,000 machines and 260,000 chips) is
+(`app/src/main/assets/romindex.pprx`, 39,000 machines and 260,000 chips) is
 made from MAME's source by `tools/mkromindex.py`; it holds only names, years,
 makers and checksums.
 

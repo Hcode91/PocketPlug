@@ -5,7 +5,8 @@
 # Reads a MAME source tree (src/mame, src/devices) and writes a compact
 # gzipped index of every machine, its ROM chips (CRC32 + size) and its disk
 # images (SHA1). Only names, years, makers and checksums are taken: facts,
-# no code. Usage: mkromindex.py <mame source dir> <out romindex.bin.gz>
+# no code. Usage: mkromindex.py <mame source dir> <out romindex.pprx>
+# (gzip data, but not named .gz: Android's build unpacks .gz assets and drops the extension)
 #
 # Format (little endian), after the magic "PPRX" and u16 version 2:
 #   u32 nSets, then per set: name, description, maker, year as u8-length
