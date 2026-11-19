@@ -153,6 +153,7 @@ void Atari800Core::setOption(int id, int value)
     // BASIC, Atari800 maps its BASIC ROM (Altirra BASIC, as this set has no
     // BASIC ROM) like a cartridge when BASIC isn't disabled
     bool on = value != 0;
+    basicCart_ = on;
     if (on == !Atari800_disable_basic) return;
     Atari800_disable_basic = !on;
     Atari800_InitialiseMachine();
@@ -211,6 +212,13 @@ bool Atari800Core::mediaInsert(int drive, const std::string& path, std::string& 
         return true;
     }
     if (drive != 2) { error = "No such drive"; return false; }
+    // Games expect the RAM under BASIC: on the real machine you hold OPTION
+    // while it starts. Do that for everything except BASIC programs; a
+    // cartridge or BASIC listing keeps the BASIC setting the machine has.
+    int type = AFILE_DetectFileType(path.c_str());
+    if (type == AFILE_ERROR) { error = "Atari800 doesn't recognise this file"; return false; }
+    bool wantBasic = type == AFILE_BAS || type == AFILE_LST;
+    Atari800_disable_basic = wantBasic ? !basicFitted() : TRUE;
     int r = AFILE_OpenFile(path.c_str(), TRUE, 1, FALSE);
     if (r == AFILE_ERROR) { error = "Atari800 doesn't recognise this file"; return false; }
     if ((r & 0xff) == AFILE_ROM && (r >> 8) > 0) {
@@ -242,7 +250,12 @@ void Atari800Core::mediaEject(int drive)
 {
     if (!loaded_) return;
     if (drive == 0 || drive == 1) SIO_Dismount(drive + 1);
-    else if (drive == 2) CARTRIDGE_RemoveAutoReboot();
+    else if (drive == 2) {
+        // back to the bare computer: BASIC as the machine has it
+        Atari800_disable_basic = !basicFitted();
+        CARTRIDGE_Remove();
+        Atari800_Coldstart();
+    }
 }
 
 int Atari800Core::mediaActivity()
@@ -279,7 +292,7 @@ bool Atari800Core::loadState(const std::vector<uint8_t>& in)
     size_t n = in.size() - 1;
     if (n > sizeof(emulator_state_t)) n = sizeof(emulator_state_t);
     memcpy(st, in.data(), n);
-    if (model_ == k1200XL && (in.back() != 0) != !Atari800_disable_basic) {
+    if ((in.back() != 0) != !Atari800_disable_basic) {
         Atari800_disable_basic = !in.back();
         Atari800_InitialiseMachine();
     }

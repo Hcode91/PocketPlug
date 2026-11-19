@@ -54,6 +54,9 @@ public:
 private:
     void render();
     int pickKey() const;
+    // BASIC in the machine: built into the 130XE, a cartridge on the 1200XL
+    bool basicFitted() const { return model_ == k130XE || basicCart_; }
+    bool basicCart_ = false;
 
     Model model_;
     std::vector<uint32_t> fb_;

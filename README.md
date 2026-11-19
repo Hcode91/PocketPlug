@@ -281,8 +281,10 @@ front:
   characters (CONTROL + F4). With nothing loaded it shows its logo; HELP starts
   the self test.
 - **130XE**: light grey case with ribs behind the keys, dark grey keys and the
-  RESET / OPTION / SELECT / START / HELP column on the right. It starts in BASIC;
-  hold OPTION while loading to switch BASIC off (programs do this themselves).
+  RESET / OPTION / SELECT / START / HELP column on the right. It starts in BASIC.
+- Loading a game switches BASIC off, like holding OPTION on the real machine, as
+  games use the memory BASIC sits on; BASIC programs (`.bas` / `.lst`) keep it.
+  Removing the cartridge from the menu brings BASIC back.
 - SHIFT and CONTROL latch for the next key when tapped on their own. Hold START,
   SELECT or OPTION as long as a game needs.
 - **Joystick**: drag the stick (8 ways); the red button is fire. A gamepad's
