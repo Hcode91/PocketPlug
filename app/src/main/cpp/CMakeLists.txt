@@ -37,6 +37,13 @@ file(GLOB ACORN_C_SOURCES CONFIGURE_DEPENDS ${ACORN}/*.c ${ACORN}/rpcemu/*.c
 set_source_files_properties(${ACORN_C_SOURCES} PROPERTIES
     COMPILE_FLAGS "-std=gnu99 -O2 -w -DRPCEMU_PLATFORM_LINUX -I${ACORN}/rpcemu -I${ACORN}/rpcemu/filesystem -I${ACORN}/rpcemu/platform")
 
+# Acorn Archimedes family: Arculator (GPL-2+), in C; names that clash with
+# RPCEmu and the other C cores are renamed by arc_rename.h
+set(ARCHI ${CMAKE_CURRENT_SOURCE_DIR}/cores/archi)
+file(GLOB ARCHI_C_SOURCES CONFIGURE_DEPENDS ${ARCHI}/*.c ${ARCHI}/arculator/*.c)
+set_source_files_properties(${ARCHI_C_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-std=gnu99 -O2 -w -include ${ARCHI}/arc_rename.h -I${ARCHI}/arculator")
+
 # CHD images: the LZMA SDK (public domain) and libFLAC's decoder (BSD-3), in C
 set(CHD ${CMAKE_CURRENT_SOURCE_DIR}/common/chd)
 file(GLOB CHD_FLAC_SOURCES CONFIGURE_DEPENDS ${CHD}/flac/*.c)
@@ -51,6 +58,7 @@ add_library(pocketplug SHARED
     ${UNIXPC_C_SOURCES}
     ${A800_C_SOURCES}
     ${ACORN_C_SOURCES}
+    ${ARCHI_C_SOURCES}
     ${CHD_FLAC_SOURCES}
     ${CHD}/lzma/LzmaDec.c)
 

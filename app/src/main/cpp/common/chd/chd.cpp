@@ -188,6 +188,7 @@ bool ChdFile::open(const std::string& path, std::string& err)
     for (int i = 0; i < 4; i++) m_codecs[i] = be32(h + 16 + 4 * i);
     m_logical = be64(h + 32);
     uint64_t mapOff = be64(h + 40);
+    m_metaOff = be64(h + 48);
     m_hunkBytes = be32(h + 56);
     for (int i = 0; i < 20; i++) if (h[104 + i]) { err = "CHDs with a parent aren't supported"; return false; }
     if (m_hunkBytes == 0 || m_hunkBytes > (1u << 20) || m_logical == 0) { err = "bad CHD header"; return false; }
@@ -279,6 +280,25 @@ bool ChdFile::hunk(uint32_t index, uint8_t* dst, int depth)
     if (fseeko(m_f, off_t(e.offset), SEEK_SET) || fread(m_comp.data(), 1, e.length, m_f) != e.length) return false;
     if (e.type == 4) { memcpy(dst, m_comp.data(), m_hunkBytes); return true; }
     return decode(m_codecs[e.type], m_comp.data(), e.length, dst);
+}
+
+bool ChdFile::diskGeometry(int& cyls, int& heads, int& secs)
+{
+    uint64_t at = m_metaOff;
+    for (int n = 0; at && n < 64; n++) {
+        uint8_t mh[16];
+        if (fseeko(m_f, off_t(at), SEEK_SET) || fread(mh, 1, 16, m_f) != 16) return false;
+        uint32_t len = uint32_t(mh[5]) << 16 | mh[6] << 8 | mh[7];
+        uint64_t next = be64(mh + 8);
+        if (be32(mh) == tag("GDDD") && len < 256) {
+            char s[256] = {};
+            if (fread(s, 1, len, m_f) != len) return false;
+            int bps = 512;
+            return sscanf(s, "CYLS:%d,HEADS:%d,SECS:%d,BPS:%d", &cyls, &heads, &secs, &bps) >= 3;
+        }
+        at = next;
+    }
+    return false;
 }
 
 bool ChdFile::read(uint64_t offset, uint8_t* dst, size_t len)

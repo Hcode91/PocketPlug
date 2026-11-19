@@ -14,6 +14,7 @@
 #include "cores/unixpc/unixpc.h"
 #include "cores/atari800/atari800.h"
 #include "cores/acorn/acorn.h"
+#include "cores/archi/archi.h"
 #include "cores/nixie4004/nixieclock.h"
 #include "cores/tm990/tm990.h"
 
@@ -132,6 +133,10 @@ Core* createCore(const std::string& id)
     if (id == "a800xlp") return new Atari800Core(Atari800Core::k800XLPAL);
     if (id == "a65xe") return new Atari800Core(Atari800Core::k65XE);
     if (id == "a800xe") return new Atari800Core(Atari800Core::k800XE);
+    if (id == "aa305" || id == "aa310" || id == "aa440" || id == "aa4101" || id == "aa540" ||
+        id == "aa3000" || id == "aa5000" || id == "aa3010" || id == "aa3010_de" || id == "aa3020" ||
+        id == "aa4000" || id == "aa4" || id == "aa500")   // Acorn Archimedes family (Arculator)
+        return new ArchiCore(id);
     if (id == "a7000")        // Acorn A7000 (RPCEmu), RISC OS 3.60
         return new AcornCore(AcornCore::kA7000);
     if (id == "a7000p")       // Acorn A7000+ (RPCEmu), RISC OS 3.71

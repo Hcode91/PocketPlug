@@ -20,6 +20,8 @@ public:
     uint64_t size() const { return m_logical; }
     // reads len bytes at offset; false past the end or on a bad hunk
     bool read(uint64_t offset, uint8_t* dst, size_t len);
+    // hard-disk geometry from the 'GDDD' metadata (CYLS:..,HEADS:..,SECS:..)
+    bool diskGeometry(int& cyls, int& heads, int& secs);
 
 private:
     struct Entry { uint8_t type; uint64_t offset; uint32_t length; };
@@ -28,6 +30,7 @@ private:
 
     FILE* m_f = nullptr;
     uint64_t m_logical = 0;
+    uint64_t m_metaOff = 0;
     uint32_t m_hunkBytes = 0;
     uint32_t m_codecs[4] = {};
     std::vector<Entry> m_map;

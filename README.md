@@ -26,6 +26,7 @@ controller.
 | 800 Home Computer (Atari) | `a800`, `a800pal` | Atari800, 48 KB | Real OS: Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
 | 800XL / 600XL Home Computers (Atari) | `a800xl`, `a800xlp`, `a600xl` | Atari800, 64 KB | BASIC built in; loads disks, programs, cartridges and tapes |
 | 65XE / 800XE Home Computers (Atari) | `a65xe`, `a800xe` | Atari800, 64 KB | BASIC built in; loads disks, programs, cartridges and tapes |
+| Archimedes family (Acorn): 305, 310, 440, 410/1, 540, A3000, A3010 (UK / German), A3020, A4000, A5000, A4 laptop, A500 | `aa305`, `aa310`, `aa440`, `aa4101`, `aa540`, `aa3000`, `aa3010`, `aa3010_de`, `aa3020`, `aa4000`, `aa5000`, `aa4`, `aa500` | Arculator (ARM2 / ARM250 / ARM3, MEMC, VIDC, IOC, IOEB, 82C711, WD1772) | Arthur, RISC OS 2 and RISC OS 3 start to the desktop, chosen in the menu; floppies, HostFS, and MAME's RISC OS 3.11 hard disk on the IDE machines (MAME's drivers don't run) |
 | A7000 / A7000+ Desktop Computers (Acorn) | `a7000`, `a7000p` | RPCEmu (ARM7500 / ARM7500FE, IOMD, VIDC20), 32 MB | RISC OS 3.60 / 3.71 start to the desktop; mouse, keyboard, floppies (.adf) and HostFS |
 | 400 Home Computer (Atari) | `a400`, `a400pal` | Atari800 (6502B, ANTIC, CTIA/GTIA, POKEY), 48 KB | Real OS rev. B (NTSC) / rev. A (PAL): Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
 | 130XE Home Computer (Atari) | `a130xe` | Atari800, 128 KB banked RAM | BASIC built in; loads disks, programs, cartridges and tapes |
@@ -322,6 +323,35 @@ the games 60 bytes of tiny routines at start-up (pad, sprite and PPU address
 access). That chip isn't dumped; its contents are rebuilt from how the games
 call it. The games also set bit 4 of video register 201e, which on this unit
 keeps the NES palette.
+
+### Acorn Archimedes family
+
+Import the MAME zip for the machine: `aa310` covers the 305, 310, 440, 540 and
+A3000 too (the A3000's RISC OS chips are in it; MAME's `a3000` is the Amiga
+3000, not this). The A3020, A4000, A5000 and A4 also take
+`riscos311_apps.chd`, MAME's 64 MB hard disk with the RISC OS 3.11
+applications, as a second file: it's unpacked once into a writable disk, shown
+as IDEDisc4 (PocketPlug sets *Configure IDEDiscs 1 for these machines).
+
+The machine is Arculator (Sarah Walker's Archimedes emulator), each model set
+up after its own presets: CPU (ARM2, ARM250 or ARM3 at 24 / 25 / 26 MHz),
+MEMC, memory (512 KB to 4 MB; the A3000 is given 2 MB), and old IO (WD1772)
+or new IO (82C711, IDE). The menu's **Operating system** picks among the ROMs
+each machine shipped with or was upgraded to: Arthur 0.30 / 1.20 and RISC OS
+2.00 / 2.01 on the 305, 310 and 440; RISC OS 2.00 to 3.11 on the 410/1,
+540 and A3000; 3.00 to 3.11 on the A5000. The A3010s, A3020, A4000 and A4 have
+their own RISC OS 3.1 chips.
+
+Drawn after the real ones, without names or logos: the 300 / 400 / 500 series
+as the low beige box under its monitor with the orange-red function keys under
+a clear strip; the A4000 and A5000 as their flat boxes; the A3000 (red keys),
+A3010 (green keys) and A3020 (red keys) as the computer in the keyboard, under
+a monitor; the A4 as the dark grey laptop with its LCD. The screen is the mouse
+pad as on the A7000; the floppy slot opens disks & files (.adf, .apd, .hfe,
+.jfd, .scp floppies and HostFS), the plate marked MENU the emulator menu.
+
+Arculator's floppy timing follows its drive-sound samples, which aren't
+included; silent stand-ins of the same lengths keep the timing.
 
 ### Atari 8-bit Home Computers (400, 800, 600XL, 800XL, 1200XL, 65XE, 130XE, 800XE)
 

@@ -59,12 +59,16 @@ int main(int argc, char** argv)
     std::map<int, std::vector<std::array<float, 3>>> stickScript;
     // "frame:k<code>:<1|0>" presses / releases a computer key
     std::map<int, std::vector<std::pair<int, bool>>> keyScript;
+    // "frame:o<id>:<value>" sets a core option
+    std::map<int, std::vector<std::pair<int, int>>> optScript;
     if (argc > 5) {
         std::stringstream ss(argv[5]); std::string tok;
         while (std::getline(ss, tok, ',')) {
             int f; unsigned m;
             float jx, jy; int st;
             if (sscanf(tok.c_str(), "%d:j%d:%f:%f", &f, &st, &jx, &jy) == 4) { stickScript[f].push_back({ (float)st, jx, jy }); continue; }
+            int oi, ov;
+            if (sscanf(tok.c_str(), "%d:o%d:%d", &f, &oi, &ov) == 3) { optScript[f].push_back({ oi, ov }); continue; }
             int kc, kd;
             if (sscanf(tok.c_str(), "%d:k%d:%d", &f, &kc, &kd) == 3) { keyScript[f].push_back({ kc, kd != 0 }); continue; }
             if (sscanf(tok.c_str(), "%d:t%x", &f, &m) == 2) tapScript[f] = m;
@@ -76,6 +80,7 @@ int main(int argc, char** argv)
     for (int f = 0; f < frames; f++) {
         if (script.count(f)) core->setInputs(script[f]);
         if (tapScript.count(f)) core->tapInputs(tapScript[f]);
+        if (optScript.count(f)) for (auto& o : optScript[f]) core->setOption(o.first, o.second);
         if (keyScript.count(f)) for (auto& k : keyScript[f]) core->keyEvent(k.first, k.second);
         if (stickScript.count(f)) for (auto& j : stickScript[f]) core->setAnalog((int)j[0], j[1], j[2]);
         core->runFrame();

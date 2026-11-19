@@ -10,9 +10,15 @@ import kotlin.math.abs
 import kotlin.math.hypot
 
 /**
- * A mid-90s RISC OS desktop in the style of the A7000: a light grey monitor
- * on the slim system unit (floppy drive, CD drive, power light), the keyboard
- * and the three-button mouse (SELECT, MENU, ADJUST). No maker's name or logo.
+ * RISC OS computers, drawn after the real ones without makers' names or logos:
+ *  - "a7000" / "a7000p": a light grey monitor on the slim system unit (floppy,
+ *    CD drive, power light), the keyboard and the three-button mouse;
+ *  - "archimedes": the 300 / 400 / 500 series: a low beige box under the
+ *    monitor, the keyboard with orange-red function keys under a clear strip;
+ *  - "a4000" / "a5000": the later flat boxes, the keyboard with grey keys;
+ *  - "a3000" / "a3010" / "a3020": the computer built into the keyboard (red,
+ *    green or red function keys), with a monitor above it;
+ *  - "a4": the dark grey laptop, its screen in the lid.
  *
  * The screen is the mouse pad: drag to move the pointer, tap to click SELECT.
  * The mouse's own buttons can be held (MENU opens RISC OS menus). Keys report
@@ -20,7 +26,43 @@ import kotlin.math.hypot
  * ALT latch for the next key when tapped on their own. The floppy drive opens
  * the disk menu, the MENU plate on the unit the emulator menu.
  */
-class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
+class AcornView(ctx: Context, private val style: String) : View(ctx) {
+
+    private val plus = style == "a7000p"
+    private val kind = when (style) {
+        "archimedes", "a4000", "a5000" -> KIND_DESK
+        "a3000", "a3010", "a3020" -> KIND_KEYBOARD
+        "a4" -> KIND_LAPTOP
+        else -> KIND_A7000
+    }
+    // colours: case, keys (light / dark / function), key sides
+    private val caseTop: Int; private val caseBottom: Int
+    private val keyLight: Int; private val keyLightSide: Int
+    private val keyDark: Int; private val keyDarkSide: Int
+    private val keyFn: Int; private val keyFnSide: Int
+    private val legend: Int
+    init {
+        fun c(v: Long) = v.toInt()
+        when (style) {
+            "archimedes" -> { caseTop = c(0xFFE6DFC9); caseBottom = c(0xFFCFC6AC); keyLight = c(0xFFE9E3D2); keyLightSide = c(0xFFC4BBA2)
+                keyDark = c(0xFFA39B88); keyDarkSide = c(0xFF7F786A); keyFn = c(0xFFE0603A); keyFnSide = c(0xFFAC4127); legend = c(0xFF3A352C) }
+            "a5000" -> { caseTop = c(0xFFEDE9DD); caseBottom = c(0xFFD6D0C0); keyLight = c(0xFFDAD7CF); keyLightSide = c(0xFFB3AFA5)
+                keyDark = c(0xFFA6A39B); keyDarkSide = c(0xFF84817A); keyFn = c(0xFFA6A39B); keyFnSide = c(0xFF84817A); legend = c(0xFF2F2E2B) }
+            "a4000" -> { caseTop = c(0xFFE3E0D6); caseBottom = c(0xFFCAC6BA); keyLight = c(0xFFB9B9B6); keyLightSide = c(0xFF95958F)
+                keyDark = c(0xFF9A9A96); keyDarkSide = c(0xFF797975); keyFn = c(0xFF9A9A96); keyFnSide = c(0xFF797975); legend = c(0xFF262624) }
+            "a3000" -> { caseTop = c(0xFFE8E2CE); caseBottom = c(0xFFD2CAB0); keyLight = c(0xFFDCD5C0); keyLightSide = c(0xFFB5AD95)
+                keyDark = c(0xFF9F9784); keyDarkSide = c(0xFF7C7566); keyFn = c(0xFFD2343A); keyFnSide = c(0xFF9A2228); legend = c(0xFF34302A) }
+            "a3010" -> { caseTop = c(0xFFEDEEEB); caseBottom = c(0xFFD5D6D2); keyLight = c(0xFFF3F3F0); keyLightSide = c(0xFFC9CAC5)
+                keyDark = c(0xFF9C9D9A); keyDarkSide = c(0xFF797A77); keyFn = c(0xFF5FC46E); keyFnSide = c(0xFF3D9650); legend = c(0xFF262624) }
+            "a3020" -> { caseTop = c(0xFFE9E8E2); caseBottom = c(0xFFD0CEC6); keyLight = c(0xFFEEEDE7); keyLightSide = c(0xFFC5C3BB)
+                keyDark = c(0xFF96968F); keyDarkSide = c(0xFF74746E); keyFn = c(0xFFD2343A); keyFnSide = c(0xFF9A2228); legend = c(0xFF262624) }
+            "a4" -> { caseTop = c(0xFF5E5C59); caseBottom = c(0xFF4A4846); keyLight = c(0xFFE8E6E0); keyLightSide = c(0xFFBDBAB2)
+                keyDark = c(0xFF9E9C97); keyDarkSide = c(0xFF7B7975); keyFn = c(0xFFE8E6E0); keyFnSide = c(0xFFBDBAB2); legend = c(0xFF2A2927) }
+            else -> { caseTop = c(0xFFD3D1CA); caseBottom = c(0xFFB9B6AE); keyLight = c(0xFFEEECE6); keyLightSide = c(0xFFC7C4BC)
+                keyDark = c(0xFF9F9D97); keyDarkSide = c(0xFF7C7A74); keyFn = c(0xFF9F9D97); keyFnSide = c(0xFF7C7A74); legend = c(0xFF2F2E2B) }
+        }
+    }
+
 
     var onKey: ((Int, Boolean) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -35,6 +77,10 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
         set(v) { field = v; postInvalidate() }
 
     companion object {
+        private const val KIND_A7000 = 0
+        private const val KIND_DESK = 1
+        private const val KIND_KEYBOARD = 2
+        private const val KIND_LAPTOP = 3
         const val W = 800
         const val H = 600
         const val SHIFT_L = 0x12
@@ -43,14 +89,14 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
         const val ALT = 0x11
     }
 
-    private class Key(val label: String, val code: Int, val units: Float, val shiftLabel: String = "", val dark: Boolean = false) {
+    private class Key(val label: String, val code: Int, val units: Float, val shiftLabel: String = "", val dark: Boolean = false, val fn: Boolean = false) {
         val rect = RectF()
         var down = false
     }
 
     private val rows: List<List<Key>> = listOf(
         listOf(Key("Esc", 0x76, 1f, dark = true)) + listOf(0x05, 0x06, 0x04, 0x0c, 0x03, 0x0b, 0x83, 0x0a, 0x01, 0x09, 0x78, 0x07)
-            .mapIndexed { i, c -> Key("F${i + 1}", c, 1f, dark = true) } +
+            .mapIndexed { i, c -> Key("F${i + 1}", c, 1f, dark = true, fn = true) } +
             listOf(Key("Delete", 0x95, 1f, dark = true), Key("Copy", 0x96, 1f, dark = true)),
         listOf(Key("`", 0x0e, 1f, "¬"), Key("1", 0x16, 1f, "!"), Key("2", 0x1e, 1f, "\""), Key("3", 0x26, 1f, "£"),
             Key("4", 0x25, 1f, "$"), Key("5", 0x2e, 1f, "%"), Key("6", 0x36, 1f, "^"), Key("7", 0x3d, 1f, "&"),
@@ -111,6 +157,10 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
     }
 
     override fun onSizeChanged(vw: Int, vh: Int, ow: Int, oh: Int) {
+        when (kind) {
+            KIND_KEYBOARD -> { layoutKeyboardComputer(vw, vh); return }
+            KIND_LAPTOP -> { layoutLaptop(vw, vh); return }
+        }
         val wf = vw.toFloat()
         val mw = wf * 0.96f
         val sw = mw * 0.86f
@@ -122,13 +172,24 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
         floppy.set(unit.left + unit.width() * 0.07f, unit.top + uh * 0.4f, unit.left + unit.width() * 0.33f, unit.top + uh * 0.62f)
         cdrom.set(unit.left + unit.width() * 0.38f, unit.top + uh * 0.22f, unit.left + unit.width() * 0.72f, unit.top + uh * 0.78f)
         menuPlate.set(unit.right - unit.width() * 0.2f, unit.top + uh * 0.55f, unit.right - unit.width() * 0.06f, unit.top + uh * 0.82f)
+        if (kind == KIND_DESK) {
+            // the Archimedes boxes: badge plate on the left, floppy on the right
+            menuPlate.set(unit.left + unit.width() * 0.05f, unit.top + uh * 0.3f, unit.left + unit.width() * 0.22f, unit.top + uh * 0.6f)
+            floppy.set(unit.right - unit.width() * 0.36f, unit.top + uh * 0.45f, unit.right - unit.width() * 0.1f, unit.top + uh * 0.62f)
+        }
 
+        layoutKeys(wf, unit.bottom + wf * 0.025f, if (kind == KIND_DESK && style == "archimedes") 0.6f else 0f)
+        layoutMouse(wf, vh.toFloat())
+    }
+
+    /** Keys from the top of the keyboard at y; extra = key units of clear strip above the F keys */
+    private fun layoutKeys(wf: Float, top: Float, extra: Float) {
         val maxUnits = rows.maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() }
         u = wf * 0.94f / maxUnits
         val kh = u * 1.15f
         val left = (wf - u * maxUnits) / 2
-        board.set(wf * 0.015f, unit.bottom + wf * 0.025f, wf * 0.985f, unit.bottom + wf * 0.025f + kh * rows.size + u * 0.7f)
-        var y = board.top + u * 0.35f
+        board.set(wf * 0.015f, top, wf * 0.985f, top + kh * rows.size + u * (0.7f + extra))
+        var y = board.top + u * (0.35f + extra)
         for ((ri, r) in rows.withIndex()) {
             var x = left
             val rh = if (ri == 0) kh * 0.85f else kh
@@ -142,7 +203,9 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
         val ret1 = rows[2].last().rect
         val ret2 = rows[3].last().rect
         ret2.top = ret1.bottom - u * 0.2f
+    }
 
+    private fun layoutMouse(wf: Float, vh: Float) {
         // the mouse, in front of the keyboard on the right
         val below = vh - board.bottom
         val mh = minOf(below * 0.8f, wf * 0.36f)
@@ -153,12 +216,186 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
             mouse.left + bw * (i + 1) - bw * 0.06f, mouse.top + mh * 0.38f)
     }
 
+    /** A3000 / A3010 / A3020: a monitor, then the computer-in-a-keyboard with its ribbed top */
+    private fun layoutKeyboardComputer(vw: Int, vh: Int) {
+        val wf = vw.toFloat()
+        val mw = wf * 0.9f
+        val sw = mw * 0.84f
+        val sh = sw * 0.75f
+        monitor.set((wf - mw) / 2, vh * 0.01f, (wf + mw) / 2, vh * 0.01f + sh + mw * 0.13f)
+        screen.set(wf / 2 - sw / 2, monitor.top + mw * 0.05f, wf / 2 + sw / 2, monitor.top + mw * 0.05f + sh)
+        // the ribbed top of the case is the "unit"; keys below it
+        val top = monitor.bottom + wf * 0.03f
+        unit.set(wf * 0.015f, top, wf * 0.985f, top + wf * 0.16f)
+        layoutKeys(wf, unit.bottom - wf * 0.01f, 0f)
+        board.top = unit.top
+        val uh = unit.height()
+        floppy.set(unit.right - unit.width() * 0.3f, unit.top + uh * 0.42f, unit.right - unit.width() * 0.06f, unit.top + uh * 0.58f)
+        menuPlate.set(unit.right - unit.width() * 0.24f, unit.bottom + u * 0.02f, unit.right - unit.width() * 0.06f, unit.bottom + u * 0.32f)
+        layoutMouse(wf, vh.toFloat())
+    }
+
+    /** A4: the screen in the lid, the keyboard in the base */
+    private fun layoutLaptop(vw: Int, vh: Int) {
+        val wf = vw.toFloat()
+        val lw = wf * 0.92f
+        val sw = lw * 0.7f
+        val sh = sw * 0.75f
+        monitor.set((wf - lw) / 2, vh * 0.015f, (wf + lw) / 2, vh * 0.015f + sh + lw * 0.1f)
+        screen.set(monitor.left + lw * 0.22f, monitor.top + lw * 0.05f, monitor.left + lw * 0.22f + sw, monitor.top + lw * 0.05f + sh)
+        val top = monitor.bottom + wf * 0.005f
+        unit.set(wf * 0.03f, top, wf * 0.97f, top + wf * 0.12f)
+        layoutKeys(wf, unit.bottom - wf * 0.005f, 0f)
+        board.left = unit.left; board.right = unit.right
+        board.top = unit.top
+        val uh = unit.height()
+        menuPlate.set(unit.right - unit.width() * 0.34f, unit.top + uh * 0.25f, unit.right - unit.width() * 0.08f, unit.top + uh * 0.75f)
+        floppy.set(unit.left + unit.width() * 0.36f, unit.top + uh * 0.4f, unit.left + unit.width() * 0.56f, unit.top + uh * 0.6f)
+        layoutMouse(wf, vh.toFloat())
+    }
+
     override fun onDraw(cv: Canvas) {
         cv.drawColor(0xFF2A2724.toInt())
-        drawMonitor(cv)
-        drawUnit(cv)
-        drawKeyboard(cv)
+        when (kind) {
+            KIND_KEYBOARD -> { drawMonitor(cv); drawKeyboard(cv); drawKeyboardTop(cv) }
+            KIND_LAPTOP -> { drawLid(cv); drawKeyboard(cv); drawLaptopTop(cv) }
+            KIND_DESK -> { drawMonitor(cv); drawDeskUnit(cv); drawKeyboard(cv); if (style == "archimedes") drawClearStrip(cv) }
+            else -> { drawMonitor(cv); drawUnit(cv); drawKeyboard(cv) }
+        }
         drawMouse(cv)
+    }
+
+    private fun drawFloppySlot(cv: Canvas, w: Float, h: Float, light: Boolean) {
+        paint.color = 0xFF1E1D1B.toInt()
+        cv.drawRoundRect(floppy, floppy.height() / 2, floppy.height() / 2, paint)
+        paint.color = if (indicators and 1 != 0) 0xFFFFB02E.toInt() else 0xFF5A4A2A.toInt()
+        cv.drawCircle(floppy.left - w * 0.015f, floppy.centerY(), w * 0.006f, paint)
+        text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+        text.color = if (light) 0xFFD8D6D0.toInt() else 0xFF5E5B55.toInt(); text.textSize = h
+        cv.drawText(floppyLabel ?: "tap: disks & files", floppy.centerX(), floppy.top - h * 0.5f, text)
+    }
+
+    private fun drawPlate(cv: Canvas, w: Float, fill: Int, ink: Int) {
+        paint.color = fill
+        cv.drawRoundRect(menuPlate, w * 0.006f, w * 0.006f, paint)
+        // two small lights, as on the real plates
+        paint.color = 0xFF3FD24A.toInt()
+        cv.drawCircle(menuPlate.right - menuPlate.width() * 0.1f, menuPlate.top + menuPlate.height() * 0.3f, menuPlate.height() * 0.09f, paint)
+        paint.color = if (indicators and 1 != 0) 0xFFFFB02E.toInt() else 0xFF6A5A3A.toInt()
+        cv.drawCircle(menuPlate.right - menuPlate.width() * 0.1f, menuPlate.top + menuPlate.height() * 0.68f, menuPlate.height() * 0.09f, paint)
+        text.color = ink; text.textSize = menuPlate.height() * 0.42f
+        text.typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+        cv.drawText("MENU", menuPlate.centerX() - menuPlate.width() * 0.06f, menuPlate.centerY() + text.textSize * 0.36f, text)
+        text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+    }
+
+    /** the low Archimedes / A4000 / A5000 boxes */
+    private fun drawDeskUnit(cv: Canvas) {
+        val b = unit
+        val w = b.width()
+        paint.color = 0x66000000
+        cv.drawRoundRect(b.left + w * 0.006f, b.top + w * 0.008f, b.right + w * 0.006f, b.bottom + w * 0.008f, w * 0.01f, w * 0.01f, paint)
+        paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, b.top, 0f, b.bottom, caseTop, caseBottom, Shader.TileMode.CLAMP)
+        cv.drawRoundRect(b, w * 0.01f, w * 0.01f, paint)
+        paint.shader = null
+        // the lid's edge and a front panel band
+        stroke.color = caseBottom; stroke.strokeWidth = w * 0.003f
+        cv.drawLine(b.left + w * 0.01f, b.top + b.height() * 0.2f, b.right - w * 0.01f, b.top + b.height() * 0.2f, stroke)
+        if (style != "archimedes") {
+            paint.color = if (style == "a4000") 0xFFBDBAB0.toInt() else 0xFFC9C4B6.toInt()
+            cv.drawRect(b.left + w * 0.01f, b.top + b.height() * 0.28f, b.right - w * 0.01f, b.top + b.height() * 0.78f, paint)
+        } else {
+            // the cooling slots along the right side
+            stroke.color = caseBottom
+            var x = b.right - w * 0.05f
+            while (x < b.right - w * 0.015f) { cv.drawLine(x, b.top + b.height() * 0.3f, x, b.bottom - b.height() * 0.15f, stroke); x += w * 0.008f }
+        }
+        drawPlate(cv, w, if (style == "archimedes") 0xFFD9CFA6.toInt() else 0xFFE4DCB8.toInt(), 0xFF4E4A3E.toInt())
+        // floppy bay
+        paint.color = caseBottom
+        cv.drawRoundRect(floppy.left - w * 0.02f, floppy.top - b.height() * 0.14f, floppy.right + w * 0.02f, floppy.bottom + b.height() * 0.14f, w * 0.006f, w * 0.006f, paint)
+        drawFloppySlot(cv, w, b.height() * 0.12f, false)
+    }
+
+    /** the clear strip over the 300 / 400 series' function keys (for a key legend card) */
+    private fun drawClearStrip(cv: Canvas) {
+        val fk = rows[0].filter { it.fn }
+        if (fk.isEmpty()) return
+        val r = RectF(fk.first().rect.left, board.top + u * 0.1f, fk.last().rect.right, fk.first().rect.top - u * 0.08f)
+        paint.color = 0x55FFFFFF
+        cv.drawRoundRect(r, u * 0.08f, u * 0.08f, paint)
+        stroke.color = 0x66FFFFFF; stroke.strokeWidth = u * 0.03f
+        cv.drawRoundRect(r, u * 0.08f, u * 0.08f, stroke)
+    }
+
+    /** A3000 / A3010 / A3020: the ribbed top of the case over the keys */
+    private fun drawKeyboardTop(cv: Canvas) {
+        val b = unit
+        val w = b.width()
+        paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, b.top, 0f, b.bottom, caseTop, caseBottom, Shader.TileMode.CLAMP)
+        cv.drawRoundRect(b, w * 0.015f, w * 0.015f, paint)
+        paint.shader = null
+        stroke.color = caseBottom; stroke.strokeWidth = w * 0.003f
+        if (style == "a3000") {
+            // vents over the left half, a plain right half
+            var x = b.left + w * 0.08f
+            while (x < b.left + w * 0.55f) { cv.drawLine(x, b.top + b.height() * 0.12f, x, b.bottom - b.height() * 0.2f, stroke); x += w * 0.012f }
+        } else {
+            // ribs across the whole top
+            var x = b.left + w * 0.12f
+            while (x < b.right - w * 0.02f) { cv.drawLine(x, b.top + b.height() * 0.06f, x, b.bottom - b.height() * 0.06f, stroke); x += w * 0.085f }
+            var vx = b.left + w * 0.05f
+            while (vx < b.right - w * 0.05f) { cv.drawLine(vx, b.top + b.height() * 0.04f, vx + w * 0.02f, b.top + b.height() * 0.04f, stroke); vx += w * 0.035f }
+        }
+        drawFloppySlot(cv, w, b.height() * 0.13f, false)
+        drawPlate(cv, w, 0xFFE8E0BE.toInt(), 0xFF4E4A3E.toInt())
+    }
+
+    /** A4: the dark lid around the screen, its lights and knobs */
+    private fun drawLid(cv: Canvas) {
+        val m = monitor
+        val w = m.width()
+        paint.color = 0x66000000
+        cv.drawRoundRect(m.left + w * 0.01f, m.top + w * 0.012f, m.right + w * 0.01f, m.bottom + w * 0.012f, w * 0.015f, w * 0.015f, paint)
+        paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, m.top, 0f, m.bottom, 0xFF5A5856.toInt(), 0xFF484644.toInt(), Shader.TileMode.CLAMP)
+        cv.drawRoundRect(m, w * 0.015f, w * 0.015f, paint)
+        paint.shader = null
+        paint.color = 0xFF2C2B2A.toInt()
+        cv.drawRect(screen.left - w * 0.012f, screen.top - w * 0.012f, screen.right + w * 0.012f, screen.bottom + w * 0.012f, paint)
+        frame.setPixels(framePx, 0, W, 0, 0, W, H)
+        cv.drawBitmap(frame, null, screen, pixelPaint)
+        // status lights and the contrast / brightness knobs
+        val lx = m.left + w * 0.07f
+        for (i in 0..4) {
+            paint.color = if (i == 0) 0xFF5BE05E.toInt() else if (i == 2 && indicators and 1 != 0) 0xFFFFB02E.toInt() else 0xFF3A3937.toInt()
+            cv.drawRect(lx, screen.top + w * (0.04f + i * 0.045f), lx + w * 0.008f, screen.top + w * (0.06f + i * 0.045f), paint)
+        }
+        for (i in 0..1) {
+            paint.color = 0xFF1C1B1A.toInt()
+            cv.drawCircle(lx + w * 0.02f, screen.top + w * (0.3f + i * 0.08f), w * 0.026f, paint)
+        }
+        // the speaker grille in the lid's corner
+        stroke.color = 0xFF3C3B39.toInt(); stroke.strokeWidth = w * 0.003f
+        var gx = screen.right + w * 0.025f
+        while (gx < m.right - w * 0.015f) { cv.drawLine(gx, screen.bottom - w * 0.2f, gx, screen.bottom - w * 0.05f, stroke); gx += w * 0.008f }
+    }
+
+    /** A4: the base above the keys (grille, floppy, plate) */
+    private fun drawLaptopTop(cv: Canvas) {
+        val b = unit
+        val w = b.width()
+        paint.color = 0xFF000000.toInt()
+        paint.shader = LinearGradient(0f, b.top, 0f, b.bottom, caseTop, caseBottom, Shader.TileMode.CLAMP)
+        cv.drawRect(b, paint)
+        paint.shader = null
+        stroke.color = 0xFF3A3937.toInt(); stroke.strokeWidth = w * 0.003f
+        var gx = b.left + w * 0.06f
+        while (gx < b.left + w * 0.3f) { cv.drawLine(gx, b.top + b.height() * 0.2f, gx, b.bottom - b.height() * 0.2f, stroke); gx += w * 0.01f }
+        drawFloppySlot(cv, w, b.height() * 0.16f, true)
+        drawPlate(cv, w, 0xFF55524F.toInt(), 0xFFB9B6AE.toInt())
     }
 
     private fun drawMonitor(cv: Canvas) {
@@ -167,7 +404,12 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
         paint.color = 0x66000000
         cv.drawRoundRect(m.left + w * 0.01f, m.top + w * 0.012f, m.right + w * 0.01f, m.bottom + w * 0.012f, w * 0.03f, w * 0.03f, paint)
         paint.color = 0xFF000000.toInt()
-        paint.shader = LinearGradient(0f, m.top, 0f, m.bottom, 0xFFD9D7D0.toInt(), 0xFFBEBBB3.toInt(), Shader.TileMode.CLAMP)
+        val (mt, mb) = when (style) {
+            "archimedes", "a3000" -> 0xFFE4DDC7.toInt() to 0xFFCAC1A6.toInt()
+            "a5000", "a4000", "a3010", "a3020" -> 0xFFE8E5DC.toInt() to 0xFFCFCBC0.toInt()
+            else -> 0xFFD9D7D0.toInt() to 0xFFBEBBB3.toInt()
+        }
+        paint.shader = LinearGradient(0f, m.top, 0f, m.bottom, mt, mb, Shader.TileMode.CLAMP)
         cv.drawRoundRect(m, w * 0.03f, w * 0.03f, paint)
         paint.shader = null
         paint.color = 0xFF2F2F2E.toInt()
@@ -243,7 +485,7 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
         paint.color = 0x66000000
         cv.drawRoundRect(b.left + w * 0.006f, b.top + w * 0.01f, b.right + w * 0.006f, b.bottom + w * 0.01f, w * 0.02f, w * 0.02f, paint)
         paint.color = 0xFF000000.toInt()
-        paint.shader = LinearGradient(0f, b.top, 0f, b.bottom, 0xFFD3D1CA.toInt(), 0xFFB9B6AE.toInt(), Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(0f, b.top, 0f, b.bottom, caseTop, caseBottom, Shader.TileMode.CLAMP)
         cv.drawRoundRect(b, w * 0.02f, w * 0.02f, paint)
         paint.shader = null
         for (k in keys) drawKey(cv, k)
@@ -252,8 +494,8 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
     private fun drawKey(cv: Canvas, k: Key) {
         val r = k.rect
         val down = k.down || latched.contains(k)
-        val top = if (k.dark) 0xFF9F9D97.toInt() else 0xFFEEECE6.toInt()
-        val side = if (k.dark) 0xFF7C7A74.toInt() else 0xFFC7C4BC.toInt()
+        val top = if (k.fn) keyFn else if (k.dark) keyDark else keyLight
+        val side = if (k.fn) keyFnSide else if (k.dark) keyDarkSide else keyLightSide
         val rad = u * 0.1f
         val sink = if (down) r.height() * 0.06f else 0f
         paint.color = side
@@ -261,7 +503,7 @@ class AcornView(ctx: Context, private val plus: Boolean) : View(ctx) {
         paint.color = if (down) side else top
         cv.drawRoundRect(r.left + u * 0.05f, r.top + sink, r.right - u * 0.05f, r.bottom - r.height() * 0.13f + sink * 0.5f, rad, rad, paint)
         if (k.label.isEmpty()) return
-        text.color = 0xFF2F2E2B.toInt()
+        text.color = legend
         val cy = (r.top + r.bottom - r.height() * 0.13f) / 2 + sink
         if (k.shiftLabel.isNotEmpty()) {
             text.textSize = u * 0.24f

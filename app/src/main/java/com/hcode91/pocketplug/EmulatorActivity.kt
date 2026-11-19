@@ -138,7 +138,7 @@ class EmulatorActivity : Activity() {
             }
             Skin.ACORN -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val v = AcornView(this, machine.badge == "a7000p").apply {
+                val v = AcornView(this, machine.badge).apply {
                     onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
                     onMenu = { showMenu() }
                     onDisks = { showAcornMenu() }
@@ -147,6 +147,11 @@ class EmulatorActivity : Activity() {
                 }
                 acorn = v
                 setContentView(v)
+                // an Archimedes started with another of its operating systems
+                archiOs[machine.id]?.let { (_, def) ->
+                    val os = prefs.getInt("os_${machine.id}", def)
+                    if (os != def) Native.setOption(handle, 1, os)
+                }
             }
             Skin.DESKTOP_3B1 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -512,6 +517,17 @@ class EmulatorActivity : Activity() {
     }
 
     // ---- Acorn: floppies (.adf) and files copied into HostFS ----
+    /** Archimedes operating systems per machine, in the core's order, and the default */
+    private val archiOs: Map<String, Pair<List<String>, Int>> by lazy {
+        val early = listOf("Arthur 0.30", "Arthur 1.20", "RISC OS 2.00", "RISC OS 2.01")
+        val ro = listOf("RISC OS 2.00", "RISC OS 2.01", "RISC OS 3.00", "RISC OS 3.10", "RISC OS 3.11")
+        mapOf(
+            "aa305" to (early to 2), "aa310" to (early to 3), "aa440" to (early to 3),
+            "aa4101" to (ro to 1), "aa540" to (ro.drop(1) to 3), "aa3000" to (ro to 4),
+            "aa5000" to (ro.drop(2) to 2), "aa500" to (listOf("RISC OS 3.10", "RISC OS 2.00") to 0),
+        )
+    }
+
     private fun acornDir() = java.io.File(filesDir, "acorn").apply { mkdirs() }
 
     private fun showAcornMenu() {
@@ -877,6 +893,27 @@ class EmulatorActivity : Activity() {
         if (workstation != null) items += "Disks..." to { showDiskMenu() }
         if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
         if (acorn != null) items += "Disks & files..." to { showAcornMenu() }
+        archiOs[machine.id]?.let { (names, def) ->
+            if (names.size > 1) {
+                val cur = prefs.getInt("os_${machine.id}", def).coerceIn(0, names.size - 1)
+                items += "Operating system: ${names[cur]}..." to {
+                    paused = true
+                    AlertDialog.Builder(this)
+                        .setTitle("Operating system")
+                        .setSingleChoiceItems(names.toTypedArray(), cur) { d, w ->
+                            d.dismiss()
+                            paused = false
+                            if (w != cur) {
+                                prefs.edit().putInt("os_${machine.id}", w).apply()
+                                synchronized(coreLock) { Native.setOption(handle, 1, w) }
+                                Toast.makeText(this, "${names[w]}: the computer restarted", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .setOnCancelListener { paused = false }
+                        .show()
+                }
+            }
+        }
         if (atari != null && machine.badge in atariNoBasic) {
             val on = prefs.getBoolean("basic_${machine.id}", false)
             items += (if (on) "BASIC cartridge: plugged in" else "BASIC cartridge: not plugged in") to {

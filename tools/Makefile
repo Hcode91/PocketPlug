@@ -24,13 +24,22 @@ AC = $(CPP)/cores/acorn
 ACSRC = $(wildcard $(AC)/*.c) $(wildcard $(AC)/rpcemu/*.c) $(wildcard $(AC)/rpcemu/filesystem/*.c) $(wildcard $(AC)/rpcemu/platform/*.c)
 ACOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(ACSRC))
 
+# the Archimedes core (Arculator) is C too
+AR = $(CPP)/cores/archi
+ARSRC = $(wildcard $(AR)/*.c) $(wildcard $(AR)/arculator/*.c)
+AROBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(ARSRC))
+
 # CHD reading: the LZMA SDK and libFLAC's decoder, in C
 CHD = $(CPP)/common/chd
 CHDSRC = $(CHD)/lzma/LzmaDec.c $(wildcard $(CHD)/flac/*.c)
 CHDOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(CHDSRC))
 
-headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(CHDOBJ)
-	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(CHDOBJ) -lpthread -lz
+headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(CHDOBJ)
+	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(CHDOBJ) -lpthread -lz -lm
+
+obj/cores/archi/%.o: $(AR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -w -std=gnu99 -include $(AR)/arc_rename.h -I$(AR)/arculator -c $< -o $@
 
 obj/common/chd/flac/%.o: $(CHD)/flac/%.c
 	@mkdir -p $(dir $@)
