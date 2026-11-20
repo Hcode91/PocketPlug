@@ -12,6 +12,7 @@
 #include "cores/vt369/vt369.h"
 #include "cores/spg2xx/spg2xx.h"
 #include "cores/apf/apf.h"
+#include "cores/st2302/bbl380.h"
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
 #include "cores/chess/accord.h"
@@ -138,6 +139,8 @@ Core* createCore(const std::string& id)
         c.crypt = 3;
         return new Vt369Core(c);
     }
+    if (id == "arcade10")     // Fizz Creations Mini Arcade Console 10-in-1 (ST2302U + SPI flash)
+        return new Bbl380Core();
     if (id == "apfm1000")     // APF M-1000 (Rocket Patrol built in, cartridges optional)
         return new ApfCore();
     if (id == "arcade3d") {   // Millennium Arcade 3D 15-in-1 (SPG24x, JungleTac, encrypted ROM)

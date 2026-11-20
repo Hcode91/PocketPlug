@@ -49,6 +49,7 @@ controller.
 | Wireless Tennis (Advance Bright) | `abltenni` | SunPlus SPG24x + the wireless racket receiver | Menus match MAME; serving and rallies play with the on-screen racket (MAME's driver can't get past "press the button") |
 | Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
 | Millennium Arcade 3D 15-in-1 | `arcade3d` | SunPlus SPG24x (JungleTac encrypted ROM) | Title, game menu and games (Deep Storm) run; not in MAME 0.264 to compare against |
+| Mini Arcade Console 10-in-1 (Fizz Creations) | `arcade10` | Sitronix ST2302U (W65C02 core + own SoC port), ST7735 LCD, SPI flash | Boot, menu and games match MAME's current driver frame for frame (built from MAME's source to compare) |
 | TM 990/189 University Board (+ Video Board) | `990189`, `990189v` | TMS9980A + 2x TMS9901 (own cores), TMS9918 (own core) | University BASIC runs; the LED display and lights follow MAME frame-for-frame apart from a frame's lag in key echo; the video board's four colour demos run |
 | 1200XL Home Computer (Atari) | `a1200xl` | Atari800 (6502C, ANTIC, GTIA, POKEY, PIA) | Real 1200XL OS: logo, self test, function keys and the L1 / L2 lights; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
 | 800 Home Computer (Atari) | `a800`, `a800pal` | Atari800, 48 KB | Real OS: Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
@@ -123,6 +124,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Wireless Tennis | `abltenni` | `ablpnpwirelesstennis.bin` | 4 MB (4,194,304 bytes) | `66bd8ef1` |
 | Kick Boxing | `ablkickb` | `ablkickboxing.bin` | 8 MB (8,388,608 bytes) | `61394c45` |
 | Arcade 3D 15-in-1 | `arcade3d` | `arcade3d.u3` | 8 MB (8,388,608 bytes) | `130843a5` |
+| Mini Arcade Console 10-in-1 | `arcade10` | `st2x_internal_type1.bin`, `25q40.bin` | 8 KB, 512 KB | `f4dc1fc2`, `62784666` |
 | TM 990/189 University Board | `990189` | `990-469.u32` | 2 KB (2,048 bytes) | `08df7edb` |
 | | | `990-469.u33` | 4 KB (4,096 bytes) | `e9b4ac1b` |
 | TM 990/189 + Video Board | `990189v` | the two `990189` files, plus `demo1000.u13` | 2 KB (2,048 bytes) | `c0e16685` |

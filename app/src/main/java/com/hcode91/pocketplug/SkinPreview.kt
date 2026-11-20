@@ -75,6 +75,7 @@ object SkinPreview {
         Skin.PHONE_CASE -> PhoneCaseView(ctx, m.id == "36pcase")
         Skin.ARCADE_CABINET -> ArcadeCabinetView(ctx, a6 = m.id == "a6plus")
         Skin.HANDHELD -> HandheldView(ctx)
+        Skin.MINI_ARCADE -> MiniArcadeView(ctx)
         Skin.WIDE_HANDHELD -> WideHandheldView(ctx)
         Skin.CHESS -> ChessComputerView(ctx, m.badge)
         Skin.NIXIE_CLOCK -> NixieClockView(ctx)

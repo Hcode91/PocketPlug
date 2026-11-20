@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -48,7 +48,7 @@ data class MachineDef(
 val MachineDef.category: String
     get() = when (skin) {
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE -> "TV games"
-        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH -> "Handhelds"
+        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292, Skin.APF -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
@@ -412,6 +412,20 @@ object Machines {
             cartJoin = true,
             builtInGame = "Rocket Patrol",
             badge = "mp1000",
+        ),
+        MachineDef(
+            id = "arcade10",
+            title = "Mini Arcade Console 10-in-1",
+            subtitle = "Palm-sized arcade handheld with 10 games on a colour screen: pick one with the arrows and "
+                + "START, then play with the arrows, A and B (Fizz Creations; MAME set: arcade10)",
+            chip = "Sitronix ST2302U (65C02) + SPI flash",
+            region = "UK",
+            year = "2010s",
+            roms = listOf(
+                RomSpec("st2x_internal_type1.bin", 0x2000L, 0xf4dc1fc2L),
+                RomSpec("25q40.bin", 0x80000L, 0x62784666L),
+            ),
+            skin = Skin.MINI_ARCADE,
         ),
         MachineDef(
             id = "arcade3d",

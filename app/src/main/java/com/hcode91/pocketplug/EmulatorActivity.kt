@@ -35,6 +35,7 @@ class EmulatorActivity : Activity() {
     private val pads = arrayOfNulls<ApvsControllerView>(2)
     private val apfPads = arrayOfNulls<ApfControllerView>(2)
     private var a3dPad: Arcade3dPadView? = null
+    private var mini: MiniArcadeView? = null
     private var pet: EggPetView? = null
     private var phone: PhoneCaseView? = null
     private var arcade: ArcadeCabinetView? = null
@@ -454,6 +455,16 @@ class EmulatorActivity : Activity() {
                     add(console, 0.34f)
                     add(row, 0.95f)
                 })
+            }
+            Skin.MINI_ARCADE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = MiniArcadeView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                }
+                mini = v
+                setContentView(v)
             }
             Skin.TV_CONSOLE -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -1292,6 +1303,7 @@ class EmulatorActivity : Activity() {
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
             else if (handheld != null) handheld?.updateFrame(pixels)
+            else if (mini != null) mini?.updateFrame(pixels)
             else if (nixie != null) nixie?.updateFrame(pixels)
             else if (chess != null) chess?.updateFrame(pixels)
             else if (keychain != null) keychain?.updateFrame(pixels)
@@ -1442,6 +1454,7 @@ class EmulatorActivity : Activity() {
         Skin.KEYCHAIN -> KeychainGameView.keyBit(code)
         Skin.HH -> HhView.keyBit(code)
         Skin.APF -> ApfBits.keyBit(code)
+        Skin.MINI_ARCADE -> MiniArcadeView.keyBit(code)
         Skin.TV_CONSOLE -> A3dBits.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
@@ -1920,6 +1933,7 @@ class EmulatorActivity : Activity() {
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
         a3dPad?.externalMask = keyInputs
+        mini?.externalMask = keyInputs
         return true
     }
 
@@ -1983,6 +1997,7 @@ class EmulatorActivity : Activity() {
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
         a3dPad?.externalMask = keyInputs
+        mini?.externalMask = keyInputs
         return true
     }
 

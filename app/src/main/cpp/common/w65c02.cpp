@@ -32,16 +32,17 @@ void W65C02::reset()
     p = uint8_t((p | I | U | B) & ~D);
     waiting = stopped = false;
     m_nmiPending = false;
-    pc = uint16_t(rd(0xfffc) | (rd(0xfffd) << 8));
+    pc = uint16_t(m_bus->readVector(0xfffc, false) | (m_bus->readVector(0xfffd, false) << 8));
 }
 
-void W65C02::interrupt(uint16_t vec, bool brk)
+void W65C02::interrupt(uint16_t vec, bool brk, bool irq)
 {
     push(uint8_t(pc >> 8));
     push(uint8_t(pc));
     push(uint8_t((p | U) & ~B) | (brk ? B : 0));
     p = uint8_t((p | I) & ~D);
-    pc = uint16_t(rd(vec) | (rd(uint16_t(vec + 1)) << 8));
+    uint8_t lo = m_bus->readVector(vec, irq);
+    pc = uint16_t(lo | (m_bus->readVector(uint16_t(vec + 1), irq) << 8));
     m_cyc += 7;
 }
 
@@ -53,10 +54,11 @@ int W65C02::run(int cycles)
         if (m_nmiPending) { m_nmiPending = false; waiting = false; interrupt(0xfffa, false); continue; }
         if (m_irqLine) {
             waiting = false;
-            if (!(p & I)) { interrupt(0xfffe, false); continue; }
+            if (!(p & I)) { interrupt(0xfffe, false, true); continue; }
         }
         if (waiting) { m_cyc = cycles; break; }
         step();
+        if (m_yield) { m_yield = false; break; }
     }
     return m_cyc;
 }
@@ -281,7 +283,7 @@ void W65C02::step()
     case 0x7c: { uint16_t t = uint16_t(abs() + x); pc = uint16_t(rd(t) | (rd(uint16_t(t + 1)) << 8)); break; }
     case 0x20: { uint16_t t = abs(); pc--; push(uint8_t(pc >> 8)); push(uint8_t(pc)); pc = t; break; }
     case 0x60: { uint16_t l = pull(); pc = uint16_t((l | (pull() << 8)) + 1); break; }
-    case 0x40: { p = uint8_t(pull() | U | B); uint16_t l = pull(); pc = uint16_t(l | (pull() << 8)); break; }
+    case 0x40: { p = uint8_t(pull() | U | B); uint16_t l = pull(); pc = uint16_t(l | (pull() << 8)); m_bus->rti(); break; }
     case 0x00: pc++; m_cyc -= 7; interrupt(0xfffe, true); break;
     case 0xcb: waiting = true; break;
     case 0xdb: stopped = true; break;

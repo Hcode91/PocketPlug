@@ -16,6 +16,9 @@ public:
         virtual ~Bus() = default;
         virtual uint8_t read(uint16_t a) = 0;
         virtual void write(uint16_t a, uint8_t d) = 0;
+        // interrupt and reset vectors (irq: an IRQ is being taken, not BRK / NMI / reset)
+        virtual uint8_t readVector(uint16_t a, bool irq) { (void)irq; return read(a); }
+        virtual void rti() {}
     };
 
     explicit W65C02(Bus* bus) : m_bus(bus) {}
@@ -24,11 +27,16 @@ public:
     int run(int cycles);
     void nmi() { m_nmiPending = true; }           // edge
     void setIrq(bool on) { m_irqLine = on; }
+    // cycles run so far by the run() in progress
+    int executed() const { return m_cyc; }
+    // ends the run() in progress after the current instruction (a new event is due sooner)
+    void yield() { m_yield = true; }
 
     uint16_t pc = 0;
     uint8_t a = 0, x = 0, y = 0, s = 0xfd, p = 0x34;
     bool waiting = false, stopped = false;
     bool m_irqLine = false, m_nmiPending = false;
+    bool m_yield = false;
 
 private:
     enum { C = 0x01, Z = 0x02, I = 0x04, D = 0x08, B = 0x10, U = 0x20, V = 0x40, N = 0x80 };
@@ -42,7 +50,7 @@ private:
     void push(uint8_t v) { wr(uint16_t(0x100 | s), v); s--; }
     uint8_t pull() { s++; return rd(uint16_t(0x100 | s)); }
     void nz(uint8_t v) { p = uint8_t((p & ~(N | Z)) | (v & N) | (v ? 0 : Z)); }
-    void interrupt(uint16_t vec, bool brk);
+    void interrupt(uint16_t vec, bool brk, bool irq = false);
     void step();
 
     void adc(uint8_t v);
