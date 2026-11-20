@@ -20,6 +20,10 @@ import kotlin.math.min
  *  - "accord":  a grey board with LEDs beside the ranks and under the files,
  *    and the button strip on the right with its status LEDs.
  *
+ *  - "almeria": a wooden board with an LED in each square's corner and the
+ *    black 16/32 bit display module under it: the 2-line LCD and its six keys
+ *    (ENT, CL and four arrows, in a diamond).
+ *
  * No maker's name or logo is drawn (the Academy's LCD shows what its ROM writes).
  */
 class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
@@ -39,6 +43,7 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
     }
 
     private val accord = style == "accord"
+    private val almeria = style == "almeria"
     private val pieces = IntArray(64)
     private var hand = 0
     private var handPos = -1
@@ -86,6 +91,22 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
                 val cy = board.top + sq * (i + 0.5f)
                 keys[i].set(board.right + stripW * 0.12f, cy - sq * 0.22f, board.right + stripW * 0.68f, cy + sq * 0.22f)
             }
+        } else if (almeria) {
+            val bw = min(w * 0.92f, (h - toolH) * 0.74f)
+            sq = bw / 8f
+            board.set((w - bw) / 2, h * 0.02f, (w - bw) / 2 + bw, h * 0.02f + bw)
+            panel.set(board.left - sq * 0.3f, board.bottom + sq * 0.5f, board.right + sq * 0.3f, board.bottom + sq * 2.35f)
+            lcdR.set(panel.left + panel.width() * 0.06f, panel.top + panel.height() * 0.3f, panel.left + panel.width() * 0.56f, panel.top + panel.height() * 0.72f)
+            // diamond keypad: ENT, UP, CL on top; LEFT, RIGHT in the middle; DOWN at the bottom
+            val kw = panel.width() * 0.085f; val kh = panel.height() * 0.22f
+            val kx = panel.left + panel.width() * 0.79f; val ky = panel.top + panel.height() * 0.5f
+            val pos = arrayOf(floatArrayOf(-1.15f, -1.15f), floatArrayOf(0f, -1.15f), floatArrayOf(1.15f, -1.15f),
+                floatArrayOf(-1.15f, 0f), floatArrayOf(1.15f, 0f), floatArrayOf(0f, 1.15f))
+            for (i in 0 until 8) {
+                if (i >= 6) { keys[i].setEmpty(); continue }
+                val cx = kx + pos[i][0] * kw; val cy = ky + pos[i][1] * kh
+                keys[i].set(cx - kw * 0.45f, cy - kh * 0.45f, cx + kw * 0.45f, cy + kh * 0.45f)
+            }
         } else {
             val bw = min(w * 0.94f, (h - toolH) * 0.72f)
             sq = bw / 8f
@@ -116,7 +137,7 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
 
     // ---- drawing ----
     override fun onDraw(c: Canvas) {
-        if (accord) drawAccord(c) else drawAcademy(c)
+        if (accord) drawAccord(c) else if (almeria) drawAlmeria(c) else drawAcademy(c)
         drawBoardPanel(c)
     }
 
@@ -215,6 +236,66 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
             if (icons[i].isNotEmpty()) { pieceText.color = 0xFFE0D0B8.toInt(); pieceText.textSize = panel.height() * 0.16f; c.drawText(icons[i] + "︎", k.centerX(), k.bottom + panel.height() * 0.2f, pieceText) }
         }
         c.drawText("NEW GAME", (keys[6].centerX() + keys[7].centerX()) / 2, keys[7].bottom + panel.height() * 0.2f, text)
+    }
+
+    private fun drawLcd(c: Canvas, bg: Int, on: Int) {
+        paint.color = bg; c.drawRect(lcdR, paint)
+        val cw = lcdR.width() / (16 * 6 + 1); val ch = lcdR.height() / (2 * 9 + 1)
+        for (line in 0 until 2) for (pos in 0 until 16) for (r in 0 until 8) {
+            val bits = lcd[(line * 16 + pos) * 8 + r]
+            for (col in 0 until 5) {
+                val lit = (bits shr (4 - col)) and 1 != 0
+                paint.color = if (lit) on else 0x14000000
+                val x = lcdR.left + (1 + pos * 6 + col) * cw; val y = lcdR.top + (1 + line * 9 + r) * ch
+                c.drawRect(x, y, x + cw * 0.9f, y + ch * 0.9f, paint)
+            }
+        }
+    }
+
+    private fun drawAlmeria(c: Canvas) {
+        c.drawColor(0xFF140E0A.toInt())
+        // wooden board frame
+        paint.color = 0xFF5C3418.toInt()
+        c.drawRoundRect(board.left - sq * 0.4f, board.top - sq * 0.08f, board.right + sq * 0.4f, board.bottom + sq * 0.42f, sq * 0.1f, sq * 0.1f, paint)
+        drawSquares(c, 0xFFE6CB98.toInt(), 0xFF8E5328.toInt())
+        for (i in 0 until 64) {
+            val x = i % 8; val y = i / 8
+            led(c, board.left + (x + 0.88f) * sq, board.top + (7 - y + 0.88f) * sq, sq * 0.055f, squareLed[i])
+        }
+        drawPieces(c)
+        text.color = 0xFFE8D2B0.toInt(); text.textSize = sq * 0.22f
+        for (i in 0 until 8) {
+            c.drawText("${i + 1}", board.left - sq * 0.2f, board.top + (7 - i + 0.55f) * sq, text)
+            c.drawText("${'A' + i}", board.left + (i + 0.5f) * sq, board.bottom + sq * 0.3f, text)
+        }
+        // the black display module
+        paint.color = 0xFF151515.toInt(); c.drawRoundRect(panel, sq * 0.12f, sq * 0.12f, paint)
+        stroke.color = 0xFF2C2C2C.toInt(); stroke.strokeWidth = sq * 0.03f; c.drawRoundRect(panel, sq * 0.12f, sq * 0.12f, stroke)
+        // recessed keypad area
+        val pad = RectF(panel.left + panel.width() * 0.62f, panel.top + panel.height() * 0.1f, panel.right - panel.width() * 0.03f, panel.bottom - panel.height() * 0.1f)
+        paint.color = 0xFF0C0C0C.toInt(); c.drawRoundRect(pad, sq * 0.08f, sq * 0.08f, paint)
+        paint.color = 0xFF0A0A0A.toInt(); c.drawRoundRect(lcdR.left - 10f, lcdR.top - 10f, lcdR.right + 10f, lcdR.bottom + 10f, 6f, 6f, paint)
+        drawLcd(c, 0xFFB4BBA6.toInt(), 0xFF1B1D18.toInt())
+        // speaker slots beside the LCD
+        paint.color = 0xFF050505.toInt()
+        for (i in 0 until 5) {
+            val sy = lcdR.top + i * lcdR.height() / 4.5f
+            c.drawRoundRect(panel.left + panel.width() * 0.015f, sy, panel.left + panel.width() * 0.045f, sy + lcdR.height() * 0.08f, 3f, 3f, paint)
+        }
+        val labels = arrayOf("ENT", "↑", "CL", "←", "→", "↓")
+        for (i in 0 until 6) {
+            val k = keys[i]
+            val down = keyMask and (1 shl i) != 0
+            paint.color = when (i) {
+                0 -> if (down) 0xFF0A5A2A.toInt() else 0xFF14924A.toInt()
+                2 -> if (down) 0xFF7A1010.toInt() else 0xFFD02424.toInt()
+                else -> if (down) 0xFF0E0E0E.toInt() else 0xFF2A2A2A.toInt()
+            }
+            c.drawRoundRect(k, k.width() * 0.12f, k.width() * 0.12f, paint)
+            text.color = 0xFFF0F0F0.toInt()
+            text.textSize = if (i == 0 || i == 2) k.height() * 0.4f else k.height() * 0.62f
+            c.drawText(labels[i], k.centerX(), k.centerY() + text.textSize * 0.36f, text)
+        }
     }
 
     private fun drawAccord(c: Canvas) {

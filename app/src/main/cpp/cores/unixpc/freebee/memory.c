@@ -1,3 +1,11 @@
+/* PocketPlug: the bus functions are reached through m68k_bus.c, which
+ * lets another core (the Mephisto modules) use the same Musashi build. */
+#define m68k_read_memory_32 freebee_read_memory_32
+#define m68k_read_memory_16 freebee_read_memory_16
+#define m68k_read_memory_8 freebee_read_memory_8
+#define m68k_write_memory_32 freebee_write_memory_32
+#define m68k_write_memory_16 freebee_write_memory_16
+#define m68k_write_memory_8 freebee_write_memory_8
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

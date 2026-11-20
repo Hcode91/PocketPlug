@@ -20,7 +20,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/hd44780.*` | BSD-3-Clause | Port of MAME's HD44780 (Sandro Ronco) |
 | `app/src/main/cpp/common/chessboard.h` | BSD-3-Clause | Logic of MAME's sensorboard (hap) |
 | `app/src/main/cpp/common/w65c02.*` | GPL-2.0-or-later | Own W65C02S core |
-| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
+| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp, modular.cpp (Dirk Verwiebe, Cowering, Sandro Ronco, hap) / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
 | `app/src/main/cpp/common/z80/*` | MIT | superzazu/z80 (Nicolas Allemand), compiled as C++ - `common/z80/LICENSE` |
 | `app/src/main/cpp/common/m6801*` | BSD-3-Clause | MAME 6800/6801 instruction set (Aaron Giles) and m6801 peripherals incl. the serial interface |
 | `app/src/main/cpp/common/tms9928a.h` | BSD-3-Clause | PocketPlug (the TM 990 core's 9918 plus graphics II and the mixed modes, after MAME's tms9928a.cpp) |
@@ -46,7 +46,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/acorn/acorn.*`, `rpcemu_glue.*` | GPL-2.0-or-later | PocketPlug glue (the host side after RPCEmu's `qt6/` front end) |
 | `app/src/main/cpp/cores/atari800/a800/*` | GPL-2.0-or-later | Atari800 (the Atari800 development team, github.com/atari800/atari800) built as its `libatari800` library - `a800/COPYING`, `a800/CREDITS`. Built-in replacement ROMs in `a800/roms/` are AltirraOS and Altirra BASIC (Avery Lee, all-permissive notice in each file), as shipped with Atari800. Changed for PocketPlug: `libatari800/input.c` takes raw keyboard codes from the front end; generated `config.h` |
 | `app/src/main/cpp/cores/atari800/atari800.*` | GPL-2.0-or-later | PocketPlug glue around libatari800 |
-| `app/src/main/cpp/cores/unixpc/freebee/*` (except `musashi/`) | GPL-3.0 | FreeBee 3B1 emulator (Philip Pemberton and contributors, github.com/philpem/freebee) - `GPL-3.0.txt`. Changed for PocketPlug: no SDL (keyboard, disk timers and dialer audio driven by the core), no TOML config, no serial PTY, ROMs passed in memory |
+| `app/src/main/cpp/cores/unixpc/freebee/*` (except `musashi/`) | GPL-3.0 | FreeBee 3B1 emulator (Philip Pemberton and contributors, github.com/philpem/freebee) - `GPL-3.0.txt`. Changed for PocketPlug: no SDL (keyboard, disk timers and dialer audio driven by the core), no TOML config, no serial PTY, ROMs passed in memory; its bus functions are reached through `m68k_bus.c` (MIT) so the Almeria core can share Musashi |
 | `app/src/main/cpp/cores/unixpc/freebee/musashi/*` | MIT | Musashi 680x0 core (Karl Stenerud et al., FreeBee's fork) - `musashi/readme.txt`; SoftFloat (John R. Hauser) - `musashi/softfloat/README.txt` |
 | `app/src/main/cpp/cores/unixpc/unixpc.*` | GPL-3.0-or-later | PocketPlug glue around FreeBee (main loop after FreeBee's `main.c`) |
 | `app/src/main/cpp/cores/archi/arculator/*` | GPL-2.0-or-later | Arculator 2.2 (Sarah Walker and contributors, github.com/sarah-walker-pcem/arculator) - `arculator/COPYING`. Changed for PocketPlug: no wxWidgets / SDL front end; `romload.c` reads one ROM image without `chdir()`; `ddnoise.c` uses silent stand-ins for the drive sounds; `keyboard_sdl.h` gives SDL's scancode numbers without SDL; `main.c` leaves logging to the front end |

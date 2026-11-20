@@ -41,6 +41,7 @@ class EmulatorActivity : Activity() {
     private var joypad: JoystickPadView? = null
     private var ablPad: AblPadView? = null
     private var flightStick: FlightStickView? = null
+    private var keychain: KeychainGameView? = null
     private val linkedFds = ArrayList<android.os.ParcelFileDescriptor>()
     private var chess: ChessComputerView? = null
     private var kit: KitBoardView? = null
@@ -317,6 +318,15 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 kit = v
+                setContentView(v)
+            }
+            Skin.KEYCHAIN -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = KeychainGameView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                keychain = v
                 setContentView(v)
             }
             Skin.FLIGHT_STICK -> {
@@ -1234,6 +1244,7 @@ class EmulatorActivity : Activity() {
             else if (handheld != null) handheld?.updateFrame(pixels)
             else if (nixie != null) nixie?.updateFrame(pixels)
             else if (chess != null) chess?.updateFrame(pixels)
+            else if (keychain != null) keychain?.updateFrame(pixels)
             else if (kit != null) kit?.updateFrame(pixels)
             else if (tabletop != null) tabletop?.updateFrame(pixels)
             else if (adam != null) adam?.updateFrame(pixels)
@@ -1377,6 +1388,7 @@ class EmulatorActivity : Activity() {
         Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
         Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
         Skin.FLIGHT_STICK -> FlightStickView.keyBit(code)
+        Skin.KEYCHAIN -> KeychainGameView.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
@@ -1848,6 +1860,7 @@ class EmulatorActivity : Activity() {
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
         flightStick?.externalMask = keyInputs or stickMask
+        keychain?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
@@ -1907,6 +1920,7 @@ class EmulatorActivity : Activity() {
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
         flightStick?.externalMask = keyInputs or stickMask
+        keychain?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true

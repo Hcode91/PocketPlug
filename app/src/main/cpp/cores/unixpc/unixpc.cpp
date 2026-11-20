@@ -14,6 +14,7 @@
 
 extern "C" {
 #include "freebee/musashi/m68k.h"
+#include "freebee/m68k_bus.h"
 #include "freebee/state.h"
 #include "freebee/memory.h"
 #include "freebee/wd279x.h"
@@ -121,6 +122,7 @@ bool UnixPcCore::load(const std::vector<RomFile>& roms, std::string& error)
     memset(&state, 0, sizeof(state));
     state_set_roms(rom14c_.data(), rom14c_.size(), rom15c_.data(), rom15c_.size());
     dialer_init();
+    m68k_bus_set(nullptr);
     m68k_init();
     m68k_set_cpu_type(M68K_CPU_TYPE_68010);
     reset();

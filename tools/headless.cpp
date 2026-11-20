@@ -18,7 +18,12 @@ static void writePPM(const char* path, const uint32_t* px, int w, int h)
 {
     FILE* f = fopen(path, "wb");
     fprintf(f, "P6\n%d %d\n255\n", w, h);
-    for (int i = 0; i < w * h; i++) { uint8_t c[3] = { (uint8_t)(px[i] >> 16), (uint8_t)(px[i] >> 8), (uint8_t)px[i] }; fwrite(c, 1, 3, f); }
+    bool alpha = getenv("ALPHA") != nullptr;   // LCD cores: alpha = segment on
+    for (int i = 0; i < w * h; i++) {
+        uint8_t c[3] = { (uint8_t)(px[i] >> 16), (uint8_t)(px[i] >> 8), (uint8_t)px[i] };
+        if (alpha) c[0] = c[1] = c[2] = (uint8_t)(px[i] >> 24);
+        fwrite(c, 1, 3, f);
+    }
     fclose(f);
 }
 

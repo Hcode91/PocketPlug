@@ -72,7 +72,7 @@
 /* Turn ON if you want to use the following M68K variants */
 #define M68K_EMULATE_010            OPT_ON
 #define M68K_EMULATE_EC020          OPT_OFF
-#define M68K_EMULATE_020            OPT_OFF
+#define M68K_EMULATE_020            OPT_ON
 #define M68K_EMULATE_030            OPT_OFF
 #define M68K_EMULATE_040            OPT_OFF
 
@@ -94,8 +94,9 @@
  * If off, all interrupts will be autovectored and all interrupt requests will
  * auto-clear when the interrupt is serviced.
  */
-#define M68K_EMULATE_INT_ACK        OPT_OFF
-#define M68K_INT_ACK_CALLBACK(A)    your_int_ack_handler_function(A)
+#define M68K_EMULATE_INT_ACK        OPT_SPECIFY_HANDLER
+#define M68K_INT_ACK_CALLBACK(A)    pocketplug_m68k_int_ack(A)
+int pocketplug_m68k_int_ack(int level);
 
 
 /* If ON, CPU will call the breakpoint acknowledge callback when it encounters

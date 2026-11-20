@@ -22,6 +22,8 @@ controller.
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
+| Mephisto Almeria 16 Bit / 32 Bit chess modules (Hegener + Glaser) | `alm16`, `alm16a`, `alm32` | Motorola 68000 / 68020 (Musashi), HD44780 LCD, magnet sensor board | All three boot to the same LCD as MAME and answer 1. e2-e4 with e7-e5 (same LEDs and LCD as MAME's alm32) |
+| Chibi Pachi: Alien Fever (pachislot keychain) | `alienfev` | Epson E0C6S46 (+1 MHz OSC3), 39x16 dot LCD | Title, menus and spinning reels; HANDLE, MODE, SELECT, SOUND buttons |
 | Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
 | Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard, printer and disk drive 6801s (own 6801 port with the serial interface), WD2793 | Boots SmartWriter and types, matching MAME's screen; boots 160 KB disks as MAME does; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape drive yet |
 | Air-Blaster Joystick (Advance Bright, 2005) | `airblsjs` | Elan EU3A05 (6502 SoC: banked 4 MB ROM, DMA, tile/sprite video, 6 ADPCM channels) | Menu and the games run (tested: the first 3D stage); identical to MAME's frames on the title. Enemy patterns differ run to run (the chip's random register) |
@@ -80,6 +82,10 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Joystick88 | `88in1joy` | `88in1joystick.bin` | 4 MB (4,194,304 bytes) | `86b8d819` |
 | Mephisto Academy | `academy` | `academy_engl.16k`, `academy_engl.32k` | 32 KB each | `ebda6674`, `a967922b` |
 | | | `hd44780_a00.bin` (from MAME's `hd44780` zip) | 4 KB (4,096 bytes) | `e459877c` |
+| Mephisto Almeria 32 Bit | `alm32` | `alm32.bin` + `hd44780_a00.bin` | 128 KB (131,072 bytes) | `38f4b305` |
+| Mephisto Almeria 16 Bit | `alm16` | `almeria_16bit_v0.13_even`, `..._odd` + `hd44780_a00.bin` | 64 KB each | `ee5b6ec4`, `d0be4ee4` |
+| Mephisto Almeria 16 Bit (v0.121) | `alm16a` | `almeria_16bit_v0.121_even`, `..._odd` + `hd44780_a00.bin` | 64 KB each | `3ab8fd3b`, `436c1d85` |
+| Chibi Pachi: Alien Fever | `alienfev` | `alienfev.bin` | 12 KB (12,288 bytes) | `e561599c` |
 | Novag Accord | `accord` | `novag_875_31x0b87p` | 4 KB (4,096 bytes) | `4d77b7db` |
 | Coleco Adam | `adam` | `os7.u2`, `eos 6 rev 57 08dd.u22`, `wp_r80.rom` (adam zip) | 8 KB, 16 KB, 32 KB | `3aa93ef3`, `ef6403c5`, `58d86a2a` |
 | | | `master rev a 174b.u6` (adam zip), `keyboard.u2` (adam_kb), `printer.u2` (adam_prn) | 2 KB each | `035a7a3d`, `ef204746`, `e8db783b` |
@@ -324,9 +330,9 @@ files (with the missing names); one tap copies the found files in. Files over
 and stops working if they're moved, until you rescan). The folder is
 remembered: tap Find my ROMs again to rescan; only new or changed files are read.
 
-### Chess computers (Mephisto Academy, Novag Accord)
+### Chess computers (Mephisto Academy, Mephisto Almeria, Novag Accord)
 
-Import the MAME zip (`academy` also needs MAME's `hd44780` zip, the LCD's
+Import the MAME zip (`academy` and the Almerias also need MAME's `hd44780` zip, the LCD's
 character ROM). Play on the board as on the real one: tap a piece to lift it
 (it fades and shows in HAND), then tap the square to put it down; tapping an
 occupied square captures. Under the board: spawn a new piece by tapping it in
@@ -335,6 +341,9 @@ back, CLEAR empties the board, MENU has save states and reset.
 
 - Academy: the computer shows its moves with the LEDs in the squares and on
   the LCD; ENT and CL together start a new game.
+- Almeria: the display module under the board has the LCD (German texts)
+  and six keys: ENT makes the computer move, CL clears, the arrows step
+  through the menus. Its moves light the two squares' LEDs.
 - Accord: press-sensory, so you also "press" the computer's pieces to move
   them. Its moves light the rank and file LEDs; GO makes it move.
 
@@ -741,6 +750,7 @@ app/src/main/cpp/
   cores/acorn/          A7000 / A7000+: RPCEmu (GPL-2+) in rpcemu/, host side in rpcemu_glue.c, acorn.cpp
   cores/atari800/       Atari 8-bit computers: Atari800 (GPL-2+) as libatari800 in a800/, glue in atari800.cpp
   cores/unixpc/         PC 7300 / 3B1: FreeBee (GPL-3) + Musashi 68010, glue in unixpc.cpp
+                        (Musashi is shared with the Almeria core through freebee/m68k_bus.c)
   jni_bridge.cpp        Kotlin <-> core glue
 app/src/main/java/com/hcode91/pocketplug/
   Machines.kt           machine list (ROM files, CRCs, skin)

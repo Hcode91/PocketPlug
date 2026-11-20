@@ -14,6 +14,7 @@
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
 #include "cores/chess/accord.h"
+#include "cores/chess/almeria.h"
 #include "cores/kits/acrnsys1.h"
 #include "cores/kits/aim65.h"
 #include "cores/altair/altair.h"
@@ -55,6 +56,15 @@ Core* createCore(const std::string& id)
         c.romCrc = 0x87bcb59f;
         c.variant = 1;
         c.osc3 = 1000000;
+        return new TamaCore(c);
+    }
+    if (id == "alienfev") {  // Chibi Pachi: Alien Fever (Epoch, 1997): E0C6S46 on a 1 MHz OSC3, 39x16 LCD
+        TamaConfig c;
+        c.romName = "alienfev.bin";
+        c.romCrc = 0xe561599c;
+        c.osc3 = 1000000;
+        c.rawWidth = 39;
+        c.directKeys = true;   // K00 Mode, K01 Select, K02 Sound, K03 Handle
         return new TamaCore(c);
     }
     if (id == "168pcase") {   // Diier-D-10 168-in-1 phone case (VT369)
@@ -166,6 +176,12 @@ Core* createCore(const std::string& id)
         return new AcornSystem1Core();
     if (id == "accord")       // Novag Accord (model 875)
         return new AccordCore("novag_875_31x0b87p");
+    if (id == "alm32")        // Mephisto Almeria 32 Bit (68020)
+        return new AlmeriaCore(true, "alm32.bin", "");
+    if (id == "alm16")        // Mephisto Almeria 16 Bit v0.13 (68000)
+        return new AlmeriaCore(false, "almeria_16bit_v0.13_even", "almeria_16bit_v0.13_odd");
+    if (id == "alm16a")       // Mephisto Almeria 16 Bit v0.121
+        return new AlmeriaCore(false, "almeria_16bit_v0.121_even", "almeria_16bit_v0.121_odd");
     if (id == "academy")      // Mephisto Academy (English, 04-10-88)
         return new AcademyCore("academy_engl.16k", "academy_engl.32k");
     if (id == "abl4play")     // 4 Player System 10-in-1 (trkfldch SoC, 65C816)

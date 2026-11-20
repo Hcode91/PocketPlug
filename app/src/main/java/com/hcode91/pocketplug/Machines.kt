@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -44,7 +44,7 @@ data class MachineDef(
 val MachineDef.category: String
     get() = when (skin) {
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK -> "TV games"
-        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET -> "Handhelds"
+        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292 -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
@@ -282,6 +282,79 @@ object Machines {
             roms = listOf(RomSpec("novag_875_31x0b87p", 0x1000L, 0x4d77b7dbL)),
             skin = Skin.CHESS,
             badge = "accord",
+        ),
+        MachineDef(
+            id = "alm32",
+            title = "Almeria 32 Bit Chess Module",
+            subtitle = "1988 world microcomputer chess champion program on a 68020, in the plug-in display module "
+                + "on a wooden magnetic-sensor board with an LED in every square. Import the alm32 zip and "
+                + "MAME's hd44780 zip (the LCD's character ROM). (Hegener + Glaser Mephisto Almeria 32 Bit; MAME set: alm32)",
+            chip = "Motorola 68020 @ 12.288 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1988",
+            roms = listOf(
+                RomSpec("alm32.bin", 0x20000L, 0x38f4b305L),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "almeria",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
+                "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. The texts are in German (SPIEL = game).",
+            ),
+        ),
+        MachineDef(
+            id = "alm16",
+            title = "Almeria 16 Bit Chess Module",
+            subtitle = "1988 world microcomputer chess champion program on a 68000, in the plug-in display module "
+                + "on a wooden magnetic-sensor board with an LED in every square. Import the alm16 zip and "
+                + "MAME's hd44780 zip (the LCD's character ROM). (Hegener + Glaser Mephisto Almeria 16 Bit (v0.13); MAME set: alm16)",
+            chip = "Motorola 68000 @ 12.288 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1988",
+            roms = listOf(
+                RomSpec("almeria_16bit_v0.13_even", 0x10000L, 0xee5b6ec4L),
+                RomSpec("almeria_16bit_v0.13_odd", 0x10000L, 0xd0be4ee4L),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "almeria",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
+                "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. The texts are in German (SPIEL = game).",
+            ),
+        ),
+        MachineDef(
+            id = "alm16a",
+            title = "Almeria 16 Bit (v0.121) Chess Module",
+            subtitle = "1988 world microcomputer chess champion program on a 68000, in the plug-in display module "
+                + "on a wooden magnetic-sensor board with an LED in every square. Import the alm16a zip and "
+                + "MAME's hd44780 zip (the LCD's character ROM). (Hegener + Glaser Mephisto Almeria 16 Bit (v0.121); MAME set: alm16a)",
+            chip = "Motorola 68000 @ 12.288 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1988",
+            roms = listOf(
+                RomSpec("almeria_16bit_v0.121_even", 0x10000L, 0x3ab8fd3bL),
+                RomSpec("almeria_16bit_v0.121_odd", 0x10000L, 0x436c1d85L),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "almeria",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
+                "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. The texts are in German (SPIEL = game).",
+            ),
+        ),
+        MachineDef(
+            id = "alienfev",
+            title = "Alien Fever Pachislot Keychain",
+            subtitle = "1997 pocket pachislot game on a key chain: pull the HANDLE to spin the reels, "
+                + "MODE and SELECT for its menus (Epoch Chibi Pachi: Alien Fever; MAME set: alienfev)",
+            chip = "Epson E0C6S46",
+            region = "Japan",
+            year = "1997",
+            roms = listOf(RomSpec("alienfev.bin", 0x3000L, 0xe561599cL)),
+            skin = Skin.KEYCHAIN,
         ),
         MachineDef(
             id = "afbm7800",

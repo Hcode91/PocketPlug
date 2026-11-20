@@ -50,6 +50,7 @@ object SkinPreview {
         Skin.DANCE_MAT -> stack(ctx, tv(ctx) to 0.92f, DanceMatView(ctx) to 1.12f)
         Skin.ABL_TV -> stack(ctx, tv(ctx) to 0.92f, AblPadView(ctx, m.badge) to 0.8f)
         Skin.JOYSTICK_TV -> stack(ctx, tv(ctx) to 0.92f, JoystickPadView(ctx) to 0.8f)
+        Skin.KEYCHAIN -> KeychainGameView(ctx)
         Skin.FLIGHT_STICK -> stack(ctx, tv(ctx) to 0.875f, FlightStickView(ctx) to 1.1f)
         Skin.APVS_1292 -> {
             val console: View = if (m.badge == "1392") Apvs1392ConsoleView(ctx, m.badge, "")

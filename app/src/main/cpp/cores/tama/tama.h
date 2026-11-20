@@ -12,6 +12,11 @@ struct TamaConfig {
     const int8_t* segCol = nullptr;   // segment line -> dot column (-1 = none), size lcdWidth
     int iconSeg[8] = {8, 8, 8, 8, 28, 28, 28, 28};
     int iconCom[8] = {0, 1, 2, 3, 12, 13, 14, 15};
+    // > 0: the LCD is a plain dot matrix this wide (x = segment, y = common),
+    // as MAME's e0c6s46 screen_update (alienfev); the frame is rawWidth x 16
+    int rawWidth = 0;
+    // K0x inputs: input bit n drives K0n directly (active low) instead of the pets' A/B/C order
+    bool directKeys = false;
 };
 
 // Frame buffer layout (32 x 17): rows 0-15 are the 32x16 dot matrix,
@@ -24,8 +29,8 @@ public:
     void reset() override;
     void runFrame() override;
     const uint32_t* frameBuffer() const override { return m_fb; }
-    int frameWidth() const override { return 32; }
-    int frameHeight() const override { return 17; }
+    int frameWidth() const override { return m_cfg.rawWidth > 0 ? m_cfg.rawWidth : 32; }
+    int frameHeight() const override { return m_cfg.rawWidth > 0 ? 16 : 17; }
     double refreshRate() const override { return 64.0; }
     int sampleRate() const override { return 32768; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
@@ -41,7 +46,7 @@ private:
 
     TamaConfig m_cfg;
     E0C6S46 m_cpu;
-    uint32_t m_fb[32 * 17] = {};
+    uint32_t m_fb[64 * 17] = {};
     uint32_t m_inputs = 0;
     int m_level = 0;
     uint64_t m_audioPos = 0;          // in units (1/65536 s)

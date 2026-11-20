@@ -95,6 +95,13 @@ void TamaCore::render()
 {
     std::memset(m_fb, 0, sizeof(m_fb));
     const uint32_t ON = 0xff000000;
+    if (m_cfg.rawWidth > 0) {
+        int w = m_cfg.rawWidth;
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < 16; y++)
+                if (m_cpu.lcdPixel(y, x)) m_fb[y * w + x] = ON;
+        return;
+    }
     const int8_t* map = m_cfg.segCol ? m_cfg.segCol : kSegCol;
     int segs = m_cfg.segCol ? m_cpu.lcdWidth() : 40;
     for (int seg = 0; seg < segs; seg++) {
@@ -121,6 +128,10 @@ size_t TamaCore::readAudio(int16_t* out, size_t maxSamples)
 void TamaCore::setInputs(uint32_t pressed)
 {
     m_inputs = pressed;
+    if (m_cfg.directKeys) {
+        for (int i = 0; i < 4; i++) m_cpu.setInputLine(i, (pressed >> i & 1) ? 0 : 1);
+        return;
+    }
     m_cpu.setInputLine(3, (pressed & 8) ? 0 : 1);
     // active low: K02 = left, K01 = middle, K00 = right
     m_cpu.setInputLine(2, (pressed & 1) ? 0 : 1);
