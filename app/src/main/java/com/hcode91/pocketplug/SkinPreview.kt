@@ -63,6 +63,14 @@ object SkinPreview {
             }
             stack(ctx, tv(ctx) to 0.92f, console to 0.34f, row to 0.92f)
         }
+        Skin.APF -> {
+            val row = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                for (pl in 0..1) addView(ApfControllerView(ctx, pl), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+            }
+            stack(ctx, tv(ctx) to 0.75f, ApfConsoleView(ctx, "") to 0.34f, row to 0.95f)
+        }
+        Skin.TV_CONSOLE -> stack(ctx, tv(ctx) to 0.85f, Arcade3dConsoleView(ctx) to 0.42f, Arcade3dPadView(ctx) to 0.5f)
         Skin.EGG_PET -> EggPetView(ctx, if (m.badge == "angel" || m.badge == "umino") m.badge else "gen1")
         Skin.PHONE_CASE -> PhoneCaseView(ctx, m.id == "36pcase")
         Skin.ARCADE_CABINET -> ArcadeCabinetView(ctx, a6 = m.id == "a6plus")

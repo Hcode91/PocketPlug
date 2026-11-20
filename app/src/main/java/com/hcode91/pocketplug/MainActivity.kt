@@ -154,6 +154,10 @@ class MainActivity : Activity() {
             return true
         }
         val carts = RomStore.listCarts(this, m)
+        if (m.builtInGame.isNotEmpty() && (cartTitle.equals(m.builtInGame, ignoreCase = true) || (cartTitle.isEmpty() && carts.isEmpty()))) {
+            startActivity(Intent(this, EmulatorActivity::class.java).putExtra("machine", m.id).putExtra("title", m.builtInGame))
+            return true
+        }
         val cart = when {
             cartTitle.isNotEmpty() -> carts.firstOrNull {
                 it.title.equals(cartTitle, ignoreCase = true) || it.file.nameWithoutExtension.equals(cartTitle, ignoreCase = true)
@@ -234,7 +238,7 @@ class MainActivity : Activity() {
         (prefs.getString("recent", "") ?: "").split(',').filter { it.isNotEmpty() }.mapNotNull { Machines.byId(it) }
 
     private fun playable(m: MachineDef): Boolean =
-        if (m.media == MediaKind.CARTRIDGE) RomStore.isReady(this, m) && RomStore.listCarts(this, m).isNotEmpty()
+        if (m.media == MediaKind.CARTRIDGE) RomStore.isReady(this, m) && (m.builtInGame.isNotEmpty() || RomStore.listCarts(this, m).isNotEmpty())
         else RomStore.isReady(this, m)
 
     private fun play(m: MachineDef) {
@@ -600,11 +604,28 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, dp(4))
         })
         c.addView(TextView(this).apply {
-            text = if (carts.isEmpty()) "○ No games yet - add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip)"
+            text = if (carts.isEmpty() && m.builtInGame.isNotEmpty()) "○ Add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip) for more games"
+                   else if (carts.isEmpty()) "○ No games yet - add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip)"
                    else "● ${carts.size} game${if (carts.size == 1) "" else "s"} · tap to play, hold to remove"
             textSize = 13f
-            setTextColor(if (carts.isEmpty()) 0xFFFFB86B.toInt() else 0xFF6CF0A8.toInt())
+            setTextColor(if (carts.isEmpty() && m.builtInGame.isEmpty()) 0xFFFFB86B.toInt() else 0xFF6CF0A8.toInt())
             setPadding(0, 0, 0, dp(8))
+        })
+        if (m.builtInGame.isNotEmpty()) c.addView(TextView(this).apply {
+            text = "▶  ${m.builtInGame}   (built in)"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            setPadding(dp(10), dp(11), dp(10), dp(11))
+            background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(0x22FFFFFF) }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { bottomMargin = dp(6) }
+            setOnClickListener {
+                if (!biosReady) {
+                    Toast.makeText(this@MainActivity, "Import the BIOS first (${m.roms.joinToString { it.name }})", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                startActivity(Intent(this@MainActivity, EmulatorActivity::class.java).putExtra("machine", m.id).putExtra("title", m.builtInGame))
+            }
         })
         for (cart in carts) {
             c.addView(TextView(this).apply {

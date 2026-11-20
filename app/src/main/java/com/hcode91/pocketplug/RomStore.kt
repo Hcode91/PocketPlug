@@ -194,6 +194,12 @@ object RomStore {
                 }
                 val zipName = name.substringAfterLast('/').substringBeforeLast('.')
                 if (inner.size == 1) addCart(zipName, inner[0].second)
+                else if (m.cartJoin) {
+                    // one cartridge on several chips (a software-list entry): the dumps in name order
+                    val out = java.io.ByteArrayOutputStream()
+                    inner.sortedBy { it.first }.forEach { out.write(it.second) }
+                    addCart(zipName, out.toByteArray())
+                }
                 else inner.sortedBy { it.first }.forEach { addCart(it.first, it.second) }
             } else addCart(name, data)
         }

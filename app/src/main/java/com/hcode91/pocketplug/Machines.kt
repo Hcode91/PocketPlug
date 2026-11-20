@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -36,6 +36,10 @@ data class MachineDef(
     val cartLibrary: String = id,
     /** Model name printed on the console (skins that show one). */
     val badge: String = "",
+    /** CARTRIDGE machines with a game built in: its name (it plays with no cartridge). */
+    val builtInGame: String = "",
+    /** Software-list zips holding several chip dumps are one cartridge: join the files in name order. */
+    val cartJoin: Boolean = false,
     /** Getting-started steps, shown in a bubble over the machine (empty: none needed). */
     val setup: List<String> = emptyList(),
 )
@@ -43,10 +47,10 @@ data class MachineDef(
 /** Which shelf of the machine list a machine sits on. */
 val MachineDef.category: String
     get() = when (skin) {
-        Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK -> "TV games"
+        Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH -> "Handhelds"
         Skin.EGG_PET -> "Pets"
-        Skin.APVS_1292 -> "Consoles"
+        Skin.APVS_1292, Skin.APF -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
         else -> "Computers"
     }
@@ -373,6 +377,52 @@ object Machines {
                 "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
                 "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. The texts are in German (SPIEL = game).",
             ),
+        ),
+        MachineDef(
+            id = "apfm1000",
+            title = "MP1000 TV Game",
+            subtitle = "1978 console with Rocket Patrol built in and two joystick-and-keypad controllers. "
+                + "Import the console's BIOS zip to play Rocket Patrol, then add cartridge dumps "
+                + "(APF M-1000 / MP1000; MAME set: apfm1000)",
+            chip = "Motorola MC6800 + MC6847 VDG",
+            region = "USA",
+            year = "1978",
+            roms = listOf(RomSpec("apf_4000.rom", 0x800L, 0xcc6ac840L)),
+            skin = Skin.APF,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x2000,
+            knownCarts = mapOf(
+                0x811c6269L to "Backgammon",
+                0x1fb354b7L to "Baseball",
+                0x38faa709L to "Blackjack",
+                0xcca5836bL to "Bowling / Micro Match",
+                0x7121f8b1L to "Boxing",
+                0xbc1f5b8bL to "Brickdown / Shooting Gallery",
+                0x21d5f63fL to "Casino 1: Slots / Roulette / Keno",
+                0x6baad95fL to "Catena",
+                0x5d03a812L to "Catena (alt)",
+                0xe58a5d5bL to "Hangman / Tic Tac Toe / Doodle",
+                0x3f4b8c83L to "Pinball / Dungeon Hunt / Blockout",
+                0x7a8d3b1aL to "Space Destroyers",   // apf1013a + apf1013b joined
+                0x0504d667L to "UFO / Sea Monsters / Break It Down / Rebuild / Shoot",
+                0x71c2955cL to "Columns / Targets / Bacteria / Autopista",
+                0xf77f72f4L to "Move Block",
+                0xcf63865aL to "Move Block 2",
+            ),
+            cartJoin = true,
+            builtInGame = "Rocket Patrol",
+            badge = "mp1000",
+        ),
+        MachineDef(
+            id = "arcade3d",
+            title = "Arcade 3D 15-in-1",
+            subtitle = "TV console with 15 games built in: shooters, puzzles, sports and racing. Press START at "
+                + "the title, then pick a game with the d-pad and A (Millennium Arcade 3D; MAME set: arcade3d)",
+            chip = "SunPlus SPG24x (unSP)",
+            region = "Europe",
+            year = "2000s",
+            roms = listOf(RomSpec("arcade3d.u3", 0x800000L, 0x130843a5L)),
+            skin = Skin.TV_CONSOLE,
         ),
         MachineDef(
             id = "alphie",

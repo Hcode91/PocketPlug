@@ -238,6 +238,20 @@ bool Spg2xxCore::load(const std::vector<RomFile>& roms, std::string& error)
             m_rom[i] = o ^ 0xfafa;
         }
     }
+    if (m_cfg.decryptZeus) {
+        // spg2xx_lexizeus_game_state::init_zeus, from word 0x4000 on
+        static const int bits[16] = { 7, 12, 9, 14, 4, 6, 0, 10, 15, 1, 3, 2, 5, 13, 8, 11 };
+        for (size_t i = 0x4000; i < m_romWords; i++) {
+            uint16_t w = m_rom[i] ^ 0x8a1d;
+            if (w & 0x0020) w ^= 0x0100;
+            if (w & 0x0040) w ^= 0x1000;
+            if (w & 0x4000) w ^= 0x0001;
+            if (w & 0x0080) w ^= 0x0004;
+            uint16_t o = 0;
+            for (int b = 0; b < 16; b++) if (w & (1 << bits[b])) o |= uint16_t(1 << (15 - b));
+            m_rom[i] = o;
+        }
+    }
     for (size_t i = 0; i < m_cfg.romPatches.size(); i++)
         if (m_cfg.romPatches[i] < m_romWords) m_rom[m_cfg.romPatches[i]] = m_cfg.romPatchValues[i];
     startDevices();
@@ -349,6 +363,20 @@ void Spg2xxCore::write_word(uint32_t a, uint16_t d)
 // ---------------------------------------------------------------------------
 uint16_t Spg2xxCore::porta_r()
 {
+    if (m_cfg.board == 3) {
+        // lexiseal "P1", active low: up 0x100, down 0x200, left 0x400, right 0x800,
+        // button 2 0x1000, button 1 0x4000, button 3 (pause / start) 0x8000
+        uint32_t in = m_inputs;
+        uint16_t v = 0xffff;
+        if (in & 0x01) v &= ~0x0100;
+        if (in & 0x02) v &= ~0x0200;
+        if (in & 0x04) v &= ~0x0400;
+        if (in & 0x08) v &= ~0x0800;
+        if (in & 0x10) v &= ~0x4000;
+        if (in & 0x20) v &= ~0x1000;
+        if (in & 0x40) v &= ~0x8000;
+        return v;
+    }
     if (m_cfg.board != 0) {
         // "P1", active high: up 0x01, down 0x02, left 0x04, right 0x08, button 1 0x10, button 2 0x20.
         // Wireless Tennis leaves the rest low; Kick Boxing's are high (0x40 = no Coleco logo).
@@ -364,6 +392,7 @@ uint16_t Spg2xxCore::porta_r()
 
 uint16_t Spg2xxCore::portb_r()
 {
+    if (m_cfg.board == 3) return 0xffff;
     // ABL's wireless sensor receiver (Kick Boxing, Wireless Tennis): bit 5 says a
     // reading is waiting on bits 0-4 (sensor in bits 3-4, reading in bits 0-2).
     // The game acks with bit 6; the line stays up for one more read, then must
@@ -419,7 +448,12 @@ void Spg2xxCore::rxNext()
     }
 }
 
-uint16_t Spg2xxCore::portc_r() { return 0xffff; }
+uint16_t Spg2xxCore::portc_r()
+{
+    // lexiseal "P3", active low: button 4 0x01, button 5 0x02
+    if (m_cfg.board == 3) return uint16_t(0xffff & ~((m_inputs >> 7) & 3));
+    return 0xffff;
+}
 
 void Spg2xxCore::porta_w(uint16_t data)
 {
@@ -499,7 +533,7 @@ void Spg2xxCore::vblank_end()
 void Spg2xxCore::runFrame()
 {
     m_frameDone = false;
-    if (m_cfg.board != 0) sensorsFrame();
+    if (m_cfg.board == 1 || m_cfg.board == 2) sensorsFrame();
     while (!m_frameDone) {
         m_machine.timeslice(attotime::never());
         m_machine.execute_timers();

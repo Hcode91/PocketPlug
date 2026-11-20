@@ -33,6 +33,8 @@ class EmulatorActivity : Activity() {
     private lateinit var tv: TvView
     private var mat: DanceMatView? = null
     private val pads = arrayOfNulls<ApvsControllerView>(2)
+    private val apfPads = arrayOfNulls<ApfControllerView>(2)
+    private var a3dPad: Arcade3dPadView? = null
     private var pet: EggPetView? = null
     private var phone: PhoneCaseView? = null
     private var arcade: ArcadeCabinetView? = null
@@ -97,11 +99,13 @@ class EmulatorActivity : Activity() {
         val names: Array<String>
         val paths: Array<String>
         if (machine.media == MediaKind.CARTRIDGE) {
-            val f = java.io.File(intent.getStringExtra("cart") ?: "")
-            cartFile = f
-            // consoles with a BIOS get its files first, then the cartridge
-            names = (machine.roms.map { it.name } + f.name).toTypedArray()
-            paths = (machine.roms.map { RomStore.romFile(this, machine, it).absolutePath } + f.absolutePath).toTypedArray()
+            val cartPath = intent.getStringExtra("cart") ?: ""
+            val f = java.io.File(cartPath)
+            cartFile = if (cartPath.isEmpty()) null else f
+            // consoles with a BIOS get its files first, then the cartridge (none: the built-in game)
+            val extra = if (cartPath.isEmpty()) emptyList() else listOf(f)
+            names = (machine.roms.map { it.name } + extra.map { it.name }).toTypedArray()
+            paths = (machine.roms.map { RomStore.romFile(this, machine, it).absolutePath } + extra.map { it.absolutePath }).toTypedArray()
         } else {
             names = machine.roms.map { it.name }.toTypedArray()
             // files left in the user's folder are read through an open descriptor
@@ -430,6 +434,40 @@ class EmulatorActivity : Activity() {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)   // TV cabinet incl. margins
                     add(m, 1.12f)    // mat incl. its SELECT/START strip
+                })
+            }
+            Skin.APF -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val console = ApfConsoleView(this, if (cartFile != null) title.toString() else "").apply {
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    onPower = { powerCycle() }
+                }
+                val row = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.HORIZONTAL }
+                for (pl in 0..1) {
+                    val v = ApfControllerView(this, pl).apply { onInput = { setTouch(1 + pl, it) } }
+                    apfPads[pl] = v
+                    row.addView(v, android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+                }
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.75f)
+                    add(console, 0.34f)
+                    add(row, 0.95f)
+                })
+            }
+            Skin.TV_CONSOLE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val console = Arcade3dConsoleView(this).apply {
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    onPower = { powerCycle() }
+                }
+                val pad = Arcade3dPadView(this).apply { onInput = { setTouch(1, it) } }
+                a3dPad = pad
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.85f)
+                    add(console, 0.42f)
+                    add(pad, 0.5f)
                 })
             }
             Skin.APVS_1292 -> {
@@ -1403,6 +1441,8 @@ class EmulatorActivity : Activity() {
         Skin.FLIGHT_STICK -> FlightStickView.keyBit(code)
         Skin.KEYCHAIN -> KeychainGameView.keyBit(code)
         Skin.HH -> HhView.keyBit(code)
+        Skin.APF -> ApfBits.keyBit(code)
+        Skin.TV_CONSOLE -> A3dBits.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
@@ -1878,6 +1918,8 @@ class EmulatorActivity : Activity() {
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
+        apfPads.forEach { it?.externalMask = keyInputs }
+        a3dPad?.externalMask = keyInputs
         return true
     }
 
@@ -1939,6 +1981,8 @@ class EmulatorActivity : Activity() {
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
+        apfPads.forEach { it?.externalMask = keyInputs }
+        a3dPad?.externalMask = keyInputs
         return true
     }
 

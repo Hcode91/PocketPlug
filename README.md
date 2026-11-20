@@ -39,6 +39,7 @@ controller.
 | AIM 65 (Rockwell, 1977 microcomputer) | `aim65` | 6502 + two 6522 VIAs, 6532 RIOT, 6821 PIA, five 4-character 16-segment displays, 20-column thermal printer | Monitor runs and prints as in MAME: memory display and change, the printer, text entry (no cassette or TTY) |
 | Acorn System 1 (1979 microcomputer kit) | `acrnsys1` | MOS 6502 + INS8154, 8-digit LED display, KB1 keypad | Monitor runs as in MAME: memory display and change, go, step through addresses (no cassette) |
 | Entex Adventure Vision | `advision` | Intel 8048 (own MCS-48 port) + COP411 sound CPU, 40-LED spinning-mirror display | BIOS + cartridge; the test cart's picture matches MAME's frame exactly, sound effects follow MAME's timing |
+| APF M-1000 / MP1000 | `apfm1000` | Motorola MC6800 (the MC6801 core in 6800 mode) + MC6847 VDG and MC6821 PIA (own ports) | Rocket Patrol from the BIOS; the menu and play frames match MAME pixel for pixel with the same presses |
 | Atari Flashback (mini 7800) | `afbm7800` | NES-compatible clone with an MMC3-style mapper (VT02/03 PPU + 2A03 APU, PAL timing as in MAME) | Menu and games match MAME's frames; RESET on the console returns to the menu |
 | 4 Player System 10-in-1 (Advance Bright) | `abl4play` | 65C816 TV game SoC ("trkfldch": tile layers, sprites, YUV palette, DMA) | Menu and all games start and play, up to four players; matches MAME's frames. No sound (unknown, as in MAME) |
 | Pinball (Advance Bright TV game) (PAL) | `ablpinb` | VT02 / VT03 PAL, plunger and flipper inputs | Logo, table menu and all tables run as in MAME; plunger, flippers and nudge work |
@@ -47,6 +48,7 @@ controller.
 | Joystick 14-in-1 (Advance Bright "Wikid Joystick") (PAL) | `ablwikid` | SH6578 PAL, 2 MB in two halves | Menu and games match MAME's frames |
 | Wireless Tennis (Advance Bright) | `abltenni` | SunPlus SPG24x + the wireless racket receiver | Menus match MAME; serving and rallies play with the on-screen racket (MAME's driver can't get past "press the button") |
 | Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
+| Millennium Arcade 3D 15-in-1 | `arcade3d` | SunPlus SPG24x (JungleTac encrypted ROM) | Title, game menu and games (Deep Storm) run; not in MAME 0.264 to compare against |
 | TM 990/189 University Board (+ Video Board) | `990189`, `990189v` | TMS9980A + 2x TMS9901 (own cores), TMS9918 (own core) | University BASIC runs; the LED display and lights follow MAME frame-for-frame apart from a frame's lag in key echo; the video board's four colour demos run |
 | 1200XL Home Computer (Atari) | `a1200xl` | Atari800 (6502C, ANTIC, GTIA, POKEY, PIA) | Real 1200XL OS: logo, self test, function keys and the L1 / L2 lights; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
 | 800 Home Computer (Atari) | `a800`, `a800pal` | Atari800, 48 KB | Real OS: Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
@@ -110,6 +112,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | AIM 65 | `aim65` | `aim65mon.z23`, `aim65mon.z22` | 4 KB each | `90e44afe`, `d01914b0` |
 | Acorn System 1 | `acrnsys1` | `acrnsys1.bin` | 512 bytes | `43dcfc16` |
 | Adventure Vision | `advision` | BIOS: `ins8048-11kdp_n.u5`, `cop411l-kcn_n.u8` | 1 KB, 512 bytes | `279e33d1`, `81e95975` |
+| MP1000 | `apfm1000` | BIOS: `apf_4000.rom`; cartridges optional | 2 KB | `cc6ac840` |
 | | | Plus your own cartridge dumps (4 KB each), added as games | - | - |
 | Atari Flashback | `afbm7800` | `atariflashbackmini7800.bin` | 1 MB (1,048,576 bytes) | `da4d9483` |
 | 4 Player System 10-in-1 | `abl4play` | `abl4play.bin` | 8 MB (8,388,608 bytes) | `5d57fb70` |
@@ -119,6 +122,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Joystick 14-in-1 | `ablwikid` | `mx29f1610atc.u2` | 2 MB (2,097,152 bytes) | `f16abf79` |
 | Wireless Tennis | `abltenni` | `ablpnpwirelesstennis.bin` | 4 MB (4,194,304 bytes) | `66bd8ef1` |
 | Kick Boxing | `ablkickb` | `ablkickboxing.bin` | 8 MB (8,388,608 bytes) | `61394c45` |
+| Arcade 3D 15-in-1 | `arcade3d` | `arcade3d.u3` | 8 MB (8,388,608 bytes) | `130843a5` |
 | TM 990/189 University Board | `990189` | `990-469.u32` | 2 KB (2,048 bytes) | `08df7edb` |
 | | | `990-469.u33` | 4 KB (4,096 bytes) | `e9b4ac1b` |
 | TM 990/189 + Video Board | `990189v` | the two `990189` files, plus `demo1000.u13` | 2 KB (2,048 bytes) | `c0e16685` |
@@ -456,6 +460,15 @@ Add games (raw 4 KB files, zips, or MAME's software-list zip). The red LED
 picture appears in the window; the joystick is in the middle, with the four
 buttons on both sides (the left and right panels work the same, as on the
 real one). The sound switch mutes; tap the top band for the menu.
+
+### APF MP1000
+
+- Rocket Patrol is built into the console: import the apfm1000 BIOS zip and play it from the
+  machine page. Cartridge dumps (or the apfm1000 software-list zip) add the other games; Space
+  Destroyers' two chips are joined into one cartridge automatically.
+- Each controller has an 8-way joystick, the red fire button on its top edge and the keypad
+  (7 8 9 0 / 4 5 6 CL / 1 2 3 EN). The fire button and EN are the same key. The left controller
+  is player 1. A gamepad plays player 1: d-pad, A/B fire, X/Y keys 1 and 2, number keys on a keyboard.
 
 ### Atari Flashback
 

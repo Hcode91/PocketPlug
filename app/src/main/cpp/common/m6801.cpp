@@ -76,7 +76,7 @@ void M6801::execute_one()
     u8 ireg = M_RDOP(PCD);
     PC++;
     (this->*s_insn[ireg])();
-    increment_counter(s_cycles[ireg]);
+    increment_counter(m_cyc[ireg]);
     if (m_st.is3Pending) { m_st.is3Pending = 0; is3(1); is3(0); }
 }
 
@@ -339,6 +339,7 @@ void M6801::is3(int state)
 M6801::u8 M6801::rd(u32 a)
 {
     a &= 0xffff;
+    if (m_plain) return m_ports->extRead(u16(a));
     if (a < 0x20) return regRead(int(a));
     if (a >= 0x80 && a < 0x100) return m_st.ram[a - 0x80];
     if (m_expanded) return m_ports->extRead(u16(a));
@@ -349,6 +350,7 @@ M6801::u8 M6801::rd(u32 a)
 void M6801::wr(u32 a, u8 d)
 {
     a &= 0xffff;
+    if (m_plain) { m_ports->extWrite(u16(a), d); return; }
     if (a < 0x20) { regWrite(int(a), d); return; }
     if (a >= 0x80 && a < 0x100) { m_st.ram[a - 0x80] = d; return; }
     if (m_expanded) m_ports->extWrite(u16(a), d);

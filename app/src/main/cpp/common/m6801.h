@@ -42,6 +42,8 @@ public:
     void setRom(const u8* rom) { m_rom = rom; }     // 2 KB, mapped at F800
     // expanded mode (6803 / mode 2): everything but the registers and RAM is external
     void setExpanded(bool on) { m_expanded = on; }
+    // a plain MC6800: no on-chip registers or RAM, every access is external, 6800 timings
+    void setPlain6800(bool on) { m_plain = on; m_expanded = on; m_cyc = on ? s_cycles6800 : s_cycles; }
     void reset();
     int run(int cycles);                            // returns cycles run
     void setNmi(bool on) { if (!m_nmi_state && on) m_nmi_pending = 1; m_nmi_state = on; }
@@ -85,6 +87,9 @@ private:
     typedef void (M6801::*op_func)();
     static const op_func s_insn[256];
     static const uint8_t s_cycles[256];
+    static const uint8_t s_cycles6800[256];
+    const uint8_t* m_cyc = s_cycles;
+    bool m_plain = false;
     static const uint8_t flags8i[256];
     static const uint8_t flags8d[256];
     enum { M6800_WAI = 8, M6800_SLP = 0x10 };

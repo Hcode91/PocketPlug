@@ -11,6 +11,7 @@
 #include "cores/ocean/ocean.h"
 #include "cores/vt369/vt369.h"
 #include "cores/spg2xx/spg2xx.h"
+#include "cores/apf/apf.h"
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
 #include "cores/chess/accord.h"
@@ -136,6 +137,17 @@ Core* createCore(const std::string& id)
         c.palMode = 0;
         c.crypt = 3;
         return new Vt369Core(c);
+    }
+    if (id == "apfm1000")     // APF M-1000 (Rocket Patrol built in, cartridges optional)
+        return new ApfCore();
+    if (id == "arcade3d") {   // Millennium Arcade 3D 15-in-1 (SPG24x, JungleTac, encrypted ROM)
+        Spg2xxConfig c;
+        c.romName = "arcade3d.u3";
+        c.romSize = 0x800000;
+        c.board = 3;
+        c.pal = false;
+        c.decryptZeus = true;
+        return new Spg2xxCore(c);
     }
     if (id == "abltenni") {   // ABL Wireless Tennis (SPG24x, 60 Hz, motion racket on the buttons)
         Spg2xxConfig c;

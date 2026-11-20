@@ -16,6 +16,9 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/s2650.*` | BSD-3-Clause | MAME `src/devices/cpu/s2650` (Juergen Buchmueller) |
 | `app/src/main/cpp/cores/e0c6s46/*` | BSD-3-Clause | MAME `src/devices/cpu/e0c6200` (hap) - `MAME-e0c6200.txt` |
 | `app/src/main/cpp/cores/vt369/*` | GPL-2.0-or-later | MAME VT SoC + PPU incl. VT02/03, VT "4FFx", SH6578 and the nes_clone.cpp afbm7800 mapper (BSD-3, David Haywood, Ernesto Corvi, Brad Oliver, Fabio Priuli), VT3xx sound CPU (BSD-3, David Haywood), VT369 ADPCM decoder (GPL-2.0+, NewRisingSun) and NES APU (GPL-2.0+, Matthew Conte) |
+| `app/src/main/cpp/cores/apf/*` | BSD-3-Clause | MAME `src/mame/apf/apf.cpp` (Robbbert) and `src/devices/bus/apf` (Fabio Priuli) |
+| `app/src/main/cpp/common/mc6847*` | BSD-3-Clause | MAME `src/devices/video/mc6847.cpp` 0.264 (Nathan Woods), fonts included |
+| `app/src/main/cpp/common/pia6821.h` | BSD-3-Clause | MAME `src/devices/machine/6821pia.cpp` (Aaron Giles, Nathan Woods) |
 | `app/src/main/cpp/common/hd6301*` | BSD-3-Clause | MAME 6800/6801 instruction set (Aaron Giles), peripherals after MAME's hd6301x |
 | `app/src/main/cpp/common/hd44780.*` | BSD-3-Clause | Port of MAME's HD44780 (Sandro Ronco) |
 | `app/src/main/cpp/common/chessboard.h` | BSD-3-Clause | Logic of MAME's sensorboard (hap) |

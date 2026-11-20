@@ -397,9 +397,11 @@ struct Spg2xxConfig {
     std::string romName;
     uint64_t romSize = 0;
     bool marc250 = true;          // marc250/265games security pulses + banking
-    int board = 0;                // 0 = marc250, 1 = plain spg2xx_game_state (abltenni), 2 = ABL Kick Boxing
+    int board = 0;                // 0 = marc250, 1 = plain spg2xx_game_state (abltenni), 2 = ABL Kick Boxing,
+                                  // 3 = JungleTac lexizeus/lexiseal pads (arcade3d)
     bool pal = true;              // 50 Hz and the PAL flag; NTSC boards run at 60 Hz
     bool decryptAcFf = false;     // init_ablkickb: bitswap + xor 0xfafa on every word
+    bool decryptZeus = false;     // init_zeus (spg2xx_lexibook.cpp)
     std::vector<uint32_t> romPatches;   // word index | (value in a parallel list)
     std::vector<uint16_t> romPatchValues;
 };
