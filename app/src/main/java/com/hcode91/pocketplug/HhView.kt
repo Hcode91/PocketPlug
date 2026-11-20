@@ -165,7 +165,14 @@ class HhView(ctx: Context, private val skin: HhSkin, private val srcW: Int, priv
                 paint.color = darker(darker(k.color)); c.drawRoundRect(k.x - k.bw / 2, k.y - k.bh / 2 + 8f, k.x + k.bw / 2, k.y + k.bh / 2 + 8f, k.bh * 0.3f, k.bh * 0.3f, paint)
                 paint.color = if (down) darker(k.color) else k.color
                 c.drawRoundRect(k.x - k.bw / 2, k.y - k.bh / 2 + off, k.x + k.bw / 2, k.y + k.bh / 2 + off, k.bh * 0.3f, k.bh * 0.3f, paint)
-                if (!down) { paint.color = 0x30FFFFFF; c.drawRoundRect(k.x - k.bw / 2 + 8f, k.y - k.bh / 2 + 6f, k.x + k.bw / 2 - 8f, k.y - k.bh / 2 + k.bh * 0.3f, 10f, 10f, paint) }
+                if (!down && k.shine) { paint.color = 0x30FFFFFF; c.drawRoundRect(k.x - k.bw / 2 + 8f, k.y - k.bh / 2 + 6f, k.x + k.bw / 2 - 8f, k.y - k.bh / 2 + k.bh * 0.3f, 10f, 10f, paint) }
+                if (k.face.isNotEmpty()) {
+                    text.color = k.faceColor; text.textSize = k.faceSize
+                    val lines = k.face.split("\n")
+                    val y0 = k.y + off - (lines.size - 1) * k.faceSize * 0.55f + k.faceSize * 0.36f
+                    lines.forEachIndexed { li, ln -> c.drawText(ln, k.x, y0 + li * k.faceSize * 1.1f, text) }
+                    text.textSize = k.labelSize
+                }
             } else {
                 val down = mask and k.bit != 0
                 paint.color = k.base; c.drawCircle(k.x, k.y, k.r * 1.18f, paint)
@@ -361,14 +368,156 @@ class HhSkin(
         val sets: List<List<Pair<Int, Int>>> = emptyList(),
         val plate: Int = 0, val plateW: Float = 0f, val plateH: Float = 0f, val sideLabels: Boolean = false,
         val vertical: Boolean = false, val labelLeft: Boolean = false,
+        // text printed on the button itself
+        val face: String = "", val faceColor: Int = Color.WHITE, val faceSize: Float = 30f, val shine: Boolean = true,
     )
 
     companion object {
         fun forMachine(id: String): HhSkin? = when (id) {
             "alnattck" -> alienAttack()
             "alnchase" -> alienChase()
+            "alphie" -> alphie()
+            "amaztron" -> amazeATron()
+            "arcmania" -> arcadeMania()
             else -> null
         }
+
+        /** Playskool Alphie (1978), from the box: the blue robot with the button at its neck, the
+         *  five LEDs down its chest over the coloured stripes, the question arm (left) and answer
+         *  arm (right) that slide along the stripes, and the activity selector at its waist. */
+        private fun alphie() = HhSkin(
+            1000f, 1320f, 0xFF0E1428.toInt(),
+            screen = RectF(), bezel = 0, bezelPad = 0f,
+            menu = PointF(500f, 1290f),
+            controls = listOf(
+                Control(Kind.BUTTON, 500f, 338f, 44f, color = 0xFFF4F4F4.toInt(), base = 0xFF1E6FB0.toInt(), bit = 0x01),
+                Control(Kind.SWITCH, 255f, 675f, 46f, color = 0xFFF6D02A.toInt(), option = 0, vertical = true,
+                    positions = listOf("", "", "", "", ""), label = "QUESTION", labelColor = 0xFFE8F2FF.toInt(), labelSize = 22f),
+                Control(Kind.SWITCH, 745f, 675f, 46f, color = 0xFFF6D02A.toInt(), option = 1, vertical = true,
+                    positions = listOf("", "", "", "", ""), label = "ANSWER", labelColor = 0xFFE8F2FF.toInt(), labelSize = 22f),
+                Control(Kind.SWITCH, 500f, 990f, 40f, color = 0xFFF6D02A.toInt(), option = 2,
+                    positions = listOf("?", "☾", "★", "♪"), labelColor = 0xFFE8F2FF.toInt(), labelSize = 26f),
+            ),
+            leds = (0 until 5).map { Led(LedKind.ROUND, 0, it, 500f, 465f + it * 92f, 20f, 0xFFFF3020.toInt()) },
+            drawBody = { c, p, s ->
+                // antenna and head
+                p.color = 0xFFD8302A.toInt(); c.drawRoundRect(465f, 18f, 535f, 80f, 14f, 14f, p)
+                p.color = 0xFF2C8BD2.toInt(); c.drawRoundRect(320f, 60f, 680f, 300f, 46f, 46f, p)
+                p.color = 0xFF1E6FB0.toInt(); c.drawCircle(305f, 180f, 42f, p); c.drawCircle(695f, 180f, 42f, p)
+                p.color = 0xFF7CC4F0.toInt(); c.drawRoundRect(360f, 100f, 640f, 265f, 30f, 30f, p)
+                for (ex in listOf(430f, 570f)) {
+                    p.color = 0xFFF2A21C.toInt(); c.drawCircle(ex, 170f, 52f, p)
+                    p.color = 0xFFFFE07A.toInt(); c.drawCircle(ex, 170f, 40f, p)
+                    p.color = 0xFF3A3A9A.toInt(); c.drawCircle(ex, 176f, 26f, p)
+                    p.color = Color.WHITE; c.drawCircle(ex - 8f, 166f, 7f, p)
+                }
+                p.color = 0xFFF2A21C.toInt(); c.drawRoundRect(450f, 228f, 550f, 250f, 10f, 10f, p)
+                // arms
+                p.color = 0xFFD8302A.toInt()
+                c.drawRoundRect(50f, 560f, 160f, 640f, 18f, 18f, p); c.drawRoundRect(840f, 560f, 950f, 640f, 18f, 18f, p)
+                // body frame and the striped panel
+                p.color = 0xFF2C8BD2.toInt(); c.drawRoundRect(150f, 380f, 850f, 1060f, 60f, 60f, p)
+                p.color = 0xFFF2F2F2.toInt(); c.drawRoundRect(205f, 418f, 795f, 935f, 24f, 24f, p)
+                val stripes = intArrayOf(0xFF3EA84A.toInt(), 0xFFD8302A.toInt(), 0xFFF28A1C.toInt(), 0xFF7A3A9A.toInt(), 0xFF2A7AD2.toInt())
+                for (i in 0 until 5) { p.color = stripes[i]; c.drawRect(222f, 430f + i * 92f + 8f, 778f, 430f + (i + 1) * 92f - 8f, p) }
+                // the chest column with the LED housings and the speaker rings
+                p.color = 0xFF2C8BD2.toInt(); c.drawRoundRect(440f, 400f, 560f, 940f, 20f, 20f, p)
+                p.color = 0xFF16161A.toInt(); for (i in 0 until 5) c.drawRoundRect(462f, 430f + i * 92f + 4f, 538f, 430f + (i + 1) * 92f - 4f, 18f, 18f, p)
+                s.color = 0xEEFFFFFF.toInt(); s.strokeWidth = 5f
+                for (rr in listOf(70f, 90f, 110f)) {
+                    c.drawArc(RectF(500f - rr, 649f - rr, 500f + rr, 649f + rr), 140f, 80f, false, s)
+                    c.drawArc(RectF(500f - rr, 649f - rr, 500f + rr, 649f + rr), -40f, 80f, false, s)
+                }
+                // waist slot for the activity selector
+                p.color = 0xFF16161A.toInt(); c.drawRoundRect(320f, 955f, 680f, 1000f, 20f, 20f, p)
+                // legs with red and white bands
+                for (lx in listOf(230f, 560f)) {
+                    p.color = 0xFF2C8BD2.toInt(); c.drawRoundRect(lx, 1060f, lx + 210f, 1250f, 26f, 26f, p)
+                    for (b in 0 until 3) { p.color = if (b % 2 == 0) 0xFFD8302A.toInt() else 0xFFF2F2F2.toInt(); c.drawRect(lx + 10f, 1150f + b * 26f, lx + 200f, 1172f + b * 26f, p) }
+                }
+            },
+        )
+
+        /** Coleco Amaze-A-Tron (1978), from a photo: white case, blue top with the 5 x 5 numbered
+         *  squares, the red 2-digit LED display, the red and green player LEDs, the OFF / ON switch,
+         *  and the blue GAME START and green GAME SELECT buttons. */
+        private fun amazeATron(): HhSkin {
+            val squares = (0 until 25).map { n ->
+                val col = n % 5; val row = n / 5
+                Control(Kind.BUTTON, 200f + col * 150f, 175f + row * 125f, 40f, color = 0xFFF4F4F2.toInt(), bit = 1 shl n,
+                    bw = 118f, bh = 98f, face = "${n + 1}", faceColor = 0xFF1E3A8A.toInt(), faceSize = 50f, shine = false)
+            }
+            return HhSkin(
+                1000f, 1320f, 0xFF2A4A9A.toInt(),
+                screen = RectF(), bezel = 0, bezelPad = 0f,
+                menu = PointF(500f, 1290f),
+                controls = squares + listOf(
+                    Control(Kind.SWITCH, 700f, 925f, 26f, color = 0xFF2A2A2A.toInt(), option = 6, positions = listOf("OFF", "ON"), initial = 1,
+                        labelColor = 0xFFE8E8E8.toInt(), labelSize = 22f, sets = listOf(listOf(7 to 1), listOf(7 to 0))),
+                    Control(Kind.BUTTON, 300f, 1085f, 40f, color = 0xFF1E5AC8.toInt(), bit = 1 shl 26, bw = 110f, bh = 100f,
+                        label = "GAME\nSTART".replace("\n", " "), labelColor = 0xFFE8E8E8.toInt(), labelSize = 24f),
+                    Control(Kind.BUTTON, 440f, 1085f, 40f, color = 0xFF22A050.toInt(), bit = 1 shl 25, bw = 110f, bh = 100f,
+                        label = "GAME SELECT", labelColor = 0xFFE8E8E8.toInt(), labelSize = 24f),
+                ),
+                leds = listOf(
+                    Led(LedKind.ROUND, 0, 0, 240f, 925f, 16f, 0xFFFF3020.toInt()),
+                    Led(LedKind.ROUND, 1, 0, 340f, 925f, 16f, 0xFF30E050.toInt()),
+                    Led(LedKind.DIGIT, 3, 0, 700f, 830f, 60f, 0xFFFF2A20.toInt()),
+                    Led(LedKind.DIGIT, 2, 0, 750f, 830f, 60f, 0xFFFF2A20.toInt()),
+                ),
+                drawBody = { c, p, _ ->
+                    // white case
+                    p.color = 0xFFCFCFCF.toInt(); c.drawRoundRect(70f, 40f, 930f, 1250f, 50f, 50f, p)
+                    p.color = 0xFFF6F6F4.toInt(); c.drawRoundRect(78f, 46f, 922f, 1238f, 46f, 46f, p)
+                    // blue top
+                    p.color = 0xFF2449A8.toInt(); c.drawRoundRect(105f, 90f, 895f, 780f, 26f, 26f, p)
+                    p.color = 0xFF1C3C90.toInt(); for (n in 0 until 25) { val x = 200f + (n % 5) * 150f; val y = 175f + (n / 5) * 125f; c.drawRect(x - 66f, y - 56f, x + 66f, y + 56f, p) }
+                    // display strip
+                    p.color = 0xFF151515.toInt(); c.drawRect(105f, 790f, 895f, 870f, p)
+                    p.color = 0xFF2A0606.toInt(); c.drawRoundRect(650f, 795f, 800f, 865f, 6f, 6f, p)
+                    // black control panel
+                    p.color = 0xFF151515.toInt(); c.drawRoundRect(140f, 885f, 880f, 1200f, 18f, 18f, p)
+                    p.color = 0xFF202020.toInt(); c.drawRect(140f, 965f, 880f, 975f, p)
+                },
+            )
+        }
+
+        /** Milton Bradley Electronic Arcade Mania (1983), from the box: "The Machine", a small black
+         *  arcade cabinet with the game slide over 9 LEDs, and three rows of buttons: orange 1 2 3;
+         *  red Run Amuk, yellow, blue Sneak Attack; green Alien Raiders, yellow, purple Rattler. */
+        private fun arcadeMania() = HhSkin(
+            800f, 1320f, 0xFF120E1E.toInt(),
+            screen = RectF(), bezel = 0, bezelPad = 0f,
+            menu = PointF(400f, 1290f),
+            controls = listOf(
+                Control(Kind.BUTTON, 270f, 790f, 40f, color = 0xFFF28A1C.toInt(), bit = 0x001, bw = 112f, bh = 92f, face = "1", faceColor = Color.WHITE, faceSize = 54f),
+                Control(Kind.BUTTON, 400f, 790f, 40f, color = 0xFFF28A1C.toInt(), bit = 0x002, bw = 112f, bh = 92f, face = "2", faceColor = Color.WHITE, faceSize = 54f),
+                Control(Kind.BUTTON, 530f, 790f, 40f, color = 0xFFF28A1C.toInt(), bit = 0x004, bw = 112f, bh = 92f, face = "3", faceColor = Color.WHITE, faceSize = 54f),
+                Control(Kind.BUTTON, 270f, 905f, 40f, color = 0xFFC03232.toInt(), bit = 0x008, bw = 112f, bh = 92f, face = "RUN\nAMUK", faceSize = 22f),
+                Control(Kind.BUTTON, 400f, 905f, 40f, color = 0xFFF2D22A.toInt(), bit = 0x010, bw = 112f, bh = 92f),
+                Control(Kind.BUTTON, 530f, 905f, 40f, color = 0xFF2640C0.toInt(), bit = 0x020, bw = 112f, bh = 92f, face = "SNEAK\nATTACK", faceSize = 20f),
+                Control(Kind.BUTTON, 270f, 1020f, 40f, color = 0xFF269A34.toInt(), bit = 0x040, bw = 112f, bh = 92f, face = "Alien\nRaiders", faceSize = 21f),
+                Control(Kind.BUTTON, 400f, 1020f, 40f, color = 0xFFF2D22A.toInt(), bit = 0x080, bw = 112f, bh = 92f),
+                Control(Kind.BUTTON, 530f, 1020f, 40f, color = 0xFFB24080.toInt(), bit = 0x100, bw = 112f, bh = 92f, face = "Rattler", faceSize = 22f),
+            ),
+            leds = (0 until 9).map { Led(LedKind.ROUND, 0, it, 280f + (it % 3) * 120f, 345f + (it / 3) * 105f, 22f, 0xFFFF6A10.toInt()) },
+            drawBody = { c, p, s ->
+                // the cabinet
+                p.color = 0xFF050505.toInt(); c.drawRoundRect(150f, 50f, 650f, 1240f, 30f, 30f, p)
+                p.color = 0xFF141414.toInt(); c.drawRoundRect(160f, 60f, 640f, 1230f, 26f, 26f, p)
+                // marquee slot (the slide's title shows here; drawn blank)
+                p.color = 0xFF1E3A1E.toInt(); c.drawRoundRect(205f, 95f, 595f, 225f, 12f, 12f, p)
+                p.color = 0x2290FF90; c.drawRoundRect(215f, 105f, 585f, 215f, 10f, 10f, p)
+                // the slide window over the LEDs
+                p.color = 0xFF2A0E06.toInt(); c.drawRoundRect(205f, 265f, 595f, 610f, 14f, 14f, p)
+                s.color = 0xFF3A1A10.toInt(); s.strokeWidth = 3f
+                for (i in 0 until 3) for (j in 0 until 3) c.drawCircle(280f + j * 120f, 345f + i * 105f, 40f, s)
+                // vent ridges
+                p.color = 0xFF0A0A0A.toInt(); for (i in 0 until 4) c.drawRoundRect(215f, 640f + i * 18f, 585f, 650f + i * 18f, 4f, 4f, p)
+                // button deck
+                p.color = 0xFF0C0C0C.toInt(); c.drawRoundRect(195f, 725f, 605f, 1085f, 16f, 16f, p)
+            },
+        )
 
         /** Tomy Alien Chase (1984), from a photo: a cream base with a dark grey control strip
          *  (POWER, SOUND, LEVEL and PLAYER slide switches, the joystick), and the dark grey

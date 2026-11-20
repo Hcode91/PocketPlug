@@ -375,6 +375,52 @@ object Machines {
             ),
         ),
         MachineDef(
+            id = "alphie",
+            title = "Alphie Electronic Robot",
+            subtitle = "1978 robot toy: slide the question and answer arms to a picture on its card, "
+                + "pick an activity (questions, lunar landing, robot land, tunes) and press its button; the chest "
+                + "LEDs and beeps answer (Playskool Alphie; MAME set: alphie)",
+            chip = "TI TMS1000",
+            region = "USA",
+            year = "1978",
+            roms = listOf(
+                RomSpec("us4280809", 0x400L, 0xf8f14013L),
+                RomSpec("tms1000_common2_micro.pla", 0x363L, 0xd33da3cfL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "amaztron",
+            title = "Amaze-A-Tron Maze Game",
+            subtitle = "1978 hidden-maze board game: press GAME SELECT to pick a game, GAME START, then press the "
+                + "numbered squares to move; the LEDs show whose turn it is (Coleco Amaze-A-Tron; MAME set: amaztron)",
+            chip = "TI TMS1100",
+            region = "USA",
+            year = "1978",
+            roms = listOf(
+                RomSpec("mp3405", 0x800L, 0x9cbc0009L),
+                RomSpec("tms1100_common3_micro.pla", 0x363L, 0x03574895L),
+                RomSpec("tms1100_amaztron_output.pla", 0x16dL, 0xf3875384L),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "arcmania",
+            title = "Arcade Mania Mini Arcade",
+            subtitle = "1983 board game's electronic \"machine\": press an orange button to switch it on, then a "
+                + "game button (Run Amuk, Sneak Attack, Alien Raiders, Rattler) and play with the others on the "
+                + "9 lights (Milton Bradley Electronic Arcade Mania; MAME set: arcmania)",
+            chip = "TI TMS1100",
+            region = "USA",
+            year = "1983",
+            roms = listOf(
+                RomSpec("m34078a", 0x800L, 0x90ea0087L),
+                RomSpec("tms1100_common1_micro.pla", 0x363L, 0x62445fc9L),
+                RomSpec("tms1100_arcmania_output.pla", 0x16dL, 0xa1517b15L),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
             id = "alnattck",
             title = "Alien Attack Tabletop",
             subtitle = "1981 orange tabletop VFD game: hold MOVE and push the stick to move, hold FIRE and push "
