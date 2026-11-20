@@ -304,7 +304,9 @@ needing ROMs. Search by name, year or chip, or filter by kind (TV games,
 handhelds, pets, consoles, computers, chess & clocks). Each tile shows the
 machine as drawn in its own skin; tap it for its page (description, ROM
 status, import, play) or tap ▶ to play straight away. ☆ pins a machine to
-Favourites; the last eight machines played sit in Recently played. Find my
+Favourites; the last eight machines played sit in Recently played. Multi-game
+units list their games on their page, as their own menus show them (read off
+the menus in the emulator), and searching for a game finds the unit it's in. Find my
 ROMs, Sort a folder and About are in the ⋮ menu.
 
 ### Find my ROMs

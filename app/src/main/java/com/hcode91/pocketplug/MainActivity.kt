@@ -198,7 +198,9 @@ class MainActivity : Activity() {
         if (filter != ALL && filter != FAVS && m.category != filter) return false
         if (query.isEmpty()) return true
         val q = query.lowercase()
-        return listOf(m.title, m.subtitle, m.id, m.chip, m.year, m.category).any { it.lowercase().contains(q) }
+        if (listOf(m.title, m.subtitle, m.id, m.chip, m.year, m.category).any { it.lowercase().contains(q) }) return true
+        // a game inside a multi-game unit finds the unit
+        return q.length >= 3 && GameLists.forMachine(m.id)?.games?.any { !it.startsWith("# ") && it.lowercase().contains(q) } == true
     }
 
     private fun columns() = maxOf(2, resources.configuration.screenWidthDp / 180)
@@ -361,6 +363,64 @@ class MainActivity : Activity() {
         }
     }
 
+    /** The games built into a multi-game unit, from its own menu. Long lists start folded, with a filter. */
+    private fun gamesCard(m: MachineDef): View? {
+        val e = GameLists.forMachine(m.id) ?: return null
+        val total = e.games.count { !it.startsWith("# ") }
+        val c = cardShell(false)
+        c.addView(TextView(this).apply {
+            text = "Games  ·  $total"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        })
+        if (e.note.isNotEmpty()) c.addView(TextView(this).apply {
+            text = e.note; textSize = 13f; setTextColor(MUTED); setPadding(0, dp(4), 0, 0)
+        })
+        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, 0) }
+        var q = ""
+        var expanded = total <= 24
+        fun fill() {
+            body.removeAllViews()
+            var n = 0; var shown = 0
+            var section: String? = null; var sectionShown = false
+            for (g in e.games) {
+                if (g.startsWith("# ")) { section = g.substring(2); sectionShown = false; continue }
+                n++
+                if (q.isNotEmpty() && !g.lowercase().contains(q)) continue
+                if (!expanded && q.isEmpty() && shown >= 24) break
+                if (section != null && !sectionShown) {
+                    val title = section
+                    body.addView(TextView(this).apply {
+                        text = title; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(ACCENT)
+                        setPadding(0, dp(10), 0, dp(2))
+                    })
+                    sectionShown = true
+                }
+                val label = if (e.numbered) "$n.  $g" else g
+                body.addView(TextView(this).apply {
+                    text = label
+                    textSize = 14f; setTextColor(0xFFE6E0FF.toInt()); setPadding(0, dp(3), 0, dp(3))
+                })
+                shown++
+            }
+            if (shown == 0) body.addView(TextView(this).apply { text = "No game matches."; setTextColor(MUTED); textSize = 14f })
+            if (!expanded && q.isEmpty() && total > shown) body.addView(button("Show all $total", false) { expanded = true; fill() },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
+        }
+        if (total > 24) c.addView(EditText(this).apply {
+            hint = "Find a game"
+            setHintTextColor(MUTED); setTextColor(Color.WHITE); textSize = 15f; isSingleLine = true
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            background = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(0xFF120D24.toInt()) }
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c2: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c2: Int) {}
+                override fun afterTextChanged(ed: Editable?) { q = ed?.toString()?.trim()?.lowercase() ?: ""; fill() }
+            })
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
+        fill()
+        c.addView(body)
+        return c
+    }
+
     // ---- a machine's page ----
     private fun showHome() {
         detail = null
@@ -402,6 +462,7 @@ class MainActivity : Activity() {
         if (b != null) img.setImageBitmap(b) else { toRender.addFirst(m); pumpThumbs() }
         page.addView(img, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(260)).apply { bottomMargin = dp(14) })
         page.addView(card(m))
+        gamesCard(m)?.let { page.addView(it) }
         setContentView(ScrollView(this).apply { setBackgroundColor(BG); addView(page) })
     }
 
