@@ -46,6 +46,7 @@ class EmulatorActivity : Activity() {
     private var tabletop: TabletopView? = null
     private var adam: AdamView? = null
     private var aim: AimView? = null
+    private var altair: AltairView? = null
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -259,6 +260,24 @@ class EmulatorActivity : Activity() {
                     onMedia = { showAdamMenu() }
                 }
                 adam = v
+                setContentView(v)
+            }
+            Skin.ALTAIR -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val vt = prefs.getInt("altair_term", 0)
+                Native.setOption(handle, 0, vt)
+                val v = AltairView(this, machine.id == "al8800bt").apply {
+                    vtMode = vt
+                    onKey = { code -> keyQueue.add(code or 0x100) }
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onDisks = { showAltairMenu() }
+                    onPower = {
+                        synchronized(coreLock) { Native.reset(handle) }
+                        Toast.makeText(this@EmulatorActivity, "Power off and on: memory is cleared", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                altair = v
                 setContentView(v)
             }
             Skin.AIM65 -> {
@@ -544,6 +563,10 @@ class EmulatorActivity : Activity() {
 
     /** Changed disks are written back (floppies as .imd copies in the app's storage). */
     private fun saveDisks() {
+        if (altair != null && handle != 0L) {
+            synchronized(coreLock) { for (d in 0 until 2) altairDisk[d]?.let { Native.mediaSave(handle, d, it.absolutePath) } }
+            return
+        }
         if (adam != null && handle != 0L) {
             adamDisk?.let { f -> synchronized(coreLock) { Native.mediaSave(handle, 0, f.absolutePath) } }
             return
@@ -733,6 +756,139 @@ class EmulatorActivity : Activity() {
     }
 
     // ADAM keyboard matrix codes (row * 8 + bit, as MAME's adam_kb)
+    // ---- Altair: terminal keys from a hardware keyboard (ASCII), disks, programs ----
+    private fun altairKey(code: Int, e: KeyEvent): IntArray {
+        val vt = altair?.vtMode == 0
+        fun arrow(c: Char, adm: Int) = if (vt) intArrayOf(27, '['.code, c.code) else intArrayOf(adm)
+        return when (code) {
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> intArrayOf(13)
+            KeyEvent.KEYCODE_DEL -> intArrayOf(8)
+            KeyEvent.KEYCODE_FORWARD_DEL -> intArrayOf(127)
+            KeyEvent.KEYCODE_ESCAPE -> intArrayOf(27)
+            KeyEvent.KEYCODE_TAB -> intArrayOf(9)
+            KeyEvent.KEYCODE_DPAD_UP -> arrow('A', 11)
+            KeyEvent.KEYCODE_DPAD_DOWN -> arrow('B', 10)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> arrow('C', 12)
+            KeyEvent.KEYCODE_DPAD_LEFT -> arrow('D', 8)
+            else -> {
+                val u = e.getUnicodeChar(e.metaState and KeyEvent.META_CTRL_MASK.inv())
+                if (u <= 0 || u > 0x7e) intArrayOf()
+                else if (e.isCtrlPressed && u.toChar().uppercaseChar() in '@'..'_') intArrayOf(u.toChar().uppercaseChar().code and 0x1f)
+                else intArrayOf(u)
+            }
+        }
+    }
+
+    private val PICK_ALTAIR = 49
+    private fun altairDir() = java.io.File(filesDir, "altair").apply { mkdirs() }
+    private val altairDisk = arrayOfNulls<java.io.File>(2)
+
+    private fun showAltairMenu() {
+        paused = true
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        val turnkey = machine.id == "al8800bt"
+        val files = altairDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Add disk images (.dsk) or programs (.bin)..." to {
+            startActivityForResult(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
+            }, PICK_ALTAIR)
+        }
+        for (f in files.filter { it.extension.equals("dsk", true) }) items += "Disk: ${f.nameWithoutExtension}" to { pickAltairDrive(f) }
+        for (f in files.filter { !it.extension.equals("dsk", true) }) items += "Program: ${f.nameWithoutExtension} (load at 0 and run)" to { loadAltairProgram(f) }
+        if (!turnkey) items += "Kill the Bit (Dean McDaniel, 1975)" to {
+            val f = java.io.File(cacheDir, "killbit.bin")
+            f.writeBytes(byteArrayOf(0x21, 0, 0, 0x16, 0x80.toByte(), 0x01, 0x0e, 0, 0x1a, 0x1a, 0x1a, 0x1a, 0x09,
+                0xd2.toByte(), 0x08, 0, 0xdb.toByte(), 0xff.toByte(), 0xaa.toByte(), 0x0f, 0x57, 0xc3.toByte(), 0x08, 0))
+            loadAltairProgram(f, quiet = true)
+            altair?.showTerminal = false
+            Toast.makeText(this, "A lit bit runs along A15-A8. Flip the switch under it (then back) to kill it; a wrong switch adds a bit", Toast.LENGTH_LONG).show()
+        }
+        if (altairDisk[0] != null) items += "Boot from drive A" to { bootAltair() }
+        for (d in 0 until 2) altairDisk[d]?.let { f ->
+            items += "Eject ${'A' + d}: ${f.nameWithoutExtension}" to {
+                saveDisks()
+                synchronized(coreLock) { Native.mediaEject(handle, d) }
+                altairDisk[d] = null; updateAltairLabels()
+            }
+        }
+        val vt = prefs.getInt("altair_term", 0)
+        items += (if (vt == 0) "Terminal codes: VT100 (tap for ADM-3A)" else "Terminal codes: ADM-3A (tap for VT100)") to {
+            val n = 1 - vt
+            prefs.edit().putInt("altair_term", n).apply()
+            synchronized(coreLock) { Native.setOption(handle, 0, n) }
+            altair?.vtMode = n
+        }
+        if (files.isNotEmpty()) items += "Delete a file from the list..." to {
+            paused = true
+            AlertDialog.Builder(this)
+                .setTitle("Delete which file?")
+                .setItems(files.map { it.name }.toTypedArray()) { _, w -> files[w].delete(); paused = false }
+                .setOnCancelListener { paused = false }
+                .show()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Disks & programs")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which -> paused = false; items[which].second() }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    private fun pickAltairDrive(f: java.io.File) {
+        paused = true
+        AlertDialog.Builder(this)
+            .setTitle(f.nameWithoutExtension)
+            .setItems(arrayOf("Drive A and boot it", "Drive A", "Drive B")) { _, w ->
+                paused = false
+                if (insertAltairDisk(f, if (w == 2) 1 else 0) && w == 0) bootAltair()
+            }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    private fun insertAltairDisk(f: java.io.File, drive: Int): Boolean {
+        saveDisks()
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, drive, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return false }
+        if (altairDisk[1 - drive]?.absolutePath == f.absolutePath) {
+            synchronized(coreLock) { Native.mediaEject(handle, 1 - drive) }
+            altairDisk[1 - drive] = null
+        }
+        altairDisk[drive] = f
+        updateAltairLabels()
+        return true
+    }
+
+    private fun updateAltairLabels() {
+        altair?.diskLabels = arrayOf(altairDisk[0]?.nameWithoutExtension, altairDisk[1]?.nameWithoutExtension)
+    }
+
+    /** Turnkey: restart into the monitor and jump to the disk boot loader. Front panel: the boot loader
+     *  PROM comes from the turnkey's ROM set, if it's been imported. */
+    private fun bootAltair() {
+        if (machine.id == "al8800bt") {
+            synchronized(coreLock) { Native.reset(handle) }
+            for (ch in "J177400 ") keyQueue.add(ch.code or 0x100)
+            altair?.showTerminal = true
+            return
+        }
+        val tk = Machines.byId("al8800bt")
+        val rom = tk?.roms?.firstOrNull { it.name == "88dskrom.bin" }?.let { RomStore.romFile(this, tk, it) }
+        if (rom == null || !rom.exists()) {
+            Toast.makeText(this, "Booting disks needs the disk boot loader PROM: import the al8800bt (Turnkey) ROMs too", Toast.LENGTH_LONG).show()
+            return
+        }
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 10, rom.absolutePath) }
+        if (err != null) Toast.makeText(this, err, Toast.LENGTH_LONG).show()
+        altair?.showTerminal = true
+    }
+
+    private fun loadAltairProgram(f: java.io.File, quiet: Boolean = false) {
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 8, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        if (!quiet) { altair?.showTerminal = true; Toast.makeText(this, "${f.nameWithoutExtension} is running from 0000", Toast.LENGTH_SHORT).show() }
+    }
+
     // AIM 65 keyboard: row * 8 + bit of MAME's KEY.0-7
     private fun aimKey(code: Int): Int = when (code) {
         KeyEvent.KEYCODE_SPACE -> 0; KeyEvent.KEYCODE_PERIOD -> 2; KeyEvent.KEYCODE_M -> 3; KeyEvent.KEYCODE_B -> 4
@@ -864,6 +1020,19 @@ class EmulatorActivity : Activity() {
                     tmp.delete()
                     Toast.makeText(this, err ?: "Copied into HostFS: click the HostFS icon on the icon bar", Toast.LENGTH_LONG).show()
                 }
+            }
+            PICK_ALTAIR -> {
+                var name = "disk"
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) name = it.getString(0) ?: name
+                }
+                val safe = name.replace(Regex("[^A-Za-z0-9._ ()-]"), "_").ifEmpty { "disk" }
+                var dest = java.io.File(altairDir(), safe)
+                runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
+                // 8" images without the .dsk extension
+                if (!dest.extension.equals("dsk", true) && dest.length() in 330000L..342000L)
+                    dest = java.io.File(altairDir(), dest.nameWithoutExtension + ".dsk").also { dest.renameTo(it) }
+                if (dest.extension.equals("dsk", true)) pickAltairDrive(dest) else loadAltairProgram(dest)
             }
             PICK_ADAM -> {
                 var name = "cartridge"
@@ -1055,6 +1224,7 @@ class EmulatorActivity : Activity() {
             else if (tabletop != null) tabletop?.updateFrame(pixels)
             else if (adam != null) adam?.updateFrame(pixels)
             else if (aim != null) aim?.updateFrame(pixels)
+            else if (altair != null) altair?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
@@ -1599,6 +1769,12 @@ class EmulatorActivity : Activity() {
             if (event.repeatCount == 0) keyQueue.add(k or 0x100)
             return true
         }
+        if (altair != null) {
+            val seq = altairKey(keyCode, event)
+            if (seq.isEmpty()) return super.onKeyDown(keyCode, event)
+            for (ch in seq) keyQueue.add(ch or 0x100)
+            return true
+        }
         if (aim != null) {
             val k = aimKey(keyCode)
             if (k < 0) return super.onKeyDown(keyCode, event)
@@ -1655,6 +1831,9 @@ class EmulatorActivity : Activity() {
             if (k < 0) return super.onKeyUp(keyCode, event)
             keyQueue.add(k)
             return true
+        }
+        if (altair != null) {
+            return if (altairKey(keyCode, event).isEmpty()) super.onKeyUp(keyCode, event) else true
         }
         if (aim != null) {
             val k = aimKey(keyCode)

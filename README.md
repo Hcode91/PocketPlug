@@ -24,6 +24,8 @@ controller.
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
 | Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard, printer and disk drive 6801s (own 6801 port with the serial interface), WD2793 | Boots SmartWriter and types, matching MAME's screen; boots 160 KB disks as MAME does; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape drive yet |
+| Altair 8800b (MITS, 1976) | `al8800b` | Intel 8080, front panel (LEDs, address/data and control switches), 88-2SIO terminal, 88-DCDD 8" disks | Front panel works (examine, deposit, run, single step, accumulator switches; the bus lights while running), Kill the Bit built in; terminal and disks as on the turnkey (booting disks uses the turnkey's boot PROM) |
+| Altair 8800b Turnkey (MITS, 1977) | `al8800bt` | Intel 8080, turnkey monitor and disk boot PROMs, 88-2SIO terminal (VT100 or ADM-3A codes), 88-DCDD 8" disks | Monitor runs; boots CP/M 2.2, Disk BASIC and their games from SIMH-style `.dsk` images (MAME doesn't run this set) |
 | AIM 65 (Rockwell, 1977 microcomputer) | `aim65` | 6502 + two 6522 VIAs, 6532 RIOT, 6821 PIA, five 4-character 16-segment displays, 20-column thermal printer | Monitor runs and prints as in MAME: memory display and change, the printer, text entry (no cassette or TTY) |
 | Acorn System 1 (1979 microcomputer kit) | `acrnsys1` | MOS 6502 + INS8154, 8-digit LED display, KB1 keypad | Monitor runs as in MAME: memory display and change, go, step through addresses (no cassette) |
 | Entex Adventure Vision | `advision` | Intel 8048 (own MCS-48 port) + COP411 sound CPU, 40-LED spinning-mirror display | BIOS + cartridge; the test cart's picture matches MAME's frame exactly, sound effects follow MAME's timing |
@@ -81,6 +83,8 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Coleco Adam | `adam` | `os7.u2`, `eos 6 rev 57 08dd.u22`, `wp_r80.rom` (adam zip) | 8 KB, 16 KB, 32 KB | `3aa93ef3`, `ef6403c5`, `58d86a2a` |
 | | | `master rev a 174b.u6` (adam zip), `keyboard.u2` (adam_kb), `printer.u2` (adam_prn) | 2 KB each | `035a7a3d`, `ef204746`, `e8db783b` |
 | | | `adam disk u10 ad 31 rev a 09-27-84.u10` (adam_fdc) | 4 KB | `4b0b7143` |
+| Altair 8800b | `al8800b` | `8800b front panel.bin` | 256 bytes | `8b462c1b` |
+| Altair 8800b Turnkey | `al8800bt` | `turnmon.bin`, `88dskrom.bin` | 256 bytes each | `5c629294`, `7c5232f3` |
 | AIM 65 | `aim65` | `aim65mon.z23`, `aim65mon.z22` | 4 KB each | `90e44afe`, `d01914b0` |
 | Acorn System 1 | `acrnsys1` | `acrnsys1.bin` | 512 bytes | `43dcfc16` |
 | Adventure Vision | `advision` | BIOS: `ins8048-11kdp_n.u5`, `cop411l-kcn_n.u8` | 1 KB, 512 bytes | `279e33d1`, `81e95975` |
@@ -339,6 +343,29 @@ cartridges:
 
 Not done yet: the tape drive (`.ddp`), the bigger third-party disk drives and
 megacarts.
+
+### Altair 8800b and 8800b Turnkey
+
+Import the MAME zips. The turnkey starts in its monitor on the terminal (a
+`.` prompt; commands are upper case and addresses octal, ended with a space:
+`M000100 ` shows and changes memory, `J177400 ` jumps to the disk boot
+loader). Tap the disk unit to add disk images: 8" Altair `.dsk` files in the
+SIMH layout (337,568 bytes), like the CP/M, Disk BASIC and games disks that
+come with the Altair-Duino project. "Drive A and boot it" restarts and boots.
+Most of those disks are set up for a VT100 terminal; the menu switches the
+terminal to ADM-3A codes for software that wants one. `.bin` programs load at
+0000 and run.
+
+The 8800b starts on its front panel, stopped. Tap the address/data switches
+to set them; push a control switch up or down for its upper or lower job
+(EXAMINE, DEPOSIT NEXT, RUN, STOP...). Kill the Bit is in the disk menu.
+TERMINAL shows the terminal and keyboard (FRONT PANEL goes back). Booting a
+disk on the 8800b needs the turnkey's ROMs imported too (its disk boot
+loader is a PROM card in the 8800b). The panel's own microcode PROM isn't
+run: the panel's behaviour is built in.
+
+Not done yet: the second 2SIO port, cassettes, interrupts other than the
+2SIO's, 5.25" minidisks.
 
 ### AIM 65
 

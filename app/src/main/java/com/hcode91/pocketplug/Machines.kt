@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65 }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -328,6 +328,35 @@ object Machines {
                 0x6fa040cdL to "Code Red (homebrew)",
             ),
             badge = "advision",
+        ),
+        MachineDef(
+            id = "al8800b",
+            title = "8800b Microcomputer (front panel)",
+            subtitle = "1976 S-100 computer run from its front panel: toggle a program into memory with the "
+                + "16 switches, EXAMINE and DEPOSIT, then RUN and watch the lights. Kill the Bit is in the "
+                + "menu; a terminal and 8\" disks are attached (MITS Altair 8800b; MAME set: al8800b)",
+            chip = "Intel 8080 @ 2 MHz, 64 KB, 88-2SIO, 88-DCDD",
+            region = "USA",
+            year = "1976",
+            roms = listOf(RomSpec("8800b front panel.bin", 0x100L, 0x8b462c1bL)),
+            skin = Skin.ALTAIR,
+            badge = "panel",
+        ),
+        MachineDef(
+            id = "al8800bt",
+            title = "8800b Turnkey with terminal",
+            subtitle = "1977 front-panel-less S-100 box in its blue rack: it starts in a monitor on the "
+                + "terminal and boots CP/M or Disk BASIC from 8\" disks (games like Ladder, Zork, Star Trek). "
+                + "(MITS Altair 8800b Turnkey; MAME set: al8800bt)",
+            chip = "Intel 8080 @ 2 MHz, 63 KB, 88-2SIO, 88-DCDD",
+            region = "USA",
+            year = "1977",
+            roms = listOf(
+                RomSpec("turnmon.bin", 0x100L, 0x5c629294L),
+                RomSpec("88dskrom.bin", 0x100L, 0x7c5232f3L),
+            ),
+            skin = Skin.ALTAIR,
+            badge = "turnkey",
         ),
         MachineDef(
             id = "aim65",

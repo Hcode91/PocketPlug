@@ -16,6 +16,7 @@
 #include "cores/chess/accord.h"
 #include "cores/kits/acrnsys1.h"
 #include "cores/kits/aim65.h"
+#include "cores/altair/altair.h"
 #include "cores/advision/advision.h"
 #include "cores/adam/adam.h"
 #include "cores/ngen/ngen.h"
@@ -152,6 +153,10 @@ Core* createCore(const std::string& id)
         return new AdamCore();
     if (id == "advision")     // Entex Adventure Vision (BIOS + cartridge)
         return new AdvisionCore();
+    if (id == "al8800b")      // Altair 8800b (front panel)
+        return new AltairCore(false);
+    if (id == "al8800bt")     // Altair 8800b Turnkey
+        return new AltairCore(true);
     if (id == "aim65")        // Rockwell AIM 65
         return new Aim65Core();
     if (id == "acrnsys1")     // Acorn System 1
