@@ -55,6 +55,29 @@ object RomStore {
 
             fun take(entryName: String, size: Long, stream: InputStream) {
                 val base = entryName.substringAfterLast('/').substringAfterLast('\\')
+                // sets that come as a zip of zips (a machine and its devices)
+                if (base.endsWith(".zip", true) && (size == -1L || size in 1..(64L shl 20))) {
+                    val inner = stream.readBytes()
+                    ZipInputStream(inner.inputStream()).use { z ->
+                        var e = z.nextEntry
+                        while (e != null) { if (!e.isDirectory) take(e.name, e.size, z); e = z.nextEntry }
+                    }
+                    return
+                }
+                // small files: match by checksum first, so look-alike sizes don't land in the wrong slot
+                if (size == -1L || size in 0..(64L shl 20)) {
+                    val bytes = stream.readBytes()
+                    val crc = java.util.zip.CRC32().apply { update(bytes) }.value
+                    val spec = m.roms.firstOrNull { it.crc == crc && it.size == bytes.size.toLong() && it.name !in found }
+                        ?: m.roms.firstOrNull { it.name.equals(base, true) && it.name !in found }
+                        ?: m.roms.filter { it.size == bytes.size.toLong() && it.name !in found }.singleOrNull()
+                        ?: return
+                    progress("Extracting ${spec.name}…")
+                    unlink(ctx, m, spec)
+                    romFile(ctx, m, spec).writeBytes(bytes)
+                    found += spec.name
+                    return
+                }
                 val spec = m.roms.firstOrNull { it.name.equals(base, true) && it.name !in found }
                     ?: m.roms.firstOrNull { it.size == size && it.name !in found }
                     ?: return

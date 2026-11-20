@@ -16,6 +16,7 @@
 #include "cores/chess/accord.h"
 #include "cores/kits/acrnsys1.h"
 #include "cores/advision/advision.h"
+#include "cores/adam/adam.h"
 #include "cores/ngen/ngen.h"
 #include "cores/unixpc/unixpc.h"
 #include "cores/atari800/atari800.h"
@@ -146,6 +147,8 @@ Core* createCore(const std::string& id)
         c.board = 4;
         return new Vt369Core(c);
     }
+    if (id == "adam")         // Coleco ADAM (SmartWriter, ColecoVision cartridges)
+        return new AdamCore();
     if (id == "advision")     // Entex Adventure Vision (BIOS + cartridge)
         return new AdvisionCore();
     if (id == "acrnsys1")     // Acorn System 1

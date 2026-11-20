@@ -23,6 +23,7 @@ controller.
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
+| Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard and printer 6801s (own 6801 port with the serial interface) | Boots SmartWriter and types, matching MAME's screen; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape or disk drives yet |
 | Acorn System 1 (1979 microcomputer kit) | `acrnsys1` | MOS 6502 + INS8154, 8-digit LED display, KB1 keypad | Monitor runs as in MAME: memory display and change, go, step through addresses (no cassette) |
 | Entex Adventure Vision | `advision` | Intel 8048 (own MCS-48 port) + COP411 sound CPU, 40-LED spinning-mirror display | BIOS + cartridge; the test cart's picture matches MAME's frame exactly, sound effects follow MAME's timing |
 | Atari Flashback (mini 7800) | `afbm7800` | NES-compatible clone with an MMC3-style mapper (VT02/03 PPU + 2A03 APU, PAL timing as in MAME) | Menu and games match MAME's frames; RESET on the console returns to the menu |
@@ -76,6 +77,8 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Mephisto Academy | `academy` | `academy_engl.16k`, `academy_engl.32k` | 32 KB each | `ebda6674`, `a967922b` |
 | | | `hd44780_a00.bin` (from MAME's `hd44780` zip) | 4 KB (4,096 bytes) | `e459877c` |
 | Novag Accord | `accord` | `novag_875_31x0b87p` | 4 KB (4,096 bytes) | `4d77b7db` |
+| Coleco Adam | `adam` | `os7.u2`, `eos 6 rev 57 08dd.u22`, `wp_r80.rom` (adam zip) | 8 KB, 16 KB, 32 KB | `3aa93ef3`, `ef6403c5`, `58d86a2a` |
+| | | `master rev a 174b.u6` (adam zip), `keyboard.u2` (adam_kb), `printer.u2` (adam_prn) | 2 KB each | `035a7a3d`, `ef204746`, `e8db783b` |
 | Acorn System 1 | `acrnsys1` | `acrnsys1.bin` | 512 bytes | `43dcfc16` |
 | Adventure Vision | `advision` | BIOS: `ins8048-11kdp_n.u5`, `cop411l-kcn_n.u8` | 1 KB, 512 bytes | `279e33d1`, `81e95975` |
 | | | Plus your own cartridge dumps (4 KB each), added as games | - | - |
@@ -313,6 +316,19 @@ back, CLEAR empties the board, MENU has save states and reset.
   the LCD; ENT and CL together start a new game.
 - Accord: press-sensory, so you also "press" the computer's pieces to move
   them. Its moves light the rank and file LEDs; GO makes it move.
+
+### Coleco Adam
+
+Import MAME's `adam`, `adam_kb` and `adam_prn` zips (one at a time, or a zip
+that holds all three). With nothing plugged in it starts SmartWriter, the
+electronic typewriter. The keyboard is under the TV; SHIFT and CONTROL stay
+down for the next key when tapped alone, and a hardware keyboard works too
+(F1-F6 are the smart keys I-VI). Tap the console's front (the tape bays) to
+plug in a ColecoVision cartridge (`.col` / `.rom` / `.bin`, up to 32 KB): the
+machine restarts in game mode and the hand controller (joystick, the two side
+buttons, keypad) replaces the keyboard; the CONTROLLER / KEYBOARD switch flips
+between them. Pulling the cartridge out goes back to SmartWriter. Tapes and
+disks aren't supported yet.
 
 ### Acorn System 1
 

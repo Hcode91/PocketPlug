@@ -21,6 +21,11 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/chessboard.h` | BSD-3-Clause | Logic of MAME's sensorboard (hap) |
 | `app/src/main/cpp/common/w65c02.*` | GPL-2.0-or-later | Own W65C02S core |
 | `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
+| `app/src/main/cpp/common/z80/*` | MIT | superzazu/z80 (Nicolas Allemand), compiled as C++ - `common/z80/LICENSE` |
+| `app/src/main/cpp/common/m6801*` | BSD-3-Clause | MAME 6800/6801 instruction set (Aaron Giles) and m6801 peripherals incl. the serial interface |
+| `app/src/main/cpp/common/tms9928a.h` | BSD-3-Clause | PocketPlug (the TM 990 core's 9918 plus graphics II and the mixed modes, after MAME's tms9928a.cpp) |
+| `app/src/main/cpp/common/sn76489.h` | BSD-3-Clause | Port of MAME's sn76496.cpp (Nicola Salmoria et al.) |
+| `app/src/main/cpp/cores/adam/*` | GPL-2.0-or-later | Port of MAME's coleco/adam.cpp and bus/adamnet (Curt Coder), BSD-3 |
 | `app/src/main/cpp/common/mcs48.*` | BSD-3-Clause | Port of MAME's MCS-48 core (Dan Boris, Mirko Buffoni, Aaron Giles, Chris Kirmse) |
 | `app/src/main/cpp/common/cop410.*` | BSD-3-Clause | Port of MAME's COP400 core, COP410 subset (Curt Coder) |
 | `app/src/main/cpp/cores/advision/*` | GPL-2.0-or-later | Port of MAME's entex/advision.cpp (Dan Boris, hap), BSD-3 |

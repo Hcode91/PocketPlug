@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -282,6 +282,26 @@ object Machines {
             roms = listOf(RomSpec("atariflashbackmini7800.bin", 0x100000L, 0xda4d9483L)),
             skin = Skin.ABL_TV,
             badge = "flashback",
+        ),
+        MachineDef(
+            id = "adam",
+            title = "Adam Family Computer",
+            subtitle = "1983 home computer built round a games console: it starts its built-in SmartWriter "
+                + "word processor, and plays ColecoVision cartridges (plug one in from the console's front). "
+                + "Import the adam zip and its adam_kb and adam_prn zips (Coleco Adam; MAME set: adam)",
+            chip = "Zilog Z80 @ 3.58 MHz + TMS9928A, ADAMnet 6801s",
+            region = "USA",
+            year = "1983",
+            roms = listOf(
+                RomSpec("os7.u2", 0x2000L, 0x3aa93ef3L),
+                RomSpec("eos 6 rev 57 08dd.u22", 0x4000L, 0xef6403c5L),
+                RomSpec("wp_r80.rom", 0x8000L, 0x58d86a2aL),
+                RomSpec("master rev a 174b.u6", 0x800L, 0x035a7a3dL),
+                RomSpec("keyboard.u2", 0x800L, 0xef204746L),
+                RomSpec("printer.u2", 0x800L, 0xe8db783bL),
+            ),
+            skin = Skin.ADAM,
+            badge = "adam",
         ),
         MachineDef(
             id = "advision",

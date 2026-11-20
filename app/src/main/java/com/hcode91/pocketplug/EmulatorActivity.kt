@@ -44,6 +44,7 @@ class EmulatorActivity : Activity() {
     private var chess: ChessComputerView? = null
     private var kit: KitBoardView? = null
     private var tabletop: TabletopView? = null
+    private var adam: AdamView? = null
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -246,6 +247,17 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 chess = v
+                setContentView(v)
+            }
+            Skin.ADAM -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = AdamView(this, width, height).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onPad = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onMedia = { showAdamMenu() }
+                }
+                adam = v
                 setContentView(v)
             }
             Skin.TABLETOP -> {
@@ -639,6 +651,78 @@ class EmulatorActivity : Activity() {
     private val PICK_ACORN_FLOPPY = 46
     private val PICK_ACORN_HOSTFS = 47
 
+    private val PICK_ADAM = 48
+
+    // ---- ADAM: ColecoVision cartridges (tapes and disks to come) ----
+    private fun adamDir() = java.io.File(filesDir, "adam").apply { mkdirs() }
+    private var adamCart: java.io.File? = null
+
+    private fun showAdamMenu() {
+        paused = true
+        val files = adamDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Plug in a ColecoVision cartridge (.col .rom .bin)..." to {
+            startActivityForResult(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
+            }, PICK_ADAM)
+        }
+        for (f in files) items += "Plug in ${f.nameWithoutExtension}" to { loadAdamCart(f) }
+        if (adamCart != null) items += "Pull the cartridge out (back to SmartWriter)" to {
+            synchronized(coreLock) { Native.mediaEject(handle, 2) }
+            adamCart = null; adam?.mediaLabel = null; adam?.showPad = false
+        }
+        if (files.isNotEmpty()) items += "Delete a cartridge from the list..." to {
+            paused = true
+            AlertDialog.Builder(this)
+                .setTitle("Delete which cartridge?")
+                .setItems(files.map { it.name }.toTypedArray()) { _, w -> files[w].delete(); paused = false }
+                .setOnCancelListener { paused = false }
+                .show()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Cartridges")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which -> paused = false; items[which].second() }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    private fun loadAdamCart(f: java.io.File) {
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 2, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        adamCart = f
+        adam?.mediaLabel = f.nameWithoutExtension
+        adam?.showPad = true
+    }
+
+    // ADAM keyboard matrix codes (row * 8 + bit, as MAME's adam_kb)
+    private fun adamKey(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_F7 -> 0
+        in KeyEvent.KEYCODE_F1..KeyEvent.KEYCODE_F6 -> 1 + code - KeyEvent.KEYCODE_F1
+        KeyEvent.KEYCODE_F8 -> 7
+        in KeyEvent.KEYCODE_1..KeyEvent.KEYCODE_8 -> 8 + code - KeyEvent.KEYCODE_1
+        KeyEvent.KEYCODE_TAB -> 16
+        KeyEvent.KEYCODE_Q -> 17; KeyEvent.KEYCODE_W -> 18; KeyEvent.KEYCODE_E -> 19; KeyEvent.KEYCODE_R -> 20
+        KeyEvent.KEYCODE_T -> 21; KeyEvent.KEYCODE_Y -> 22; KeyEvent.KEYCODE_U -> 23
+        KeyEvent.KEYCODE_A -> 24; KeyEvent.KEYCODE_S -> 25; KeyEvent.KEYCODE_D -> 26; KeyEvent.KEYCODE_F -> 27
+        KeyEvent.KEYCODE_G -> 28; KeyEvent.KEYCODE_H -> 29; KeyEvent.KEYCODE_J -> 30; KeyEvent.KEYCODE_K -> 31
+        KeyEvent.KEYCODE_Z -> 32; KeyEvent.KEYCODE_X -> 33; KeyEvent.KEYCODE_C -> 34; KeyEvent.KEYCODE_V -> 35
+        KeyEvent.KEYCODE_B -> 36; KeyEvent.KEYCODE_N -> 37; KeyEvent.KEYCODE_M -> 38; KeyEvent.KEYCODE_COMMA -> 39
+        KeyEvent.KEYCODE_9 -> 40; KeyEvent.KEYCODE_0 -> 41; KeyEvent.KEYCODE_MINUS -> 42; KeyEvent.KEYCODE_EQUALS -> 43
+        KeyEvent.KEYCODE_GRAVE -> 44; KeyEvent.KEYCODE_L -> 45; KeyEvent.KEYCODE_SEMICOLON -> 46; KeyEvent.KEYCODE_APOSTROPHE -> 47
+        KeyEvent.KEYCODE_I -> 48; KeyEvent.KEYCODE_O -> 49; KeyEvent.KEYCODE_P -> 50
+        KeyEvent.KEYCODE_LEFT_BRACKET -> 51; KeyEvent.KEYCODE_RIGHT_BRACKET -> 52
+        KeyEvent.KEYCODE_PERIOD -> 53; KeyEvent.KEYCODE_SLASH -> 54; KeyEvent.KEYCODE_ENTER -> 55
+        KeyEvent.KEYCODE_BACKSLASH -> 56; KeyEvent.KEYCODE_ESCAPE -> 57; KeyEvent.KEYCODE_SPACE -> 60
+        KeyEvent.KEYCODE_INSERT -> 69; KeyEvent.KEYCODE_MOVE_HOME -> 96
+        KeyEvent.KEYCODE_PAGE_UP -> 63; KeyEvent.KEYCODE_PAGE_DOWN -> 71; KeyEvent.KEYCODE_MOVE_END -> 70
+        KeyEvent.KEYCODE_DPAD_UP -> 64; KeyEvent.KEYCODE_DPAD_RIGHT -> 65; KeyEvent.KEYCODE_DPAD_DOWN -> 66; KeyEvent.KEYCODE_DPAD_LEFT -> 67
+        KeyEvent.KEYCODE_DEL -> 68; KeyEvent.KEYCODE_FORWARD_DEL -> 71
+        KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_CTRL_RIGHT -> 72
+        KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_SHIFT_RIGHT -> 80
+        KeyEvent.KEYCODE_CAPS_LOCK -> 88
+        else -> -1
+    }
+
     private val PICK_ATARI = 44
     private val PICK_ATARI_D1 = 45
 
@@ -719,6 +803,16 @@ class EmulatorActivity : Activity() {
                     tmp.delete()
                     Toast.makeText(this, err ?: "Copied into HostFS: click the HostFS icon on the icon bar", Toast.LENGTH_LONG).show()
                 }
+            }
+            PICK_ADAM -> {
+                var name = "cartridge"
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) name = it.getString(0) ?: name
+                }
+                val safe = name.replace(Regex("[^A-Za-z0-9._ ()-]"), "_").ifEmpty { "cartridge" }
+                val dest = java.io.File(adamDir(), safe)
+                runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
+                loadAdamCart(dest)
             }
             PICK_ATARI, PICK_ATARI_D1 -> {
                 var name = "game"
@@ -894,6 +988,7 @@ class EmulatorActivity : Activity() {
             else if (chess != null) chess?.updateFrame(pixels)
             else if (kit != null) kit?.updateFrame(pixels)
             else if (tabletop != null) tabletop?.updateFrame(pixels)
+            else if (adam != null) adam?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
@@ -1438,6 +1533,12 @@ class EmulatorActivity : Activity() {
             if (event.repeatCount == 0) keyQueue.add(k or 0x100)
             return true
         }
+        if (adam != null) {
+            val k = adamKey(keyCode)
+            if (k < 0) return super.onKeyDown(keyCode, event)
+            if (event.repeatCount == 0) keyQueue.add(k or 0x100)
+            return true
+        }
         if (atari != null) {
             val s = atariStickBit(keyCode)
             if (s != 0) { setAtariStick(atariStick or s); return true }
@@ -1479,6 +1580,12 @@ class EmulatorActivity : Activity() {
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (acorn != null) {
             val k = acornKey(keyCode)
+            if (k < 0) return super.onKeyUp(keyCode, event)
+            keyQueue.add(k)
+            return true
+        }
+        if (adam != null) {
+            val k = adamKey(keyCode)
             if (k < 0) return super.onKeyUp(keyCode, event)
             keyQueue.add(k)
             return true
