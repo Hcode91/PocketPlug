@@ -123,6 +123,9 @@ class EmulatorActivity : Activity() {
         Native.videoInfo(handle).let { width = it[0]; height = it[1]; refresh = it[2] / 1000.0; sampleRate = it[3] }
 
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        // recently played, newest first, for the machine list
+        val recent = (prefs.getString("recent", "") ?: "").split(',').filter { it.isNotEmpty() && it != machine.id }
+        prefs.edit().putString("recent", (listOf(machine.id) + recent).take(8).joinToString(",")).apply()
         tv = TvView(this, width, height).apply {
             scanlines = prefs.getBoolean("scanlines", true)
             onMenu = { showMenu() }

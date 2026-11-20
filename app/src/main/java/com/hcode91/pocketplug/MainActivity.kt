@@ -14,58 +14,112 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
+import android.widget.PopupMenu
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.text.Editable
+import android.text.TextUtils
+import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
 import kotlin.concurrent.thread
 
-/** Machine library: one card per supported plug-and-play system. */
+/**
+ * Machine library. Home: search, category filters, favourites, recently
+ * played, then "Ready to play" and "Needs ROMs" as a grid of tiles with a
+ * picture of each machine (its own skin). Tapping a tile opens its page:
+ * description, ROM status, import and play.
+ */
 class MainActivity : Activity() {
 
     private lateinit var list: LinearLayout
+    private lateinit var home: LinearLayout
     private var pendingImport: MachineDef? = null
     private var pendingBios = false
+    private var detail: MachineDef? = null
+    private var query = ""
+    private var filter = ALL
+    private val chips = ArrayList<TextView>()
+
+    private val thumbs = HashMap<String, Bitmap>()
+    private val thumbViews = HashMap<String, MutableList<ImageView>>()
+    private val toRender = ArrayDeque<MachineDef>()
+    private var rendering = false
+    private val ui = Handler(Looper.getMainLooper())
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private val prefs get() = getSharedPreferences("settings", MODE_PRIVATE)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BG
         window.navigationBarColor = BG
+        SkinPreview.prune(this)
 
-        val root = LinearLayout(this).apply {
+        home = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
-            setPadding(dp(20), dp(28), dp(20), dp(12))
+            setPadding(dp(16), dp(20), dp(16), 0)
         }
-        root.addView(TextView(this).apply {
-            text = "PocketPlug"
-            textSize = 34f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD_ITALIC)
-            setTextColor(Color.WHITE)
-            setShadowLayer(18f, 0f, 0f, ACCENT)
-        })
-        root.addView(TextView(this).apply {
-            text = "Plug & play TV games"
-            textSize = 15f
-            setTextColor(MUTED)
-            setPadding(0, 0, 0, dp(10))
-        })
-        root.addView(LinearLayout(this).apply {
+        // title bar with the overflow menu
+        home.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(button("Find my ROMs", true) { findRoms() })
-            addView(View(this@MainActivity), LinearLayout.LayoutParams(dp(10), 1))
-            addView(button("Sort a folder", false) { pickSortFolder() })
-            setPadding(0, 0, 0, dp(14))
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@MainActivity).apply {
+                text = "PocketPlug"
+                textSize = 28f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD_ITALIC)
+                setTextColor(Color.WHITE)
+                setShadowLayer(18f, 0f, 0f, ACCENT)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(TextView(this@MainActivity).apply {
+                text = "⋮"
+                textSize = 26f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                setPadding(dp(14), dp(4), dp(6), dp(4))
+                setOnClickListener { v -> overflow(v) }
+            })
         })
+        // search
+        home.addView(EditText(this).apply {
+            hint = "Search ${Machines.all.size} machines"
+            setHintTextColor(MUTED)
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            isSingleLine = true
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            background = GradientDrawable().apply { cornerRadius = dp(22).toFloat(); setColor(0xFF1F1740.toInt()) }
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(e: Editable?) { query = e?.toString()?.trim() ?: ""; renderList() }
+            })
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
+        // category filters
+        val chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, dp(10)) }
+        for (name in listOf(ALL, FAVS) + CATEGORIES) {
+            val t = TextView(this).apply {
+                text = name
+                textSize = 14f
+                setPadding(dp(14), dp(7), dp(14), dp(7))
+                setOnClickListener { filter = name; styleChips(); renderList() }
+            }
+            chips += t
+            chipRow.addView(t, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) })
+        }
+        styleChips()
+        home.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) })
 
-        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(ScrollView(this).apply { addView(list) },
+        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(24)) }
+        home.addView(ScrollView(this).apply { addView(list) },
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        root.addView(TextView(this).apply {
-            text = "You need your own ROM and cartridge dumps (MAME sets and software-list zips work, as do .7z and raw .bin files)."
-            textSize = 12f
-            setTextColor(MUTED)
-            setPadding(0, dp(8), 0, 0)
-        })
-        setContentView(root)
+        setContentView(home)
     }
 
     override fun onResume() {
@@ -73,9 +127,282 @@ class MainActivity : Activity() {
         rebuild()
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (detail != null) showHome() else @Suppress("DEPRECATION") super.onBackPressed()
+    }
+
     private fun rebuild() {
+        val d = detail
+        if (d != null) showDetail(d) else renderList()
+    }
+
+    private fun styleChips() {
+        for (c in chips) {
+            val on = c.text == filter
+            c.setTextColor(if (on) Color.BLACK else Color.WHITE)
+            c.background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                if (on) setColor(ACCENT) else { setColor(0x00000000); setStroke(dp(1), 0xFF4A3D80.toInt()) }
+            }
+        }
+    }
+
+    private fun overflow(anchor: View) {
+        val pm = PopupMenu(this, anchor)
+        pm.menu.add(0, 1, 0, "Find my ROMs")
+        pm.menu.add(0, 2, 1, "Sort a folder")
+        pm.menu.add(0, 3, 2, "About")
+        pm.setOnMenuItemClickListener {
+            when (it.itemId) { 1 -> findRoms(); 2 -> pickSortFolder(); else -> about() }
+            true
+        }
+        pm.show()
+    }
+
+    private fun about() {
+        val ver = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrDefault("")
+        AlertDialog.Builder(this)
+            .setTitle("PocketPlug $ver")
+            .setMessage("Plug & play TV games, handhelds, pets and old computers, each in its own skin.\n\n" +
+                "You need your own ROM and cartridge dumps (MAME sets and software-list zips work, as do .7z and raw .bin files). " +
+                "\"Find my ROMs\" sets up every machine it can from one folder.\n\n" +
+                "Free software under the GNU GPL; see the project's LICENSES folder for the parts it's built from.")
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    // ---- favourites and recently played ----
+    private fun favourites(): Set<String> = prefs.getStringSet("favourites", emptySet()) ?: emptySet()
+    private fun isFav(m: MachineDef) = m.id in favourites()
+    private fun toggleFav(m: MachineDef) {
+        val f = favourites().toMutableSet()
+        if (!f.remove(m.id)) f.add(m.id)
+        prefs.edit().putStringSet("favourites", f).apply()
+    }
+    private fun recent(): List<MachineDef> =
+        (prefs.getString("recent", "") ?: "").split(',').filter { it.isNotEmpty() }.mapNotNull { Machines.byId(it) }
+
+    private fun playable(m: MachineDef): Boolean =
+        if (m.media == MediaKind.CARTRIDGE) RomStore.isReady(this, m) && RomStore.listCarts(this, m).isNotEmpty()
+        else RomStore.isReady(this, m)
+
+    private fun play(m: MachineDef) {
+        if (m.media == MediaKind.CARTRIDGE) { showDetail(m); return }
+        startActivity(Intent(this, EmulatorActivity::class.java).putExtra("machine", m.id))
+    }
+
+    // ---- the list ----
+    private fun matches(m: MachineDef): Boolean {
+        if (filter == FAVS && !isFav(m)) return false
+        if (filter != ALL && filter != FAVS && m.category != filter) return false
+        if (query.isEmpty()) return true
+        val q = query.lowercase()
+        return listOf(m.title, m.subtitle, m.id, m.chip, m.year, m.category).any { it.lowercase().contains(q) }
+    }
+
+    private fun columns() = maxOf(2, resources.configuration.screenWidthDp / 180)
+
+    private fun renderList() {
         list.removeAllViews()
-        for (m in Machines.all) list.addView(card(m))
+        thumbViews.clear()
+        val shown = Machines.all.filter { matches(it) }
+        val ready = shown.filter { playable(it) }
+        val needs = shown.filter { !playable(it) }
+        if (query.isEmpty() && filter == ALL) {
+            val favs = Machines.all.filter { isFav(it) }
+            if (favs.isNotEmpty()) shelf("★  Favourites", favs)
+            val rec = recent()
+            if (rec.isNotEmpty()) shelf("Recently played", rec)
+        }
+        if (shown.isEmpty()) {
+            list.addView(TextView(this).apply {
+                text = if (filter == FAVS && query.isEmpty()) "No favourites yet: tap the ☆ on a machine." else "Nothing matches."
+                setTextColor(MUTED); textSize = 15f; setPadding(dp(4), dp(24), dp(4), dp(24))
+            })
+            return
+        }
+        if (ready.isNotEmpty()) { heading("Ready to play", ready.size); grid(ready) }
+        if (needs.isNotEmpty()) { heading("Needs ROMs", needs.size); grid(needs) }
+        pumpThumbs()
+    }
+
+    private fun heading(title: String, n: Int) {
+        list.addView(TextView(this).apply {
+            text = "$title  ·  $n"
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(dp(2), dp(14), 0, dp(8))
+        })
+    }
+
+    private fun shelf(title: String, ms: List<MachineDef>) {
+        list.addView(TextView(this).apply {
+            text = title; textSize = 17f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            setPadding(dp(2), dp(6), 0, dp(8))
+        })
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (m in ms) row.addView(tile(m, compact = true), LinearLayout.LayoutParams(dp(132), LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(10) })
+        list.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(row) })
+    }
+
+    private fun grid(ms: List<MachineDef>) {
+        val cols = columns()
+        for (i in ms.indices step cols) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (j in 0 until cols) {
+                val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                    if (j < cols - 1) marginEnd = dp(10)
+                }
+                if (i + j < ms.size) row.addView(tile(ms[i + j], compact = false), lp)
+                else row.addView(View(this), lp)
+            }
+            list.addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })
+        }
+    }
+
+    private fun tile(m: MachineDef, compact: Boolean): View {
+        val ready = playable(m)
+        val t = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                colors = intArrayOf(0xFF2A1B5C.toInt(), 0xFF1A1238.toInt())
+                orientation = GradientDrawable.Orientation.TL_BR
+                setStroke(dp(1), if (ready) 0xFF7A3FA8.toInt() else 0xFF3C2F6B.toInt())
+            }
+            setPadding(dp(6), dp(6), dp(6), dp(10))
+            setOnClickListener { showDetail(m) }
+        }
+        val frame = FrameLayout(this)
+        val img = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(0xFF120D24.toInt()) }
+            clipToOutline = true
+        }
+        bindThumb(m, img)
+        frame.addView(img, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(if (compact) 96 else 120)))
+        // favourite star
+        frame.addView(TextView(this).apply {
+            text = if (isFav(m)) "★" else "☆"
+            textSize = 20f
+            setTextColor(if (isFav(m)) 0xFFFFD34F.toInt() else 0xCCFFFFFF.toInt())
+            setShadowLayer(6f, 0f, 0f, Color.BLACK)
+            setPadding(dp(8), dp(2), dp(8), dp(6))
+            setOnClickListener { toggleFav(m); renderList() }
+        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END))
+        if (ready) frame.addView(TextView(this).apply {
+            text = "▶"
+            textSize = if (compact) 14f else 16f
+            gravity = Gravity.CENTER
+            setTextColor(Color.BLACK)
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(ACCENT) }
+            setOnClickListener { play(m) }
+        }, FrameLayout.LayoutParams(dp(if (compact) 34 else 42), dp(if (compact) 34 else 42), Gravity.BOTTOM or Gravity.END).apply {
+            setMargins(0, 0, dp(6), dp(6))
+        })
+        t.addView(frame)
+        t.addView(TextView(this).apply {
+            text = m.title
+            textSize = if (compact) 13f else 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(dp(4), dp(8), dp(4), 0)
+        })
+        t.addView(TextView(this).apply {
+            text = "${m.year} · ${m.category}"
+            textSize = 11f
+            setTextColor(MUTED)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(dp(4), dp(2), dp(4), 0)
+        })
+        if (!compact) t.addView(TextView(this).apply {
+            text = if (ready) "● Ready" else if (m.media == MediaKind.CARTRIDGE && RomStore.isReady(this@MainActivity, m)) "○ Add games" else "○ Needs ROMs"
+            textSize = 11f
+            setTextColor(if (ready) 0xFF6CF0A8.toInt() else 0xFFFFB86B.toInt())
+            setPadding(dp(4), dp(3), dp(4), 0)
+        })
+        return t
+    }
+
+    // ---- machine pictures ----
+    private fun bindThumb(m: MachineDef, img: ImageView) {
+        thumbViews.getOrPut(m.id) { ArrayList() }.add(img)
+        val b = thumbs[m.id]
+        if (b != null) { img.setImageBitmap(b); return }
+        img.setImageDrawable(null)
+        if (toRender.none { it.id == m.id }) toRender.addLast(m)
+    }
+
+    private fun showThumb(m: MachineDef, b: Bitmap) {
+        thumbs[m.id] = b
+        thumbViews[m.id]?.forEach { it.setImageBitmap(b) }
+    }
+
+    /** Loads cached pictures, drawing the missing ones one at a time between frames. */
+    private fun pumpThumbs() {
+        if (rendering) return
+        val m = toRender.removeFirstOrNull() ?: return
+        if (thumbs.containsKey(m.id)) { pumpThumbs(); return }
+        rendering = true
+        thread {
+            val cached = SkinPreview.cached(this, m)
+            ui.post {
+                val b = cached ?: SkinPreview.render(this, m)
+                if (b != null) showThumb(m, b)
+                rendering = false
+                ui.postDelayed({ pumpThumbs() }, if (cached != null) 0L else 16L)
+            }
+        }
+    }
+
+    // ---- a machine's page ----
+    private fun showHome() {
+        detail = null
+        setContentView(home)
+        renderList()
+    }
+
+    private fun showDetail(m: MachineDef) {
+        detail = m
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(24))
+        }
+        page.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@MainActivity).apply {
+                text = "‹  Back"
+                textSize = 17f
+                setTextColor(Color.WHITE)
+                setPadding(dp(4), dp(8), dp(16), dp(8))
+                setOnClickListener { showHome() }
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(TextView(this@MainActivity).apply {
+                text = if (isFav(m)) "★  Favourite" else "☆  Favourite"
+                textSize = 15f
+                setTextColor(if (isFav(m)) 0xFFFFD34F.toInt() else Color.WHITE)
+                setPadding(dp(12), dp(8), dp(4), dp(8))
+                setOnClickListener { toggleFav(m); showDetail(m) }
+            })
+        })
+        val img = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(0xFF120D24.toInt()) }
+        }
+        thumbViews.getOrPut(m.id) { ArrayList() }.add(img)
+        val b = thumbs[m.id]
+        if (b != null) img.setImageBitmap(b) else { toRender.addFirst(m); pumpThumbs() }
+        page.addView(img, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(260)).apply { bottomMargin = dp(14) })
+        page.addView(card(m))
+        setContentView(ScrollView(this).apply { setBackgroundColor(BG); addView(page) })
     }
 
     private fun card(m: MachineDef): View {
@@ -495,6 +822,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        const val ALL = "All"
+        const val FAVS = "★ Favourites"
         const val REQ_IMPORT = 1
         const val REQ_SORT = 2
         const val REQ_FIND = 3

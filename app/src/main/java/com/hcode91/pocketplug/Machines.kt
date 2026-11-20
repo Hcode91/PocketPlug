@@ -40,6 +40,19 @@ data class MachineDef(
     val setup: List<String> = emptyList(),
 )
 
+/** Which shelf of the machine list a machine sits on. */
+val MachineDef.category: String
+    get() = when (skin) {
+        Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK -> "TV games"
+        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET -> "Handhelds"
+        Skin.EGG_PET -> "Pets"
+        Skin.APVS_1292 -> "Consoles"
+        Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
+        else -> "Computers"
+    }
+
+val CATEGORIES = listOf("TV games", "Handhelds", "Pets", "Consoles", "Computers", "Chess & clocks")
+
 /** Input bits for the dance mat (match UIO port A on the VT1682, 1 = pressed). */
 object DanceMatBits {
     const val UP_RIGHT = 1 shl 0

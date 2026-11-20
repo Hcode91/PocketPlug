@@ -297,9 +297,19 @@ horseshoe joystick: drag the ball-top stick, tap A / B, the TURBO buttons fire
 A or B repeatedly while held, and SELECT / START sit in the middle. The TV's
 MENU button (or Back) has save states and reset.
 
+### The machine list
+
+Machines you can play come first ("Ready to play"), then the ones still
+needing ROMs. Search by name, year or chip, or filter by kind (TV games,
+handhelds, pets, consoles, computers, chess & clocks). Each tile shows the
+machine as drawn in its own skin; tap it for its page (description, ROM
+status, import, play) or tap ▶ to play straight away. ☆ pins a machine to
+Favourites; the last eight machines played sit in Recently played. Find my
+ROMs, Sort a folder and About are in the ⋮ menu.
+
 ### Find my ROMs
 
-The quickest way to set machines up: tap **Find my ROMs** and pick the folder
+The quickest way to set machines up: tap **⋮ → Find my ROMs** and pick the folder
 your ROMs are in. PocketPlug looks through it and every subfolder for the files
 each machine needs, by checksum and size, so names and folder layout don't
 matter: MAME zips (and zips inside zips), 7z files, loose files and CHD images
@@ -479,7 +489,7 @@ Back) for the menu.
 
 ### Sorting a folder of ROMs
 
-**Sort a folder of ROMs** at the top of the library sorts any folder you pick
+**⋮ → Sort a folder** on the machine list sorts any folder you pick
 (Download, say) into a `Sorted` folder inside it, one folder per system:
 
 - `Computers/<machine> [set]`, `Consoles and plug-and-play/<machine> [set]`,
