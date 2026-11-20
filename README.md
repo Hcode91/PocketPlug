@@ -148,6 +148,20 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 
 MAME artwork, samples, BIOS files and parent sets are not needed.
 
+## Starting a machine from another app
+
+Launchers and trackers (such as BacklogQuest's home-screen tiles) can start a machine directly:
+
+```
+action:  com.hcode91.pocket.LAUNCH_GAME
+target:  com.hcode91.pocketplug (its launcher activity)
+extra:   game_id = the set name, e.g. "168pcase"
+         or, for a cartridge machine, "set/cartridge title", e.g. "1292apvs/Grand Prix"
+```
+
+If the machine's files aren't imported yet, or a cartridge machine has more than one cartridge and
+none was named, its page opens instead so you can sort it out there.
+
 ## Using it
 
 1. Install the APK from the latest GitHub Actions run (artifact **PocketPlug-apk**).

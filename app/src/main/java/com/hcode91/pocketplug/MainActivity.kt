@@ -120,6 +120,56 @@ class MainActivity : Activity() {
         home.addView(ScrollView(this).apply { addView(list) },
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(home)
+
+        // Started for a machine: go straight to it. When it can't start yet (files missing, or a
+        // cartridge to choose), its page stays open instead.
+        if (savedInstanceState == null && launchFrom(intent)) finish()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (launchFrom(intent)) finish()
+    }
+
+    private fun launchFrom(i: Intent?): Boolean {
+        if (i?.action != ACTION_LAUNCH_GAME) return false
+        val wanted = i.getStringExtra("game_id")?.trim().orEmpty()
+        if (wanted.isEmpty()) return false
+        val set = wanted.substringBefore('/').trim()
+        val cartTitle = wanted.substringAfter('/', "").trim()
+        val m = Machines.all.firstOrNull { it.id.equals(set, ignoreCase = true) }
+        if (m == null) {
+            AlertDialog.Builder(this).setTitle("Machine not found")
+                .setMessage("There's no machine with the set name \"$set\".")
+                .setPositiveButton("OK", null).show()
+            return false
+        }
+        if (!RomStore.isReady(this, m)) {
+            detail = m
+            Toast.makeText(this, "Import ${m.title}'s files first", Toast.LENGTH_LONG).show()
+            return false
+        }
+        if (m.media != MediaKind.CARTRIDGE) {
+            startActivity(Intent(this, EmulatorActivity::class.java).putExtra("machine", m.id))
+            return true
+        }
+        val carts = RomStore.listCarts(this, m)
+        val cart = when {
+            cartTitle.isNotEmpty() -> carts.firstOrNull {
+                it.title.equals(cartTitle, ignoreCase = true) || it.file.nameWithoutExtension.equals(cartTitle, ignoreCase = true)
+            }
+            carts.size == 1 -> carts[0]
+            else -> null
+        }
+        if (cart == null) {
+            // Show the machine's cartridges to pick from.
+            detail = m
+            if (cartTitle.isNotEmpty()) Toast.makeText(this, "No cartridge called \"$cartTitle\" for ${m.title}", Toast.LENGTH_LONG).show()
+            return false
+        }
+        startActivity(Intent(this, EmulatorActivity::class.java)
+            .putExtra("machine", m.id).putExtra("cart", cart.file.absolutePath).putExtra("title", cart.title))
+        return true
     }
 
     override fun onResume() {
@@ -883,6 +933,12 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        /**
+         * The request another app (BacklogQuest's home-screen tiles) sends to start a machine straight
+         * away. Extra "game_id": the machine's set name (e.g. "168pcase"), and for a cartridge machine
+         * optionally "/" and the cartridge's title (e.g. "1292apvs/Grand Prix").
+         */
+        const val ACTION_LAUNCH_GAME = "com.hcode91.pocket.LAUNCH_GAME"
         const val ALL = "All"
         const val FAVS = "★ Favourites"
         const val REQ_IMPORT = 1
