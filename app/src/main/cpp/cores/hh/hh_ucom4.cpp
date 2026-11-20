@@ -1,0 +1,120 @@
+// PocketPlug - NEC uCOM-4 handhelds (port of MAME's handheld/hh_ucom4.cpp, hap)
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#include "hh_ucom4.h"
+#include <cstring>
+
+namespace {
+enum Kind { ALNCHASE };
+}
+
+struct Ucom4Game {
+    const char* id;
+    Kind kind;
+    UCOM4::Family family;
+    bool d557l;
+    double clock;
+    const char* rom;
+    size_t romSize;
+    const char* svg;
+    int rows, cols;
+};
+
+namespace {
+const Ucom4Game kGames[] = {
+    // Tomy Alien Chase (1984): uPD553C, two-sided VFD (player 2 looks at the mirror image)
+    { "alnchase", ALNCHASE, UCOM4::UCOM43, false, 400000, "d553c_258", 0x800, "alnchase.svg", 9, 17 },
+};
+const Ucom4Game* find(const std::string& id)
+{
+    for (auto& g : kGames) if (id == g.id) return &g;
+    return nullptr;
+}
+}
+
+bool HhUcom4Core::known(const std::string& game) { return find(game) != nullptr; }
+
+HhUcom4Core::HhUcom4Core(const std::string& game) : m_g(find(game)) { std::memset(&m_s, 0, sizeof(m_s)); }
+
+bool HhUcom4Core::load(const std::vector<RomFile>& roms, std::string& error)
+{
+    if (!m_g) { error = "Unknown game"; return false; }
+    const RomFile* rom = nullptr;
+    for (auto& r : roms) if (r.name == m_g->rom) rom = &r;
+    if (!rom) { error = std::string("Missing ") + m_g->rom; return false; }
+    if (!loadScreen(roms, m_g->svg, m_g->rows, m_g->cols, error)) return false;
+    m_cpu.configure(m_g->family, this, m_g->d557l);
+    m_cpu.setRom(rom->data);
+    setClock(m_g->clock / 4.0);
+    reset();
+    return true;
+}
+
+void HhUcom4Core::reset()
+{
+    std::memset(&m_s, 0, sizeof(m_s));
+    m_cpu.reset();
+}
+
+uint8_t HhUcom4Core::input(int port)
+{
+    switch (m_g->kind) {
+    case ALNCHASE:
+        if (port == UCOM4::PA) {
+            // A: joysticks, P1 enabled by grid 0 (C0), P2 by grid 4 (D0)
+            uint8_t v = 0;
+            if (m_s.inpMux & 1) v |= uint8_t(in(2) | in(3) << 1 | in(1) << 2 | in(0) << 3);
+            if (m_s.inpMux & 2) v |= uint8_t(in(15) | in(14) << 1 | in(13) << 2 | in(12) << 3);
+            return v;
+        }
+        if (port == UCOM4::PB) {
+            // B0: players (1 = one), B1: level (1 = pro)
+            return uint8_t((m_opt[0] ? 0 : 1) | (m_opt[1] ? 2 : 0));
+        }
+        return 0;
+    }
+    return 0;
+}
+
+void HhUcom4Core::output(int port, uint8_t data)
+{
+    if (port < 9) m_s.port[port] = data;
+    switch (m_g->kind) {
+    case ALNCHASE:
+        if (port <= UCOM4::PE) {
+            int shift = (port - UCOM4::PC) * 4;
+            m_s.grid = (m_s.grid & ~(0xfu << shift)) | (uint32_t(data) << shift);
+            m_s.inpMux = uint16_t((m_s.grid & 1) | (m_s.grid >> 3 & 2));
+            if (port == UCOM4::PE) speaker(data >> 1 & 1);
+        }
+        if (port >= UCOM4::PE) {
+            int shift = (port - UCOM4::PE) * 4;
+            m_s.plate = ((m_s.plate << 2 & ~(0xfu << shift)) | (uint32_t(data) << shift)) >> 2;
+        }
+        m_disp.matrix(now(), m_s.grid, m_s.plate);
+        break;
+    }
+}
+
+bool HhUcom4Core::saveState(std::vector<uint8_t>& out)
+{
+    out.clear();
+    uint32_t magic = 0x344d4355;   // 'UCM4'
+    auto put = [&](const void* p, size_t n) { const uint8_t* b = (const uint8_t*)p; out.insert(out.end(), b, b + n); };
+    put(&magic, 4); put(&m_cpu.s, sizeof(m_cpu.s)); put(&m_s, sizeof(m_s)); put(&m_disp, sizeof(m_disp)); put(&m_spk, sizeof(m_spk));
+    return true;
+}
+
+bool HhUcom4Core::loadState(const std::vector<uint8_t>& in)
+{
+    if (in.size() != 4 + sizeof(m_cpu.s) + sizeof(m_s) + sizeof(m_disp) + sizeof(m_spk)) return false;
+    uint32_t magic; std::memcpy(&magic, in.data(), 4);
+    if (magic != 0x344d4355) return false;
+    const uint8_t* p = in.data() + 4;
+    std::memcpy(&m_cpu.s, p, sizeof(m_cpu.s)); p += sizeof(m_cpu.s);
+    std::memcpy(&m_s, p, sizeof(m_s)); p += sizeof(m_s);
+    std::memcpy(&m_disp, p, sizeof(m_disp)); p += sizeof(m_disp);
+    std::memcpy(&m_spk, p, sizeof(m_spk));
+    m_spkPos = double(now()); m_audio.clear();
+    return true;
+}

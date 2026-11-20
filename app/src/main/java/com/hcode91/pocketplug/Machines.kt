@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -44,7 +44,7 @@ data class MachineDef(
 val MachineDef.category: String
     get() = when (skin) {
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK -> "TV games"
-        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN -> "Handhelds"
+        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292 -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
@@ -284,6 +284,35 @@ object Machines {
             badge = "accord",
         ),
         MachineDef(
+            id = "arbv2",
+            title = "Auto Response Board V2",
+            subtitle = "2012 rebuild of the 1980 wooden magnetic chess board, with Sargon 4.0 built in. The "
+                + "computer's moves light the squares; keys 0-6, W and B set up games, and RESET works while "
+                + "HALT is held (AVE ARB V2; MAME set: arbv2)",
+            chip = "WDC 65C02 @ 16 MHz",
+            region = "UK",
+            year = "2012",
+            roms = listOf(RomSpec("sargon_4.0", 0x10000L, 0xc519c9e8L)),
+            skin = Skin.CHESS,
+            badge = "arb",
+        ),
+        MachineDef(
+            id = "amsterd",
+            title = "Amsterdam Chess Computer",
+            subtitle = "1985 world microcomputer champion program on a 68000, in the modular magnetic board with "
+                + "a 4-digit LCD module and the 18-key keypad module. Moves show on the LCD (e.g. E7E5) and with "
+                + "the square LEDs; press both RES keys together to reset (Hegener + Glaser Mephisto Amsterdam; MAME set: amsterd)",
+            chip = "Motorola 68000 @ 12 MHz",
+            region = "Germany",
+            year = "1985",
+            roms = listOf(
+                RomSpec("amsterda-u.bin", 0x8000L, 0x0a75514eL),
+                RomSpec("amsterda-l.bin", 0x8000L, 0x6e17d8faL),
+            ),
+            skin = Skin.CHESS,
+            badge = "modular1",
+        ),
+        MachineDef(
             id = "alm32",
             title = "Almeria 32 Bit Chess Module",
             subtitle = "1988 world microcomputer chess champion program on a 68020, in the plug-in display module "
@@ -344,6 +373,36 @@ object Machines {
                 "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
                 "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. The texts are in German (SPIEL = game).",
             ),
+        ),
+        MachineDef(
+            id = "alnattck",
+            title = "Alien Attack Tabletop",
+            subtitle = "1981 orange tabletop VFD game: hold MOVE and push the stick to move, hold FIRE and push "
+                + "it to shoot that way. The slide switch picks skill 1 or 2, or turns it off "
+                + "(Coleco Alien Attack; MAME set: alnattck)",
+            chip = "Hitachi HD38800 (HMCS44)",
+            region = "USA",
+            year = "1981",
+            roms = listOf(
+                RomSpec("hd38800a25", 0x1100L, 0x18b50869L),
+                RomSpec("alnattck.svg", 564266L, 0x386bf327L),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "alnchase",
+            title = "Alien Chase Tabletop",
+            subtitle = "1984 two-sided VFD game: each player sees the screen from their own side. Push the "
+                + "stick up to start; the switches set power, sound, level and one or two players "
+                + "(Tomy Alien Chase; MAME set: alnchase)",
+            chip = "NEC uPD553C (uCOM-43)",
+            region = "Japan",
+            year = "1984",
+            roms = listOf(
+                RomSpec("d553c_258", 0x800L, 0xc5284ff5L),
+                RomSpec("alnchase.svg", 576555L, 0xb2c1734bL),
+            ),
+            skin = Skin.HH,
         ),
         MachineDef(
             id = "alienfev",

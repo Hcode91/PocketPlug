@@ -42,6 +42,7 @@ class EmulatorActivity : Activity() {
     private var ablPad: AblPadView? = null
     private var flightStick: FlightStickView? = null
     private var keychain: KeychainGameView? = null
+    private var hh: HhView? = null
     private val linkedFds = ArrayList<android.os.ParcelFileDescriptor>()
     private var chess: ChessComputerView? = null
     private var kit: KitBoardView? = null
@@ -318,6 +319,17 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 kit = v
+                setContentView(v)
+            }
+            Skin.HH -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = HhView(this, HhSkin.forMachine(machine.id)!!, width, height).apply {
+                    onInput = { setTouch(0, it) }
+                    onOption = { id, value -> synchronized(coreLock) { Native.setOption(handle, id, value) } }
+                    onMenu = { showMenu() }
+                }
+                for ((id, value) in v.initialOptions()) Native.setOption(handle, id, value)
+                hh = v
                 setContentView(v)
             }
             Skin.KEYCHAIN -> {
@@ -1245,6 +1257,7 @@ class EmulatorActivity : Activity() {
             else if (nixie != null) nixie?.updateFrame(pixels)
             else if (chess != null) chess?.updateFrame(pixels)
             else if (keychain != null) keychain?.updateFrame(pixels)
+            else if (hh != null) hh?.updateFrame(pixels)
             else if (kit != null) kit?.updateFrame(pixels)
             else if (tabletop != null) tabletop?.updateFrame(pixels)
             else if (adam != null) adam?.updateFrame(pixels)
@@ -1389,6 +1402,7 @@ class EmulatorActivity : Activity() {
         Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
         Skin.FLIGHT_STICK -> FlightStickView.keyBit(code)
         Skin.KEYCHAIN -> KeychainGameView.keyBit(code)
+        Skin.HH -> HhView.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
@@ -1861,6 +1875,7 @@ class EmulatorActivity : Activity() {
         ablPad?.externalMask = keyInputs or stickMask
         flightStick?.externalMask = keyInputs or stickMask
         keychain?.externalMask = keyInputs
+        hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
@@ -1921,6 +1936,7 @@ class EmulatorActivity : Activity() {
         ablPad?.externalMask = keyInputs or stickMask
         flightStick?.externalMask = keyInputs or stickMask
         keychain?.externalMask = keyInputs
+        hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true

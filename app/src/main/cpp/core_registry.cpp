@@ -15,6 +15,11 @@
 #include "cores/chess/academy.h"
 #include "cores/chess/accord.h"
 #include "cores/chess/almeria.h"
+#include "cores/chess/mephmod1.h"
+#include "cores/chess/arb.h"
+#include "cores/hh/hh_hmcs40.h"
+#include "cores/hh/hh_ucom4.h"
+#include "cores/hh/hh_tms1k.h"
 #include "cores/kits/acrnsys1.h"
 #include "cores/kits/aim65.h"
 #include "cores/altair/altair.h"
@@ -176,6 +181,16 @@ Core* createCore(const std::string& id)
         return new AcornSystem1Core();
     if (id == "accord")       // Novag Accord (model 875)
         return new AccordCore("novag_875_31x0b87p");
+    if (HhTms1kCore::known(id))    // TI TMS1000-family handhelds (alphie, amaztron, arcmania, ...)
+        return new HhTms1kCore(id);
+    if (HhUcom4Core::known(id))    // NEC uCOM-4 handhelds (alnchase, ...)
+        return new HhUcom4Core(id);
+    if (HhHmcs40Core::known(id))   // Hitachi HMCS40 handhelds (alnattck, ...)
+        return new HhHmcs40Core(id);
+    if (id == "arbv2")        // ARB V2 Sargon 4.0 (AVE Auto Response Board rebuild)
+        return new ArbV2Core();
+    if (id == "amsterd")      // Mephisto Amsterdam (68000)
+        return new MephMod1Core(false, "amsterda-u.bin", "amsterda-l.bin");
     if (id == "alm32")        // Mephisto Almeria 32 Bit (68020)
         return new AlmeriaCore(true, "alm32.bin", "");
     if (id == "alm16")        // Mephisto Almeria 16 Bit v0.13 (68000)
