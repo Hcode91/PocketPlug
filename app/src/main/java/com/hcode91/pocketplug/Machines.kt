@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -328,6 +328,19 @@ object Machines {
                 0x6fa040cdL to "Code Red (homebrew)",
             ),
             badge = "advision",
+        ),
+        MachineDef(
+            id = "airblsjs",
+            title = "Air-Blaster Joystick",
+            subtitle = "2005 flight stick with the games inside: five shooters, two flown into the screen "
+                + "and three scrolling. Push the stick (or the hat) to fly, TRIGGER fires, MISSILE drops "
+                + "a missile (Advance Bright; MAME set: airblsjs)",
+            chip = "Elan EU3A05 (6502 SoC)",
+            region = "Europe",
+            year = "2005",
+            roms = listOf(RomSpec("airblsjs.bin", 0x400000L, 0xd10a6a84L)),
+            skin = Skin.FLIGHT_STICK,
+            badge = "airblsjs",
         ),
         MachineDef(
             id = "al8800b",

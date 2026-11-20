@@ -40,6 +40,7 @@ class EmulatorActivity : Activity() {
     private var nixie: NixieClockView? = null
     private var joypad: JoystickPadView? = null
     private var ablPad: AblPadView? = null
+    private var flightStick: FlightStickView? = null
     private val linkedFds = ArrayList<android.os.ParcelFileDescriptor>()
     private var chess: ChessComputerView? = null
     private var kit: KitBoardView? = null
@@ -314,6 +315,16 @@ class EmulatorActivity : Activity() {
                 }
                 kit = v
                 setContentView(v)
+            }
+            Skin.FLIGHT_STICK -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val m = FlightStickView(this).apply { onInput = { setTouch(0, it) } }
+                flightStick = m
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0E0F12.toInt())
+                    add(tv, 0.875f)
+                    add(m, 1.1f)
+                })
             }
             Skin.ABL_TV -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -1362,6 +1373,7 @@ class EmulatorActivity : Activity() {
         Skin.HANDHELD -> handheldKeyBit(code)
         Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
         Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
+        Skin.FLIGHT_STICK -> FlightStickView.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
@@ -1477,6 +1489,18 @@ class EmulatorActivity : Activity() {
             if (x < -0.5f) m = m or 0x40
             if (x > 0.5f) m = m or 0x80
             if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m }
+            return true
+        }
+        if (machine.skin == Skin.FLIGHT_STICK && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            var m = 0
+            if (y < -0.5f) m = m or FlightStickView.UP
+            if (y > 0.5f) m = m or FlightStickView.DOWN
+            if (x < -0.5f) m = m or FlightStickView.LEFT
+            if (x > 0.5f) m = m or FlightStickView.RIGHT
+            if (m != stickMask) { stickMask = m; setTouch(3, m); flightStick?.externalMask = keyInputs or m }
             return true
         }
         if (machine.skin == Skin.ABL_TV && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -1820,6 +1844,7 @@ class EmulatorActivity : Activity() {
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
+        flightStick?.externalMask = keyInputs or stickMask
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true
@@ -1878,6 +1903,7 @@ class EmulatorActivity : Activity() {
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
+        flightStick?.externalMask = keyInputs or stickMask
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         return true

@@ -24,6 +24,7 @@ controller.
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
 | Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard, printer and disk drive 6801s (own 6801 port with the serial interface), WD2793 | Boots SmartWriter and types, matching MAME's screen; boots 160 KB disks as MAME does; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape drive yet |
+| Air-Blaster Joystick (Advance Bright, 2005) | `airblsjs` | Elan EU3A05 (6502 SoC: banked 4 MB ROM, DMA, tile/sprite video, 6 ADPCM channels) | Menu and the games run (tested: the first 3D stage); identical to MAME's frames on the title. Enemy patterns differ run to run (the chip's random register) |
 | Altair 8800b (MITS, 1976) | `al8800b` | Intel 8080, front panel (LEDs, address/data and control switches), 88-2SIO terminal, 88-DCDD 8" disks | Front panel works (examine, deposit, run, single step, accumulator switches; the bus lights while running), Kill the Bit built in; terminal and disks as on the turnkey (booting disks uses the turnkey's boot PROM) |
 | Altair 8800b Turnkey (MITS, 1977) | `al8800bt` | Intel 8080, turnkey monitor and disk boot PROMs, 88-2SIO terminal (VT100 or ADM-3A codes), 88-DCDD 8" disks | Monitor runs; boots CP/M 2.2, Disk BASIC and their games from SIMH-style `.dsk` images (MAME doesn't run this set) |
 | AIM 65 (Rockwell, 1977 microcomputer) | `aim65` | 6502 + two 6522 VIAs, 6532 RIOT, 6821 PIA, five 4-character 16-segment displays, 20-column thermal printer | Monitor runs and prints as in MAME: memory display and change, the printer, text entry (no cassette or TTY) |
@@ -83,6 +84,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Coleco Adam | `adam` | `os7.u2`, `eos 6 rev 57 08dd.u22`, `wp_r80.rom` (adam zip) | 8 KB, 16 KB, 32 KB | `3aa93ef3`, `ef6403c5`, `58d86a2a` |
 | | | `master rev a 174b.u6` (adam zip), `keyboard.u2` (adam_kb), `printer.u2` (adam_prn) | 2 KB each | `035a7a3d`, `ef204746`, `e8db783b` |
 | | | `adam disk u10 ad 31 rev a 09-27-84.u10` (adam_fdc) | 4 KB | `4b0b7143` |
+| Air-Blaster Joystick | `airblsjs` | `airblsjs.bin` | 4 MB (4,194,304 bytes) | `d10a6a84` |
 | Altair 8800b | `al8800b` | `8800b front panel.bin` | 256 bytes | `8b462c1b` |
 | Altair 8800b Turnkey | `al8800bt` | `turnmon.bin`, `88dskrom.bin` | 256 bytes each | `5c629294`, `7c5232f3` |
 | AIM 65 | `aim65` | `aim65mon.z23`, `aim65mon.z22` | 4 KB each | `90e44afe`, `d01914b0` |
@@ -343,6 +345,15 @@ cartridges:
 
 Not done yet: the tape drive (`.ddp`), the bigger third-party disk drives and
 megacarts.
+
+### Air-Blaster Joystick
+
+Import the MAME zip. The TV is at the top, the flight stick under it: put a
+finger on the grip and push it to fly (the whole stick steers, as on the real
+one), or use the hat switch on top. TRIGGER (on the front of the grip)
+fires, MISSILE fires a missile, START and PAUSE are on the head, RESET is on
+the base. Tap the TV for the menu. The game itself is known to be buggy on
+the real unit (bosses, the refuel jet in the 3D stages).
 
 ### Altair 8800b and 8800b Turnkey
 
