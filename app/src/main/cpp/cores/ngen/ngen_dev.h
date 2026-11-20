@@ -110,6 +110,8 @@ public:
     void setDisk(DiskImage* d) { disk_ = d; }
     void setSide(int s) { side_ = s; }
     void setMotor(bool on) { motor_ = on; }
+    // WD2793: the side comes from the SSO pin (setSide), not the command's U bit
+    bool sideFromCommand = true;
     // NGEN disk module: the byte counter reached its terminal count
     void stopAfterSector() { stopAfterSector_ = true; }
     std::function<void(bool)> onIntrq;

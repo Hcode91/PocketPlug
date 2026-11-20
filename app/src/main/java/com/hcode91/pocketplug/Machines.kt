@@ -287,8 +287,8 @@ object Machines {
             id = "adam",
             title = "Adam Family Computer",
             subtitle = "1983 home computer built round a games console: it starts its built-in SmartWriter "
-                + "word processor, and plays ColecoVision cartridges (plug one in from the console's front). "
-                + "Import the adam zip and its adam_kb and adam_prn zips (Coleco Adam; MAME set: adam)",
+                + "word processor, boots 160 KB disks and plays ColecoVision cartridges (both from the console's "
+                + "front). Import the adam zip and its adam_kb, adam_prn and adam_fdc zips (Coleco Adam; MAME set: adam)",
             chip = "Zilog Z80 @ 3.58 MHz + TMS9928A, ADAMnet 6801s",
             region = "USA",
             year = "1983",
@@ -299,6 +299,7 @@ object Machines {
                 RomSpec("master rev a 174b.u6", 0x800L, 0x035a7a3dL),
                 RomSpec("keyboard.u2", 0x800L, 0xef204746L),
                 RomSpec("printer.u2", 0x800L, 0xe8db783bL),
+                RomSpec("adam disk u10 ad 31 rev a 09-27-84.u10", 0x1000L, 0x4b0b7143L),
             ),
             skin = Skin.ADAM,
             badge = "adam",

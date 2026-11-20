@@ -533,6 +533,10 @@ class EmulatorActivity : Activity() {
 
     /** Changed disks are written back (floppies as .imd copies in the app's storage). */
     private fun saveDisks() {
+        if (adam != null && handle != 0L) {
+            adamDisk?.let { f -> synchronized(coreLock) { Native.mediaSave(handle, 0, f.absolutePath) } }
+            return
+        }
         if (workstation == null || handle == 0L) return
         synchronized(coreLock) {
             floppyFile?.let { Native.mediaSave(handle, 0, it.absolutePath) }
@@ -653,44 +657,67 @@ class EmulatorActivity : Activity() {
 
     private val PICK_ADAM = 48
 
-    // ---- ADAM: ColecoVision cartridges (tapes and disks to come) ----
+    // ---- ADAM: disks (.dsk) and ColecoVision cartridges; tapes to come ----
     private fun adamDir() = java.io.File(filesDir, "adam").apply { mkdirs() }
     private var adamCart: java.io.File? = null
+    private var adamDisk: java.io.File? = null
+    private fun isAdamDisk(f: java.io.File) = f.extension.equals("dsk", true)
 
     private fun showAdamMenu() {
         paused = true
         val files = adamDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
         val items = ArrayList<Pair<String, () -> Unit>>()
-        items += "Plug in a ColecoVision cartridge (.col .rom .bin)..." to {
+        items += "Add a disk (.dsk) or cartridge (.col .rom .bin)..." to {
             startActivityForResult(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
             }, PICK_ADAM)
         }
-        for (f in files) items += "Plug in ${f.nameWithoutExtension}" to { loadAdamCart(f) }
-        if (adamCart != null) items += "Pull the cartridge out (back to SmartWriter)" to {
-            synchronized(coreLock) { Native.mediaEject(handle, 2) }
-            adamCart = null; adam?.mediaLabel = null; adam?.showPad = false
+        for (f in files.filter { isAdamDisk(it) }) items += "Disk: ${f.nameWithoutExtension}" to { loadAdamDisk(f, restart = true) }
+        for (f in files.filter { !isAdamDisk(it) }) items += "Cartridge: ${f.nameWithoutExtension}" to { loadAdamCart(f) }
+        if (adamDisk != null) items += "Eject the disk" to {
+            saveDisks()
+            synchronized(coreLock) { Native.mediaEject(handle, 0) }
+            adamDisk = null; updateAdamLabel()
         }
-        if (files.isNotEmpty()) items += "Delete a cartridge from the list..." to {
+        if (adamCart != null) items += "Pull the cartridge out (back to the computer)" to {
+            synchronized(coreLock) { Native.mediaEject(handle, 2) }
+            adamCart = null; adam?.showPad = false; updateAdamLabel()
+        }
+        if (files.isNotEmpty()) items += "Delete a file from the list..." to {
             paused = true
             AlertDialog.Builder(this)
-                .setTitle("Delete which cartridge?")
+                .setTitle("Delete which file?")
                 .setItems(files.map { it.name }.toTypedArray()) { _, w -> files[w].delete(); paused = false }
                 .setOnCancelListener { paused = false }
                 .show()
         }
         AlertDialog.Builder(this)
-            .setTitle("Cartridges")
+            .setTitle("Disks & cartridges")
             .setItems(items.map { it.first }.toTypedArray()) { _, which -> paused = false; items[which].second() }
             .setOnCancelListener { paused = false }
             .show()
+    }
+
+    private fun updateAdamLabel() {
+        adam?.mediaLabel = listOfNotNull(adamDisk?.nameWithoutExtension, adamCart?.nameWithoutExtension).joinToString(" · ").ifEmpty { null }
+    }
+
+    /** A disk goes in drive 1; the computer restarts to boot it (as pulling the reset switch would). */
+    private fun loadAdamDisk(f: java.io.File, restart: Boolean) {
+        saveDisks()
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 0, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        adamDisk = f
+        if (restart && adamCart == null) synchronized(coreLock) { Native.reset(handle) }
+        updateAdamLabel()
+        Toast.makeText(this, "${f.nameWithoutExtension} is in the disk drive" + if (restart && adamCart == null) "; restarting" else "", Toast.LENGTH_SHORT).show()
     }
 
     private fun loadAdamCart(f: java.io.File) {
         val err = synchronized(coreLock) { Native.mediaInsert(handle, 2, f.absolutePath) }
         if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
         adamCart = f
-        adam?.mediaLabel = f.nameWithoutExtension
+        updateAdamLabel()
         adam?.showPad = true
     }
 
@@ -812,7 +839,10 @@ class EmulatorActivity : Activity() {
                 val safe = name.replace(Regex("[^A-Za-z0-9._ ()-]"), "_").ifEmpty { "cartridge" }
                 val dest = java.io.File(adamDir(), safe)
                 runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
-                loadAdamCart(dest)
+                if (isAdamDisk(dest) || dest.length() == 163840L) {
+                    val disk = if (isAdamDisk(dest)) dest else java.io.File(adamDir(), dest.nameWithoutExtension + ".dsk").also { dest.renameTo(it) }
+                    loadAdamDisk(disk, restart = true)
+                } else loadAdamCart(dest)
             }
             PICK_ATARI, PICK_ATARI_D1 -> {
                 var name = "game"
@@ -975,6 +1005,7 @@ class EmulatorActivity : Activity() {
                 workstation?.indicators = Native.mediaActivity(handle)
                 atari?.indicators = Native.mediaActivity(handle)
                 acorn?.indicators = Native.mediaActivity(handle)
+                adam?.diskLight = Native.mediaActivity(handle) != 0
                 r
             }
             if (workstation != null) workstation?.updateFrame(pixels)

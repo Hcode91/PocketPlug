@@ -13,6 +13,12 @@
 extern double g_m6801Now;
 #endif
 namespace {
+struct WdSave {
+    uint8_t status, track, sector, data, cmd, intrq, drq, writing;
+    int32_t cyl, cmdType, state, timer, bufPos, indexUs;
+    uint32_t bufSize;
+    int64_t wdTime;
+};
 constexpr double Z80_HZ = 7159090.0 / 2;
 constexpr double US_PER_Z80 = 1e6 / Z80_HZ;
 constexpr double US_PER_E = 1.0;              // 6801s: 4 MHz crystal, E = 1 MHz
@@ -30,9 +36,13 @@ void z80Out(z80* z, uint8_t p, uint8_t d) { static_cast<AdamCore*>(z->userdata)-
 }
 
 AdamCore::AdamCore()
-    : m_master(&m_masterPorts), m_kb(&m_kbPorts), m_prn(&m_prnPorts)
+    : m_master(&m_masterPorts), m_kb(&m_kbPorts), m_prn(&m_prnPorts), m_fdc(&m_fdcPorts)
 {
-    m_masterPorts.c = this; m_kbPorts.c = this; m_prnPorts.c = this;
+    m_masterPorts.c = this; m_kbPorts.c = this; m_prnPorts.c = this; m_fdcPorts.c = this;
+    m_fdc.setExpanded(true);
+    m_fdc.setRom(m_romFdc);
+    m_wd.sideFromCommand = false;
+    m_wd.onIntrq = [this](bool v) { m_fdc.setNmi(v); };
     std::memset(m_os7, 0xff, sizeof(m_os7));
     std::memset(m_boot, 0xff, sizeof(m_boot));
     std::memset(&m_s, 0, sizeof(m_s));
@@ -48,7 +58,8 @@ bool AdamCore::load(const std::vector<RomFile>& roms, std::string& error)
     };
     struct { const char* name; size_t size; } need[] = {
         { "os7.u2", 0x2000 }, { "eos 6 rev 57 08dd.u22", 0x4000 }, { "wp_r80.rom", 0x8000 },
-        { "master rev a 174b.u6", 0x800 }, { "keyboard.u2", 0x800 }, { "printer.u2", 0x800 } };
+        { "master rev a 174b.u6", 0x800 }, { "keyboard.u2", 0x800 }, { "printer.u2", 0x800 },
+        { "adam disk u10 ad 31 rev a 09-27-84.u10", 0x1000 } };
     std::string missing;
     for (auto& n : need) if (!find(n.name, n.size)) missing += std::string(missing.empty() ? "" : ", ") + n.name;
     if (!missing.empty()) { error = "Missing " + missing; return false; }
@@ -66,6 +77,7 @@ bool AdamCore::load(const std::vector<RomFile>& roms, std::string& error)
     std::memcpy(m_romMaster, find("master rev a 174b.u6", 0x800)->data.data(), 0x800);
     std::memcpy(m_romKb, find("keyboard.u2", 0x800)->data.data(), 0x800);
     std::memcpy(m_romPrn, find("printer.u2", 0x800)->data.data(), 0x800);
+    std::memcpy(m_romFdc, find("adam disk u10 ad 31 rev a 09-27-84.u10", 0x1000)->data.data(), 0x1000);
     reset();
     return true;
 }
@@ -74,6 +86,27 @@ void AdamCore::reset() { powerOn(!m_cart.empty()); }
 
 bool AdamCore::mediaInsert(int drive, const std::string& path, std::string& error)
 {
+    if (drive == 0) {
+        FILE* f = fopen(path.c_str(), "rb");
+        if (!f) { error = "Can't open the disk"; return false; }
+        std::vector<uint8_t> d;
+        uint8_t buf[65536]; size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), f)) > 0) d.insert(d.end(), buf, buf + n);
+        fclose(f);
+        if (d.size() != 163840) {
+            error = d.size() == 327680 || d.size() == 737280 || d.size() == 1474560
+                ? "Only 160 KB disks fit the standard Adam drive"
+                : "Not an Adam disk image (a 160 KB .dsk is expected)";
+            return false;
+        }
+        DiskImage img;
+        img.loadRaw(d, 40, 1, 8, 512);
+        img.path = path;
+        m_disk = img;
+        m_diskIn = true;
+        m_wd.setDisk(&m_disk);
+        return true;
+    }
     if (drive != 2) { error = "No such drive"; return false; }
     FILE* f = fopen(path.c_str(), "rb");
     if (!f) { error = "Can't open the cartridge"; return false; }
@@ -90,8 +123,29 @@ bool AdamCore::mediaInsert(int drive, const std::string& path, std::string& erro
     return true;
 }
 
+bool AdamCore::mediaSave(int drive, const std::string& path)
+{
+    if (drive != 0 || !m_diskIn || !m_disk.dirty) return false;
+    std::vector<uint8_t> d;
+    for (int t = 0; t < 40; t++) {
+        DiskImage::Track* tr = m_disk.track(t, 0);
+        for (int s = 1; s <= 8; s++) {
+            auto it = tr ? tr->sectors.find(s) : decltype(tr->sectors.end()){};
+            if (tr && it != tr->sectors.end() && it->second.size() == 512) d.insert(d.end(), it->second.begin(), it->second.end());
+            else d.insert(d.end(), 512, 0xe5);
+        }
+    }
+    FILE* f = fopen(path.c_str(), "wb");
+    if (!f) return false;
+    bool ok = fwrite(d.data(), 1, d.size(), f) == d.size();
+    fclose(f);
+    if (ok) m_disk.dirty = false;
+    return ok;
+}
+
 void AdamCore::mediaEject(int drive)
 {
+    if (drive == 0) { m_diskIn = false; m_wd.setDisk(nullptr); return; }
     if (drive != 2 || m_cart.empty()) return;
     m_cart.clear();
     powerOn(false);
@@ -103,7 +157,7 @@ void AdamCore::powerOn(bool game)
     std::memcpy(keys, m_s.keys, sizeof(keys));
     std::memset(&m_s, 0, sizeof(m_s));
     std::memcpy(m_s.keys, keys, sizeof(keys));
-    m_s.txMaster = m_s.txKb = m_s.txPrn = 1;
+    m_s.txMaster = m_s.txKb = m_s.txPrn = m_s.txFdc = 1;
     m_s.keyY = 0x1fff;
     // computer mode, or game mode (OS7 + cartridge) as the cartridge reset switch
     m_s.game = game ? 1 : 0;
@@ -118,7 +172,10 @@ void AdamCore::powerOn(bool game)
     std::memset(m_vdp.vram, 0, sizeof(m_vdp.vram));
     m_vdp.reset();
     m_psg.reset();
-    m_master.reset(); m_kb.reset(); m_prn.reset();
+    m_master.reset(); m_kb.reset(); m_prn.reset(); m_fdc.reset();
+    m_wd.reset();
+    m_wd.setDisk(m_diskIn ? &m_disk : nullptr);
+    m_wdTime = 0;
 }
 
 void AdamCore::setTx(uint8_t& tx, int v)
@@ -130,16 +187,18 @@ void AdamCore::setTx(uint8_t& tx, int v)
         m_master.lineChanged(m_now, after);
         m_kb.lineChanged(m_now, after);
         m_prn.lineChanged(m_now, after);
+        m_fdc.lineChanged(m_now, after);
     }
 }
 
 void AdamCore::netReset()
 {
     // the devices restart; their clocks keep counting
-    int64_t tk = m_kb.cycles(), tp = m_prn.cycles();
-    m_kb.reset(); m_prn.reset();
-    m_kb.state()->cycles = tk; m_prn.state()->cycles = tp;
-    m_s.txKb = m_s.txPrn = 1;
+    int64_t tk = m_kb.cycles(), tp = m_prn.cycles(), tf = m_fdc.cycles();
+    m_kb.reset(); m_prn.reset(); m_fdc.reset();
+    m_kb.state()->cycles = tk; m_prn.state()->cycles = tp; m_fdc.state()->cycles = tf;
+    m_wd.reset();
+    m_s.txKb = m_s.txPrn = m_s.txFdc = 1;
 }
 
 void AdamCore::keyEvent(int code, bool down)
@@ -302,6 +361,55 @@ void AdamCore::Printer::portOut(int port, M6801::u8 data, M6801::u8)
     } else if (port == 2) c->setTx(s.txPrn, (data >> 4) & 1);
 }
 
+// the disk drive's 6803 (mode 2): WD2793, 1 KB of RAM, ROM at 8000
+M6801::u8 AdamCore::Disk::portIn(int port)
+{
+    if (port == 1) {
+        // bit 0: no disk, bit 2: FDC DRQ, bit 7: drive select switch (DS1)
+        return uint8_t((c->m_diskIn ? 0 : 1) | (c->m_wd.drq ? 4 : 0));
+    }
+    if (port == 2) return uint8_t(0x02 | (c->netLine() << 3));
+    return 0xff;
+}
+
+void AdamCore::Disk::portOut(int port, M6801::u8 data, M6801::u8)
+{
+    if (port == 1) {
+        c->m_s.fdcP1 = data;
+        c->m_wd.setMotor(data & 0x40);
+    } else if (port == 2) c->setTx(c->m_s.txFdc, (data >> 4) & 1);
+}
+
+M6801::u8 AdamCore::Disk::extRead(M6801::u16 a)
+{
+    auto& s = c->m_s;
+    if (a >= 0x8000) return c->m_romFdc[a & 0x0fff];
+    c->m_diskBusy = true;
+    switch (a & 0xfc00) {
+    case 0x0800: return c->m_wd.read(0);
+    case 0x1400: return s.fdcRam[a & 0x3ff];
+    case 0x2800: return c->m_wd.read(1);
+    case 0x4800: return c->m_wd.read(2);
+    case 0x6800: return c->m_wd.read(3);
+    case 0x6c00: { uint8_t d = c->m_wd.read(3); s.fdcRam[a & 0x3ff] = d; return d; }
+    case 0x7c00: { uint8_t d = s.fdcRam[a & 0x3ff]; c->m_wd.write(3, d); return d; }
+    default: return 0;
+    }
+}
+
+void AdamCore::Disk::extWrite(M6801::u16 a, M6801::u8 d)
+{
+    auto& s = c->m_s;
+    switch (a & 0xfc00) {
+    case 0x0400: s.fdcRam[a & 0x3ff] = d; break;
+    case 0x1800: c->m_wd.write(0, d); break;
+    case 0x3800: c->m_wd.write(1, d); break;
+    case 0x5800: c->m_wd.write(2, d); break;
+    case 0x7800: c->m_wd.write(3, d); break;
+    default: break;
+    }
+}
+
 // ---------------- frame ----------------
 void AdamCore::runFrame()
 {
@@ -312,13 +420,13 @@ void AdamCore::runFrame()
         // serial line and the master's RAM accesses stay in order
         for (;;) {
             // the next thing to happen: a CPU step or one of the 6801s' serial events
-            M6801* cpus[3] = { &m_master, &m_kb, &m_prn };
+            M6801* cpus[4] = { &m_master, &m_kb, &m_prn, &m_fdc };
             double t = m_s.tZ80; int who = -1;
-            for (int k = 0; k < 3; k++) {
+            for (int k = 0; k < 4; k++) {
                 double tc = double(cpus[k]->cycles()) * US_PER_E - m_s.base;
                 if (tc < t) { t = tc; who = k; }
                 double te = double(cpus[k]->nextSciEvent()) * US_PER_E - m_s.base;
-                if (te < t) { t = te; who = 3 + k; }
+                if (te < t) { t = te; who = 4 + k; }
             }
             if (t >= end) break;
 #ifdef M6801_TRACE
@@ -342,12 +450,16 @@ void AdamCore::runFrame()
                         m_audio.push_back(int16_t(std::max(-32000.0, std::min(32000.0, m_dcY))));
                     }
                 }
-            } else if (who < 3) {
+            } else if (who < 4) {
                 m_now = cpus[who]->cycles();
+                if (who == 3) {
+                    // the WD2793 runs alongside the drive's 6803
+                    if (m_now > m_wdTime) { m_wd.advance(int(m_now - m_wdTime)); m_wdTime = m_now; }
+                }
                 cpus[who]->run(1);
             } else {
-                m_now = cpus[who - 3]->nextSciEvent();
-                cpus[who - 3]->sciEvent(m_now);
+                m_now = cpus[who - 4]->nextSciEvent();
+                cpus[who - 4]->sciEvent(m_now);
             }
         }
         // video line; the frame interrupt goes to the Z80's NMI
@@ -388,16 +500,24 @@ bool AdamCore::saveState(std::vector<uint8_t>& out)
     auto put = [&](const void* p, size_t n) { const uint8_t* b = (const uint8_t*)p; out.insert(out.end(), b, b + n); };
     put(&magic, 4); put(&m_s, sizeof(m_s));
     put(m_master.state(), sizeof(M6801::State)); put(m_kb.state(), sizeof(M6801::State)); put(m_prn.state(), sizeof(M6801::State));
+    put(m_fdc.state(), sizeof(M6801::State));
     put(&m_z80, sizeof(m_z80));
     put(&m_vdp, sizeof(m_vdp));
     put(&m_psg.s, sizeof(m_psg.s));
+    WdSave w = { m_wd.status, m_wd.track, m_wd.sector, m_wd.data, m_wd.cmd, uint8_t(m_wd.intrq), uint8_t(m_wd.drq), uint8_t(m_wd.writing),
+                 m_wd.cyl, m_wd.cmdType, m_wd.state, m_wd.timer, int32_t(m_wd.bufPos), m_wd.indexUs, uint32_t(m_wd.buf.size()), m_wdTime };
+    put(&w, sizeof(w));
+    put(m_wd.buf.data(), m_wd.buf.size());
     return true;
 }
 
 bool AdamCore::loadState(const std::vector<uint8_t>& in)
 {
-    size_t need = 4 + sizeof(m_s) + 3 * sizeof(M6801::State) + sizeof(m_z80) + sizeof(m_vdp) + sizeof(m_psg.s);
-    if (in.size() != need) return false;
+    size_t need = 4 + sizeof(m_s) + 4 * sizeof(M6801::State) + sizeof(m_z80) + sizeof(m_vdp) + sizeof(m_psg.s) + sizeof(WdSave);
+    if (in.size() < need) return false;
+    WdSave w;
+    std::memcpy(&w, in.data() + need - sizeof(WdSave), sizeof(w));
+    if (in.size() != need + w.bufSize) return false;
     uint32_t magic; std::memcpy(&magic, in.data(), 4);
     if (magic != 0x4d414441) return false;
     const uint8_t* p = in.data() + 4;
@@ -405,11 +525,17 @@ bool AdamCore::loadState(const std::vector<uint8_t>& in)
     std::memcpy(m_master.state(), p, sizeof(M6801::State)); p += sizeof(M6801::State);
     std::memcpy(m_kb.state(), p, sizeof(M6801::State)); p += sizeof(M6801::State);
     std::memcpy(m_prn.state(), p, sizeof(M6801::State)); p += sizeof(M6801::State);
+    std::memcpy(m_fdc.state(), p, sizeof(M6801::State)); p += sizeof(M6801::State);
     z80 keep = m_z80;
     std::memcpy(&m_z80, p, sizeof(m_z80)); p += sizeof(m_z80);
     m_z80.read_byte = keep.read_byte; m_z80.write_byte = keep.write_byte;
     m_z80.port_in = keep.port_in; m_z80.port_out = keep.port_out; m_z80.userdata = this;
     std::memcpy(&m_vdp, p, sizeof(m_vdp)); p += sizeof(m_vdp);
-    std::memcpy(&m_psg.s, p, sizeof(m_psg.s));
+    std::memcpy(&m_psg.s, p, sizeof(m_psg.s)); p += sizeof(m_psg.s) + sizeof(WdSave);
+    m_wd.status = w.status; m_wd.track = w.track; m_wd.sector = w.sector; m_wd.data = w.data; m_wd.cmd = w.cmd;
+    m_wd.intrq = w.intrq; m_wd.drq = w.drq; m_wd.writing = w.writing; m_wd.cyl = w.cyl; m_wd.cmdType = w.cmdType;
+    m_wd.state = w.state; m_wd.timer = w.timer; m_wd.bufPos = size_t(w.bufPos); m_wd.indexUs = w.indexUs;
+    m_wd.buf.assign(p, p + w.bufSize);
+    m_wdTime = w.wdTime;
     return true;
 }

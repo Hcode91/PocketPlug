@@ -6,8 +6,9 @@
 // (SmartWriter and EOS) and OS7, a TMS9928A with 16 KB of VRAM, an SN76489A,
 // and ADAMnet: the master 6801 on the main board (it reads and writes the
 // Z80's RAM to run the devices' control blocks) talking over a 62.5 kbit/s
-// serial line to the keyboard's and the printer's own 6801s.
-// With no tape or disk, EOS starts SmartWriter.
+// serial line to the keyboard's, the printer's and the disk drive's own 6801s.
+// The disk drive (a 6803 with a WD2793) reads 160 KB .dsk images; with no
+// disk in it, EOS starts SmartWriter.
 //
 // Frame: 272 x 208, the 256 x 192 picture in an 8-pixel border.
 // Keys: keyEvent(code) with code = row * 8 + bit of MAME's Y0-Y12 matrix.
@@ -18,6 +19,7 @@
 #include "../../common/tms9928a.h"
 #include "../../common/sn76489.h"
 #include "../../common/z80/z80.h"
+#include "../ngen/ngen_dev.h"
 #include <vector>
 
 class AdamCore : public Core {
@@ -35,9 +37,12 @@ public:
     // hand controller 1: up, down, left, right, left fire, right fire; keypad 0-9, #, * in bits 8-19
     void setInputs(uint32_t pressed) override { m_pad = pressed; }
     void keyEvent(int code, bool down) override;
-    // drive 2: a ColecoVision cartridge (the machine restarts in game mode); eject restarts the computer
+    // drive 0: the disk drive (.dsk, 160 KB); drive 2: a ColecoVision cartridge
+    // (the machine restarts in game mode; eject restarts the computer)
     bool mediaInsert(int drive, const std::string& path, std::string& error) override;
+    bool mediaSave(int drive, const std::string& path) override;
     void mediaEject(int drive) override;
+    int mediaActivity() override { int a = m_diskBusy ? 1 : 0; m_diskBusy = false; return a; }
     bool saveState(std::vector<uint8_t>& out) override;
     bool loadState(const std::vector<uint8_t>& in) override;
 
@@ -69,7 +74,15 @@ private:
         void portOut(int port, M6801::u8 data, M6801::u8 ddr) override;
         int serialIn() override { return c->netLine(); }
     };
-    int netLine() const { return m_s.txMaster & m_s.txKb & m_s.txPrn; }
+    struct Disk : M6801::Ports {
+        AdamCore* c;
+        M6801::u8 portIn(int port) override;
+        void portOut(int port, M6801::u8 data, M6801::u8 ddr) override;
+        int serialIn() override { return c->netLine(); }
+        M6801::u8 extRead(M6801::u16 a) override;
+        void extWrite(M6801::u16 a, M6801::u8 d) override;
+    };
+    int netLine() const { return m_s.txMaster & m_s.txKb & m_s.txPrn & m_s.txFdc; }
     void netReset();
     void setTx(uint8_t& tx, int v);
     int64_t m_now = 0;          // time of the current action (E cycles)
@@ -79,9 +92,13 @@ private:
     std::vector<uint8_t> m_cart;
     void powerOn(bool game);
     uint8_t m_boot[0xa000];
-    uint8_t m_romMaster[0x800], m_romKb[0x800], m_romPrn[0x800];
-    Master m_masterPorts; Keyboard m_kbPorts; Printer m_prnPorts;
-    M6801 m_master, m_kb, m_prn;
+    uint8_t m_romMaster[0x800], m_romKb[0x800], m_romPrn[0x800], m_romFdc[0x1000];
+    Master m_masterPorts; Keyboard m_kbPorts; Printer m_prnPorts; Disk m_fdcPorts;
+    M6801 m_master, m_kb, m_prn, m_fdc;
+    Wd2797 m_wd;                    // a WD2793: side from the drive's pin
+    DiskImage m_disk;
+    bool m_diskIn = false, m_diskBusy = false;
+    int64_t m_wdTime = 0;           // E cycle the WD2793 has been run up to
     z80 m_z80;
     Tms9928a m_vdp;
     Sn76489 m_psg;
@@ -96,7 +113,8 @@ private:
         uint8_t ram[0x10000], xram[0x10000];
         uint8_t mioc, game, an, dma, bwr, dataIn, dataOut;
         uint16_t ba;
-        uint8_t txMaster, txKb, txPrn;
+        uint8_t txMaster, txKb, txPrn, txFdc;
+        uint8_t fdcRam[0x400], fdcP1;
         uint16_t keyY;              // keyboard 6801: selected rows (active low)
         uint8_t prnP1, prnSensors;
         uint8_t keys[13];           // key matrix, 1 = pressed

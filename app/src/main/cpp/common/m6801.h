@@ -34,10 +34,14 @@ public:
         virtual void os3(int state) { (void)state; }                  // port 3 output strobe
         virtual int serialIn() { return 1; }                          // RXD line (P23)
         virtual void serialOut(int state) { (void)state; }            // TXD line (P24)
+        virtual u8 extRead(u16 a) { (void)a; return 0; }              // expanded modes: the external bus
+        virtual void extWrite(u16 a, u8 d) { (void)a; (void)d; }
     };
 
     explicit M6801(Ports* ports) : m_ports(ports) { m_st = State(); }
     void setRom(const u8* rom) { m_rom = rom; }     // 2 KB, mapped at F800
+    // expanded mode (6803 / mode 2): everything but the registers and RAM is external
+    void setExpanded(bool on) { m_expanded = on; }
     void reset();
     int run(int cycles);                            // returns cycles run
     void setNmi(bool on) { if (!m_nmi_state && on) m_nmi_pending = 1; m_nmi_state = on; }
@@ -87,6 +91,7 @@ private:
 
     Ports* m_ports;
     const u8* m_rom = nullptr;
+    bool m_expanded = false;
     int m_icount = 0;
     State m_st;
     PAIR& m_ppc = m_st.ppc; PAIR& m_pc = m_st.pc; PAIR& m_s = m_st.s; PAIR& m_x = m_st.x;

@@ -506,7 +506,7 @@ bool Wd2797::findSector(std::vector<uint8_t>** out)
 {
     if (!disk_) return false;
     // the side comes from the command's U (SSO) bit
-    int side = (cmd & 0x02) ? 1 : 0;
+    int side = sideFromCommand ? ((cmd & 0x02) ? 1 : 0) : side_;
     DiskImage::Track* t = disk_->track(cyl, side);
     if (!t) return false;
     if (track != cyl) return false;   // ID field track number does not match
@@ -689,13 +689,14 @@ void Wd2797::advance(int us)
             timer = kByteUs;
             break;
         case 30: {   // read address
-            DiskImage::Track* t = disk_->track(cyl, (cmd & 0x02) ? 1 : 0);
+            int rside = sideFromCommand ? ((cmd & 0x02) ? 1 : 0) : side_;
+            DiskImage::Track* t = disk_->track(cyl, rside);
             if (!t || t->order.empty()) { finish(0x10); break; }
             int idx = (indexUs / (kRevUs / int(t->order.size()))) % int(t->order.size());
             int s = t->order[idx];
             int ssz = 0;
             while ((128 << ssz) < t->sectorSize) ssz++;
-            buf = { uint8_t(cyl), uint8_t((cmd & 0x02) ? 1 : 0), uint8_t(s), uint8_t(ssz), 0, 0 };
+            buf = { uint8_t(cyl), uint8_t(rside), uint8_t(s), uint8_t(ssz), 0, 0 };
             bufPos = 0;
             sector = uint8_t(cyl);
             state = 31;

@@ -341,6 +341,7 @@ M6801::u8 M6801::rd(u32 a)
     a &= 0xffff;
     if (a < 0x20) return regRead(int(a));
     if (a >= 0x80 && a < 0x100) return m_st.ram[a - 0x80];
+    if (m_expanded) return m_ports->extRead(u16(a));
     if (a >= 0xf800) return m_rom ? m_rom[a - 0xf800] : 0xff;
     return 0xff;
 }
@@ -350,6 +351,7 @@ void M6801::wr(u32 a, u8 d)
     a &= 0xffff;
     if (a < 0x20) { regWrite(int(a), d); return; }
     if (a >= 0x80 && a < 0x100) { m_st.ram[a - 0x80] = d; return; }
+    if (m_expanded) m_ports->extWrite(u16(a), d);
 }
 
 M6801::u8 M6801::regRead(int r)

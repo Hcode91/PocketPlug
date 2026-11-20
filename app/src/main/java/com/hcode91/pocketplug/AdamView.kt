@@ -12,7 +12,8 @@ import kotlin.math.min
 
 /**
  * The 1983 cream home computer: a TV on top, the memory console's front
- * below it (its two tape bays and the cartridge slot open the media menu),
+ * below it (tapping it opens the disk and cartridge menu; the light shows
+ * the disk drive working),
  * then either the keyboard (cream keys, the six dark "smart keys", the
  * cursor cluster) or the hand controller (joystick disc, two side buttons,
  * 12-key keypad). The strip's switch flips between them. No maker's name or
@@ -33,6 +34,8 @@ class AdamView(ctx: Context, private val srcW: Int, private val srcH: Int) : Vie
         set(v) { field = v; requestLayout(); onSizeChanged(width, height, width, height); invalidate() }
     var mediaLabel: String? = null
         set(v) { field = v; postInvalidate() }
+    var diskLight = false
+        set(v) { if (v != field) { field = v; postInvalidate() } }
 
     private val frame = Bitmap.createBitmap(srcW, srcH, Bitmap.Config.ARGB_8888)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -171,6 +174,9 @@ class AdamView(ctx: Context, private val srcW: Int, private val srcH: Int) : Vie
             paint.color = 0xFF2B2A28.toInt(); c.drawRect(b, paint)
             paint.color = 0x55FFFFFF; c.drawRect(b.left + b.width() * 0.3f, b.top + b.height() * 0.35f, b.right - b.width() * 0.3f, b.top + b.height() * 0.6f, paint)
         }
+        // the disk drive's busy light
+        paint.color = if (diskLight) 0xFFFF3B2E.toInt() else 0xFF5A2420.toInt()
+        c.drawCircle(bay2.right + strip.width() * 0.02f, bay2.top + bay2.height() * 0.2f, strip.height() * 0.06f, paint)
         paint.color = 0xFF111111.toInt(); c.drawRect(slot, paint)
         // the rainbow stripe (no name)
         paint.shader = LinearGradient(slot.left, 0f, slot.right, 0f,
@@ -178,7 +184,7 @@ class AdamView(ctx: Context, private val srcW: Int, private val srcH: Int) : Vie
         c.drawRect(slot.left, slot.bottom + strip.height() * 0.12f, slot.right, slot.bottom + strip.height() * 0.2f, paint)
         paint.shader = null
         text.textSize = strip.height() * 0.16f; text.color = 0xFF3A3630.toInt()
-        c.drawText(mediaLabel ?: "TAPES · DISKS · CARTRIDGE", (bay1.left + slot.right) / 2f, strip.bottom - strip.height() * 0.05f, text)
+        c.drawText(mediaLabel ?: "DISKS · CARTRIDGES", (bay1.left + slot.right) / 2f, strip.bottom - strip.height() * 0.05f, text)
         drawPlate(c, switchR, if (showPad) "KEYBOARD" else "CONTROLLER")
         drawPlate(c, menuR, "MENU")
         if (showPad) drawPad(c) else drawKeyboard(c)
