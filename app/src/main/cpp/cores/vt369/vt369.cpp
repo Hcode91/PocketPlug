@@ -559,17 +559,103 @@ int Vt369Core::realVideoAddress(int addr, int readtype)
     return finaladdr;
 }
 
-uint8_t Vt369Core::chrR(int offset) { return progRead(relative() + realVideoAddress(offset, 0)); }
-uint8_t Vt369Core::sprR(int offset) { return progRead(relative() + realVideoAddress(offset, 1)); }
+uint8_t Vt369Core::chrR(int offset)
+{
+    if (m_cfg.board == 4) return m_s.afbVram[afbChrAddr(offset)];
+    return progRead(relative() + realVideoAddress(offset, 0));
+}
+uint8_t Vt369Core::sprR(int offset)
+{
+    if (m_cfg.board == 4) return m_s.afbVram[afbChrAddr(offset)];
+    return progRead(relative() + realVideoAddress(offset, 1));
+}
+
+// ---- Atari Flashback mini (nes_clone_afbm7800_state) ----
+int Vt369Core::afbPrgBank(int i) const
+{
+    const uint8_t* x = m_s.afbExtra;
+    const uint8_t* b = m_s.afbBankregs;
+    uint8_t mask, outer;
+    if (x[0] & 0x40) { mask = 0x0f; outer = uint8_t((x[0] & 0x07) << 4); }
+    else { mask = 0x1f; outer = uint8_t((x[0] & 0x06) << 4); }
+    int sel[4];
+    if ((x[3] & 3) == 0) {          // MMC3 style
+        sel[1] = outer | (b[7] & mask);
+        sel[3] = outer | (0x1f & mask);
+        if (m_s.afbBanksel & 0x40) { sel[0] = outer | (0x1e & mask); sel[2] = outer | (b[6] & mask); }
+        else { sel[0] = outer | (b[6] & mask); sel[2] = outer | (0x1e & mask); }
+    } else {
+        int base = b[6] & mask;
+        sel[0] = outer | (base + 0);
+        sel[1] = outer | (base + 1);
+        if ((x[3] & 3) == 3) { sel[2] = outer | (base + 2); sel[3] = outer | (base + 3); }
+        else { sel[2] = outer | (base + 0); sel[3] = outer | (base + 1); }
+    }
+    return sel[i] & int(m_rom.size() / 0x2000 - 1);
+}
+
+uint32_t Vt369Core::afbChrAddr(int offset) const
+{
+    offset &= 0x1fff;
+    uint16_t sel[6];
+    const uint8_t* b = m_s.afbBankregs;
+    bool invert = false;
+    if (m_s.afbExtra[3] & 0x10) {
+        int o = (m_s.afbExtra[2] & 0x0f) << 3;
+        static const uint8_t lo[6] = { 0, 2, 4, 5, 6, 7 };
+        for (int i = 0; i < 6; i++) sel[i] = uint16_t(o | lo[i]);
+    } else {
+        int o = (m_s.afbExtra[0] & 0x30) << 1;
+        for (int i = 0; i < 6; i++) sel[i] = uint16_t(o | (b[i] & 0x1f));
+        invert = (m_s.afbBanksel & 0x80) != 0;
+    }
+    // 2 KB banks 0-1 and 1 KB banks 2-5 (MAME masks with the 31 1 KB pages of the 32 KB RAM)
+    int a = invert ? (offset ^ 0x1000) : offset;
+    if (a < 0x1000) {
+        int bank = a >> 11;
+        return uint32_t(((sel[bank] & 31) >> 1) * 0x800 + (a & 0x7ff));
+    }
+    int bank = 2 + ((a - 0x1000) >> 10);
+    return uint32_t((sel[bank] & 31) * 0x400 + (a & 0x3ff));
+}
+
+void Vt369Core::afbWrite(uint16_t a, uint8_t d)
+{
+    if (a < 0x8000) {               // $6000-$7fff: outer bank registers (mirrored every 4)
+        if (!(m_s.afbRamprot & 0x80)) return;
+        int r = a & 3;
+        if ((r == 0 || r == 3) && (m_s.afbExtra[3] & 0x80)) return;
+        m_s.afbExtra[r] = d;
+        return;
+    }
+    switch (a & 0xe001) {
+    case 0x8000: m_s.afbBanksel = d; break;
+    case 0x8001: m_s.afbBankregs[m_s.afbBanksel & 7] = d; break;
+    case 0xa000: m_s.afbNtMirror = d; break;
+    case 0xa001: m_s.afbRamprot = d; break;
+    case 0xc000: m_s.afbIrqCounter = int16_t(d ^ 0xff); break;
+    case 0xc001: m_s.afbIrqLatch = d; break;
+    case 0xe000: m_cpu.setIrq(false); m_s.afbIrqEnable = 0; break;
+    case 0xe001: m_s.afbIrqEnable = 1; break;
+    }
+}
 
 void Vt369Core::chrW(int offset, uint8_t data)
 {
+    if (m_cfg.board == 4) { m_s.afbVram[afbChrAddr(offset)] = data; return; }
     if (m_s.r4242 & 1 || m_s.r411d & 4) m_s.chrram[offset & 0x1fff] = data;
     // otherwise a write to the ROM: ignored
 }
 
-void Vt369Core::videoIrq(bool hblank, int scanline, bool, bool blanked)
+void Vt369Core::videoIrq(bool hblank, int scanline, bool vblank, bool blanked)
 {
+    if (m_cfg.board == 4) {
+        // MMC3-style counter on MAME's PPU scanline callback
+        if (!hblank && m_s.afbIrqEnable && !vblank && !blanked) {
+            if (--m_s.afbIrqCounter == -1) { m_s.afbIrqCounter = m_s.afbIrqLatch; m_cpu.setIrq(true); }
+        }
+        return;
+    }
     if (((m_s.r410x[0xb] >> 7) & 1) == (hblank ? 1 : 0)) {
         if (m_s.timerRunning && scanline < 0xe0) {
             m_s.timerVal--;
@@ -759,6 +845,10 @@ uint8_t Vt369Core::cpuRead(uint16_t a)
             if (a == 0x4138) return m_s.dir414x;
             if (a == 0x4139) return m_s.data414a & m_s.dir414x;
         }
+        if (m_cfg.board == 4 && a >= 0x6000) {
+            if (a < 0x8000) return 0;       // write-only registers
+            return progRead(uint32_t(afbPrgBank((a >> 13) & 3)) * 0x2000 + (a & 0x1fff));
+        }
         if (a >= 0x6000 && a < 0x8000 && m_cfg.soc == 2) return m_s.ram6000[a & 0x1fff];
         if (a >= 0x4020 && a < 0x6000 && !(a >= 0x4100 && a <= 0x410f) && a != 0x4119) return 0;
     }
@@ -894,6 +984,7 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
                 if (r < 0x10 || r >= 0x1b) return;
                 a = uint16_t(0x2000 | r);
             } else if (a < 0x4000) return;
+            if (m_cfg.board == 4 && a >= 0x6000) { afbWrite(a, d); return; }
             if (a >= 0x6000 && a < 0x8000) { m_s.ram6000[a & 0x1fff] = d; return; }
         } else {
             if (a < 0x2000) { if (a < 0x800) m_s.ram[a] = d; return; }

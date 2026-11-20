@@ -42,7 +42,9 @@ struct Vt369Config {
     bool twoPads = false;          // a second pad on $4017 (input bits 8-15)
     // board extras: 1 = ABL Pinball (plunger on $4016 bit 0, $4016 bit 2 echoed
     // on $4017 bit 3), 2 = ABL Ping Pong (speech chip on the $410f extended IO
-    // port), 3 = ABL Wikid Joystick (SH6578, $4016 bit 1 picks the 1 MB half)
+    // port), 3 = ABL Wikid Joystick (SH6578, $4016 bit 1 picks the 1 MB half),
+    // 4 = Atari Flashback mini (plain NES clone, nes_clone.cpp's afbm7800 mapper:
+    // MMC3 with outer banks at $6000-$6003, 32 KB of CHR RAM)
     int board = 0;
 };
 
@@ -161,6 +163,10 @@ private:
         uint8_t soundram[0x800];
         uint8_t ntram[0x2000];
         uint8_t chrram[0x2000];
+        // board 4 (Atari Flashback mini mapper)
+        uint8_t afbVram[0x8000];
+        uint8_t afbBanksel, afbBankregs[8], afbExtra[4], afbNtMirror, afbRamprot, afbIrqLatch, afbIrqEnable;
+        int16_t afbIrqCounter;
         // SoC (nes_vt02_vt03)
         uint8_t r410x[0x10];
         uint8_t r411c, r411d, r4242;
@@ -279,8 +285,17 @@ private:
     uint8_t chrR(int offset);
     uint8_t sprR(int offset);
     void chrW(int offset, uint8_t data);
-    uint8_t ntR(int offset) { return m_s.ntram[decodeNtAddr(offset, true)]; }
-    void ntW(int offset, uint8_t data) { m_s.ntram[decodeNtAddr(offset, false)] = data; }
+    uint8_t ntR(int offset) { return m_cfg.board == 4 ? m_s.ntram[afbNt(offset)] : m_s.ntram[decodeNtAddr(offset, true)]; }
+    void ntW(int offset, uint8_t data) { m_s.ntram[m_cfg.board == 4 ? afbNt(offset) : decodeNtAddr(offset, false)] = data; }
+    // Atari Flashback mini mapper (board 4)
+    uint16_t afbNt(int offset) const {
+        int t = (offset >> 10) & 3;
+        int page = (m_s.afbNtMirror & 1) ? (t >> 1) : (t & 1);
+        return uint16_t(page << 10 | (offset & 0x3ff));
+    }
+    int afbPrgBank(int i) const;
+    uint32_t afbChrAddr(int offset) const;
+    void afbWrite(uint16_t a, uint8_t d);
     void videoIrq(bool hblank, int scanline, bool vblank, bool blanked);
     void vtDmaW(uint8_t data);
     void vtDmaWInner(uint8_t data);

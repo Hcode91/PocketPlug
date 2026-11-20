@@ -23,6 +23,9 @@ controller.
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
+| Acorn System 1 (1979 microcomputer kit) | `acrnsys1` | MOS 6502 + INS8154, 8-digit LED display, KB1 keypad | Monitor runs as in MAME: memory display and change, go, step through addresses (no cassette) |
+| Entex Adventure Vision | `advision` | Intel 8048 (own MCS-48 port) + COP411 sound CPU, 40-LED spinning-mirror display | BIOS + cartridge; the test cart's picture matches MAME's frame exactly, sound effects follow MAME's timing |
+| Atari Flashback (mini 7800) | `afbm7800` | NES-compatible clone with an MMC3-style mapper (VT02/03 PPU + 2A03 APU, PAL timing as in MAME) | Menu and games match MAME's frames; RESET on the console returns to the menu |
 | 4 Player System 10-in-1 (Advance Bright) | `abl4play` | 65C816 TV game SoC ("trkfldch": tile layers, sprites, YUV palette, DMA) | Menu and all games start and play, up to four players; matches MAME's frames. No sound (unknown, as in MAME) |
 | Pinball (Advance Bright TV game) (PAL) | `ablpinb` | VT02 / VT03 PAL, plunger and flipper inputs | Logo, table menu and all tables run as in MAME; plunger, flippers and nudge work |
 | Super Ping Pong (Advance Bright sensor bat) (PAL) | `ablping` | VT02 / VT03 "sports" PAL + the bat's speech chip handshake | Menus and matches play (MAME's driver stops after the menu); the umpire's voice is silent (its data format is unknown) |
@@ -73,6 +76,10 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Mephisto Academy | `academy` | `academy_engl.16k`, `academy_engl.32k` | 32 KB each | `ebda6674`, `a967922b` |
 | | | `hd44780_a00.bin` (from MAME's `hd44780` zip) | 4 KB (4,096 bytes) | `e459877c` |
 | Novag Accord | `accord` | `novag_875_31x0b87p` | 4 KB (4,096 bytes) | `4d77b7db` |
+| Acorn System 1 | `acrnsys1` | `acrnsys1.bin` | 512 bytes | `43dcfc16` |
+| Adventure Vision | `advision` | BIOS: `ins8048-11kdp_n.u5`, `cop411l-kcn_n.u8` | 1 KB, 512 bytes | `279e33d1`, `81e95975` |
+| | | Plus your own cartridge dumps (4 KB each), added as games | - | - |
+| Atari Flashback | `afbm7800` | `atariflashbackmini7800.bin` | 1 MB (1,048,576 bytes) | `da4d9483` |
 | 4 Player System 10-in-1 | `abl4play` | `abl4play.bin` | 8 MB (8,388,608 bytes) | `5d57fb70` |
 | Pinball | `ablpinb` | `abl_pinball.bin` | 2 MB (2,097,152 bytes) | `b2ce20fb` |
 | Super Ping Pong | `ablping` | `abl_pingpong.bin` | 2 MB (2,097,152 bytes) | `b31de1fb` |
@@ -306,6 +313,29 @@ back, CLEAR empties the board, MENU has save states and reset.
   the LCD; ENT and CL together start a new game.
 - Accord: press-sensory, so you also "press" the computer's pieces to move
   them. Its moves light the rank and file LEDs; GO makes it move.
+
+### Acorn System 1
+
+Import the MAME zip. The screen shows the board itself: the bubble LED
+display (the left digit isn't wired on the real one either) and the KB1
+keypad. Press `m`, type a four-digit address and press `m` again to see what's
+there; type two digits to change it, and the up / down keys step through
+memory. `g` runs a program from an address, `rst` resets. With a keyboard:
+0-9, a-f, M (or -), G, P, S, L, R, arrow keys and F3 for rst.
+
+### Adventure Vision
+
+Import the `advision` zip first (the BIOS), then add your cartridge dumps with
+Add games (raw 4 KB files, zips, or MAME's software-list zip). The red LED
+picture appears in the window; the joystick is in the middle, with the four
+buttons on both sides (the left and right panels work the same, as on the
+real one). The sound switch mutes; tap the top band for the menu.
+
+### Atari Flashback
+
+Import the MAME zip. The TV shows the game; under it are the joystick (stick,
+an orange fire button on each top corner, PAUSE and SELECT) and the console,
+whose RESET goes back to the game menu. Fire picks a game in the menu.
 
 ### Advance Bright TV games
 

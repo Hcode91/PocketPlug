@@ -53,8 +53,7 @@ class RomScanner(private val ctx: Context, private val tree: Uri) {
 
     init {
         for (m in Machines.all) {
-            if (m.media != MediaKind.ROM_SET) continue
-            for (r in m.roms) {
+            for (r in m.roms) {   // cartridge consoles' BIOS files too
                 if (r.size == RomSpec.ANY_SIZE) byName.getOrPut(r.name.lowercase()) { ArrayList() } += m to r
                 else { byCrc.getOrPut(key(r.crc, r.size)) { ArrayList() } += m to r; sizes += r.size }
             }

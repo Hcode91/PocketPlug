@@ -14,6 +14,8 @@
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
 #include "cores/chess/accord.h"
+#include "cores/kits/acrnsys1.h"
+#include "cores/advision/advision.h"
 #include "cores/ngen/ngen.h"
 #include "cores/unixpc/unixpc.h"
 #include "cores/atari800/atari800.h"
@@ -133,6 +135,21 @@ Core* createCore(const std::string& id)
         c.decryptAcFf = true;
         return new Spg2xxCore(c);
     }
+    if (id == "afbm7800") {   // Atari Flashback (mini 7800): NES clone with an MMC3-style mapper
+        Vt369Config c;
+        c.romName = "atariflashbackmini7800.bin";
+        c.romSize = 0x100000;
+        c.soc = 2;
+        c.palMode = 0;
+        c.pal = true;              // MAME runs it with Dendy-style PAL timing
+        c.twoPads = true;
+        c.board = 4;
+        return new Vt369Core(c);
+    }
+    if (id == "advision")     // Entex Adventure Vision (BIOS + cartridge)
+        return new AdvisionCore();
+    if (id == "acrnsys1")     // Acorn System 1
+        return new AcornSystem1Core();
     if (id == "accord")       // Novag Accord (model 875)
         return new AccordCore("novag_875_31x0b87p");
     if (id == "academy")      // Mephisto Academy (English, 04-10-88)

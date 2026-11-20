@@ -27,12 +27,17 @@ import kotlin.math.hypot
  *                the receiver's buttons for the menus.
  *  - "fourplay": four pads for the 4 Player System, two by two; player 1's
  *                has START and SELECT.
+ *  - "flashback": the 2004 retro console's joystick (black base and stick,
+ *                orange fire buttons on both top corners, PAUSE and SELECT)
+ *                beside the console itself (red label band, POWER light,
+ *                RESET). NES pad bits; RESET restarts the machine.
  *
  * No maker's name or logo is drawn.
  */
 class AblPadView(ctx: Context, private val style: String) : View(ctx) {
 
     var onInput: ((Int) -> Unit)? = null
+    var onReset: (() -> Unit)? = null
     var externalMask = 0
         set(v) { field = v; postInvalidate() }
 
@@ -47,6 +52,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         // 4 Player System: player 1 in bits 0-7, players 2-4 in bits 8-13 / 16-21 / 24-29
         const val F_START = 0x01; const val F_SELECT = 0x02; const val F_UP = 0x04; const val F_DOWN = 0x08
         const val F_LEFT = 0x10; const val F_RIGHT = 0x20; const val F_B1 = 0x40; const val F_B2 = 0x80
+        const val RESET_KEY = 0x40000000      // console RESET (not an input bit)
         const val L_PUNCH = 0x80; const val R_PUNCH = 0x100; const val L_KICK = 0x200; const val R_KICK = 0x400; const val GUARD = 0x800
 
         /** Gamepad / keyboard mapping for each style. */
@@ -196,6 +202,16 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                     }
                 }
             }
+            "flashback" -> {
+                // the joystick stands on the left, the console sits on the right
+                val jl = l + bw * 0.03f; val jw = bw * 0.36f
+                stick(jl + jw * 0.5f, t + bh * 0.3f, bh * 0.15f, 0)
+                circle(A, "", jl + jw * 0.12f, t + bh * 0.1f, bh * 0.075f)
+                circle(A, "", jl + jw * 0.88f, t + bh * 0.1f, bh * 0.075f)
+                rect(START, "PAUSE", jl + jw * 0.33f, t + bh * 0.56f, jl + jw * 0.67f, t + bh * 0.63f)
+                rect(SELECT, "SELECT", jl + jw * 0.33f, t + bh * 0.69f, jl + jw * 0.67f, t + bh * 0.76f)
+                rect(RESET_KEY, "RESET", l + bw * 0.84f, t + bh * 0.66f, l + bw * 0.93f, t + bh * 0.71f)
+            }
             "kickbox" -> {
                 circle(L_PUNCH, "", l + bw * 0.36f, t + bh * 0.25f, bh * 0.2f)
                 circle(R_PUNCH, "", l + bw * 0.64f, t + bh * 0.25f, bh * 0.2f)
@@ -231,6 +247,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             "tennis" -> { drawReceiver(c, held); drawRacket(c, held) }
             "kickbox" -> { drawReceiver(c, held); drawKickBox(c, held) }
             "fourplay" -> drawFourPlay(c, held)
+            "flashback" -> drawFlashback(c, held)
         }
     }
 
@@ -341,6 +358,72 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             c.drawCircle(kx, ky, k.r * 0.44f, paint); paint.shader = null
         }
         drawButtons(c, held, 0xFF2CC7C4.toInt(), 0xFF0B6E6C.toInt(), 0xFFFFFFFF.toInt())
+    }
+
+    private fun drawFlashback(c: Canvas, held: Int) {
+        val bw = body.width(); val bh = body.height(); val l = body.left; val t = body.top
+        // console: black textured box with the red label band and a rainbow stripe
+        val box = RectF(l + bw * 0.45f, t + bh * 0.2f, l + bw * 0.98f, t + bh * 0.78f)
+        paint.color = 0x55000000; c.drawRoundRect(box.left + bw * 0.008f, box.top + bw * 0.012f, box.right + bw * 0.008f, box.bottom + bw * 0.012f, bw * 0.012f, bw * 0.012f, paint)
+        paint.shader = LinearGradient(0f, box.top, 0f, box.bottom, 0xFF2A2A2C.toInt(), 0xFF141415.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(box, bw * 0.012f, bw * 0.012f, paint); paint.shader = null
+        val band = RectF(box.left, box.top + box.height() * 0.3f, box.right, box.top + box.height() * 0.58f)
+        paint.color = 0xFFD7261E.toInt(); c.drawRect(band, paint)
+        paint.shader = LinearGradient(band.left + band.width() * 0.25f, 0f, band.right - band.width() * 0.2f, 0f,
+            intArrayOf(0xFFE53935.toInt(), 0xFFFFB300.toInt(), 0xFFFFEB3B.toInt(), 0xFF43A047.toInt(), 0xFF1E88E5.toInt(), 0xFF8E24AA.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRect(band.left + band.width() * 0.25f, band.top + band.height() * 0.55f, band.right - band.width() * 0.2f, band.top + band.height() * 0.66f, paint)
+        paint.shader = null
+        // front strip: POWER with its LED, RESET
+        val strip = RectF(box.left + box.width() * 0.04f, box.bottom - box.height() * 0.22f, box.right - box.width() * 0.04f, box.bottom - box.height() * 0.08f)
+        paint.color = 0xFF0C0C0D.toInt(); c.drawRoundRect(strip, strip.height() * 0.3f, strip.height() * 0.3f, paint)
+        label(c, "POWER", strip.left + strip.width() * 0.14f, strip.centerY(), strip.height() * 0.42f, 0xFFDADADA.toInt())
+        paint.color = 0xFFFF2A1E.toInt(); c.drawCircle(strip.left + strip.width() * 0.29f, strip.centerY(), strip.height() * 0.13f, paint)
+        // cables
+        stroke.color = 0xFF1A1A1A.toInt(); stroke.strokeWidth = bw * 0.008f
+        c.drawLine(l + bw * 0.21f, t + bh * 0.97f, box.left + box.width() * 0.1f, box.top + box.height() * 0.12f, stroke)
+        // joystick: long black base, plain panel where the badge would be
+        val jl = l + bw * 0.03f; val jw = bw * 0.36f
+        val base = RectF(jl, t + bh * 0.04f, jl + jw, body.bottom - bh * 0.01f)
+        paint.color = 0x55000000; c.drawRoundRect(base.left + bw * 0.008f, base.top + bw * 0.012f, base.right + bw * 0.008f, base.bottom + bw * 0.012f, jw * 0.12f, jw * 0.12f, paint)
+        paint.shader = LinearGradient(base.left, 0f, base.right, 0f, intArrayOf(0xFF151516.toInt(), 0xFF2C2C2E.toInt(), 0xFF151516.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(base, jw * 0.12f, jw * 0.12f, paint); paint.shader = null
+        stroke.color = 0xFF3A3A3C.toInt(); stroke.strokeWidth = bw * 0.003f
+        c.drawRoundRect(RectF(base).apply { inset(jw * 0.05f, jw * 0.05f) }, jw * 0.09f, jw * 0.09f, stroke)
+        paint.color = 0xFF0E0E0F.toInt()
+        c.drawRoundRect(base.left + jw * 0.22f, base.bottom - bh * 0.17f, base.right - jw * 0.22f, base.bottom - bh * 0.05f, jw * 0.04f, jw * 0.04f, paint)
+        // orange fire buttons on the corners
+        for (k in ctls) if (!k.stick && k.bit == A) {
+            val down = held and A != 0
+            paint.color = 0xFF111111.toInt(); c.drawCircle(k.cx, k.cy, k.r * 1.12f, paint)
+            shade(c, k.cx, k.cy, k.r, 0xFFFF7A2E.toInt(), 0xFFC0400E.toInt(), down)
+        }
+        // stick: black boot, shaft and the ribbed knob
+        for (k in ctls.filter { it.stick }) {
+            paint.color = 0xFF0A0A0B.toInt(); c.drawCircle(k.cx, k.cy, k.r * 0.95f, paint)
+            stroke.color = 0xFF262628.toInt(); stroke.strokeWidth = k.r * 0.06f
+            c.drawCircle(k.cx, k.cy, k.r * 0.7f, stroke)
+            val kx = k.cx + k.knobDx * k.r * 0.5f; val ky = k.cy + k.knobDy * k.r * 0.5f
+            stroke.color = 0xFF1C1C1E.toInt(); stroke.strokeWidth = k.r * 0.3f; stroke.strokeCap = Paint.Cap.ROUND
+            c.drawLine(k.cx, k.cy, kx, ky, stroke); stroke.strokeCap = Paint.Cap.BUTT
+            paint.shader = RadialGradient(kx - k.r * 0.15f, ky - k.r * 0.18f, k.r * 0.7f, 0xFF3A3A3D.toInt(), 0xFF0E0E10.toInt(), Shader.TileMode.CLAMP)
+            c.drawCircle(kx, ky, k.r * 0.5f, paint); paint.shader = null
+            stroke.color = 0xFF050505.toInt(); stroke.strokeWidth = k.r * 0.03f
+            for (i in 0 until 12) {
+                val a = i * Math.PI / 6
+                c.drawLine(kx + (k.r * 0.38f * Math.cos(a)).toFloat(), ky + (k.r * 0.38f * Math.sin(a)).toFloat(),
+                    kx + (k.r * 0.5f * Math.cos(a)).toFloat(), ky + (k.r * 0.5f * Math.sin(a)).toFloat(), stroke)
+            }
+            paint.color = 0xFF2E2E31.toInt(); c.drawCircle(kx, ky, k.r * 0.3f, paint)
+        }
+        // PAUSE / SELECT on the base, RESET on the console
+        for (k in ctls) if (!k.stick && k.r == 0f) {
+            val down = held and k.bit != 0
+            paint.color = if (down) 0xFF050505.toInt() else 0xFF1E1E20.toInt()
+            stroke.color = 0xFF4A4A4D.toInt(); stroke.strokeWidth = bw * 0.002f
+            c.drawRoundRect(k.rect, k.rect.height() / 2, k.rect.height() / 2, paint)
+            c.drawRoundRect(k.rect, k.rect.height() / 2, k.rect.height() / 2, stroke)
+            label(c, k.label, k.rect.centerX(), k.rect.centerY(), k.rect.height() * 0.5f, 0xFFE0E0E0.toInt())
+        }
     }
 
     private val playerColours = intArrayOf(0xFF2F6FE0.toInt(), 0xFFE0402F.toInt(), 0xFF2FA84A.toInt(), 0xFFE0B02F.toInt())
@@ -467,8 +550,9 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         for ((id, k) in pointers) m = m or if (k == null) 0 else if (k.stick) (stickOf[id] ?: 0) else k.bit
         if (m != mask) {
             if (m and mask.inv() != 0) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            if (m and RESET_KEY != 0 && mask and RESET_KEY == 0) onReset?.invoke()
             mask = m
-            onInput?.invoke(m)
+            onInput?.invoke(m and RESET_KEY.inv())
         }
         invalidate()
     }

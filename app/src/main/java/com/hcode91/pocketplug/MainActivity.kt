@@ -13,6 +13,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import kotlin.concurrent.thread
 
 /** Machine library: one card per supported plug-and-play system. */
@@ -20,6 +21,7 @@ class MainActivity : Activity() {
 
     private lateinit var list: LinearLayout
     private var pendingImport: MachineDef? = null
+    private var pendingBios = false
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -152,6 +154,13 @@ class MainActivity : Activity() {
             text = "${m.chip} · ${m.region} · ${m.year} · ${m.id}"
             textSize = 12f; setTextColor(MUTED); setPadding(0, dp(4), 0, dp(10))
         })
+        val biosReady = RomStore.isReady(this, m)
+        if (m.roms.isNotEmpty()) c.addView(TextView(this).apply {
+            text = if (biosReady) "● BIOS ready" else "○ BIOS needed first: ${m.roms.joinToString { it.name }}"
+            textSize = 13f
+            setTextColor(if (biosReady) 0xFF6CF0A8.toInt() else 0xFFFFB86B.toInt())
+            setPadding(0, 0, 0, dp(4))
+        })
         c.addView(TextView(this).apply {
             text = if (carts.isEmpty()) "○ No games yet - add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip)"
                    else "● ${carts.size} game${if (carts.size == 1) "" else "s"} · tap to play, hold to remove"
@@ -169,6 +178,10 @@ class MainActivity : Activity() {
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                     .apply { bottomMargin = dp(6) }
                 setOnClickListener {
+                    if (!biosReady) {
+                        Toast.makeText(this@MainActivity, "Import the BIOS first (${m.roms.joinToString { it.name }})", Toast.LENGTH_LONG).show()
+                        return@setOnClickListener
+                    }
                     startActivity(Intent(this@MainActivity, EmulatorActivity::class.java)
                         .putExtra("machine", m.id).putExtra("cart", cart.file.absolutePath).putExtra("title", cart.title))
                 }
@@ -181,7 +194,11 @@ class MainActivity : Activity() {
             })
         }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END; setPadding(0, dp(6), 0, 0) }
-        row.addView(button("Add games", carts.isEmpty()) { startImport(m) })
+        if (m.roms.isNotEmpty()) {
+            row.addView(button(if (biosReady) "Re-import BIOS" else "Import BIOS", !biosReady) { startImport(m, bios = true) })
+            row.addView(View(this), LinearLayout.LayoutParams(dp(10), 1))
+        }
+        row.addView(button("Add games", biosReady && carts.isEmpty()) { startImport(m) })
         c.addView(row)
         return c
     }
@@ -199,8 +216,9 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
-    private fun startImport(m: MachineDef) {
+    private fun startImport(m: MachineDef, bios: Boolean = false) {
         pendingImport = m
+        pendingBios = bios
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -439,7 +457,7 @@ class MainActivity : Activity() {
         val status = TextView(this).apply { setPadding(dp(24), dp(20), dp(24), dp(8)); textSize = 15f }
         val dlg = AlertDialog.Builder(this).setTitle("Importing ${m.title}").setView(status).setCancelable(false).show()
         thread {
-            if (m.media == MediaKind.CARTRIDGE) {
+            if (m.media == MediaKind.CARTRIDGE && !pendingBios) {
                 val res = runCatching { RomStore.importCarts(this, m, uri) { msg -> runOnUiThread { status.text = msg } } }
                 runOnUiThread {
                     dlg.dismiss()

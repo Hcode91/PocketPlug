@@ -42,6 +42,8 @@ class EmulatorActivity : Activity() {
     private var ablPad: AblPadView? = null
     private val linkedFds = ArrayList<android.os.ParcelFileDescriptor>()
     private var chess: ChessComputerView? = null
+    private var kit: KitBoardView? = null
+    private var tabletop: TabletopView? = null
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -91,8 +93,9 @@ class EmulatorActivity : Activity() {
         if (machine.media == MediaKind.CARTRIDGE) {
             val f = java.io.File(intent.getStringExtra("cart") ?: "")
             cartFile = f
-            names = arrayOf(f.name)
-            paths = arrayOf(f.absolutePath)
+            // consoles with a BIOS get its files first, then the cartridge
+            names = (machine.roms.map { it.name } + f.name).toTypedArray()
+            paths = (machine.roms.map { RomStore.romFile(this, machine, it).absolutePath } + f.absolutePath).toTypedArray()
         } else {
             names = machine.roms.map { it.name }.toTypedArray()
             // files left in the user's folder are read through an open descriptor
@@ -245,9 +248,37 @@ class EmulatorActivity : Activity() {
                 chess = v
                 setContentView(v)
             }
+            Skin.TABLETOP -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val muted = prefs.getBoolean("mute_${machine.id}", false)
+                if (muted) volume = 0f
+                val v = TabletopView(this, width, height).apply {
+                    this.muted = muted
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onMute = { m ->
+                        volume = if (m) 0f else 1f
+                        prefs.edit().putBoolean("mute_${machine.id}", m).apply()
+                    }
+                }
+                tabletop = v
+                setContentView(v)
+            }
+            Skin.KIT -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val v = KitBoardView(this, machine.badge).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                kit = v
+                setContentView(v)
+            }
             Skin.ABL_TV -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val m = AblPadView(this, machine.badge).apply { onInput = { setTouch(0, it) } }
+                val m = AblPadView(this, machine.badge).apply {
+                    onInput = { setTouch(0, it) }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                }
                 ablPad = m
                 setContentView(StackLayout(this).apply {
                     setBackgroundColor(0xFF0B0814.toInt())
@@ -861,6 +892,8 @@ class EmulatorActivity : Activity() {
             else if (handheld != null) handheld?.updateFrame(pixels)
             else if (nixie != null) nixie?.updateFrame(pixels)
             else if (chess != null) chess?.updateFrame(pixels)
+            else if (kit != null) kit?.updateFrame(pixels)
+            else if (tabletop != null) tabletop?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
@@ -998,12 +1031,43 @@ class EmulatorActivity : Activity() {
         Skin.HANDHELD -> handheldKeyBit(code)
         Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
         Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
+        Skin.KIT -> kitKeyBit(code)
+        Skin.TABLETOP -> when (code) {
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> 0x02
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> 0x04
+            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> 0x08
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_SPACE -> 0x10
+            KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_2 -> 0x20
+            KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_3 -> 0x40
+            KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_4 -> 0x80
+            else -> 0
+        }
         Skin.NIXIE_CLOCK -> when (code) {
             KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_BUTTON_A -> NixieClockView.SELECT
             KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_B, KeyEvent.KEYCODE_BUTTON_B -> NixieClockView.BROWSE
             else -> 0
         }
         else -> danceKeyBit(code)
+    }
+
+    // Acorn System 1 keypad: 0-9 a-f, M (memory, also '-'), G (go), P, S, L, R, arrows, F3 = rst
+    private fun kitKeyBit(code: Int): Int {
+        val bit = when (code) {
+            in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> code - KeyEvent.KEYCODE_0
+            in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_F -> 10 + code - KeyEvent.KEYCODE_A
+            KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MINUS -> 16
+            KeyEvent.KEYCODE_G, KeyEvent.KEYCODE_X -> 17
+            KeyEvent.KEYCODE_P -> 18
+            KeyEvent.KEYCODE_S -> 19
+            KeyEvent.KEYCODE_L -> 20
+            KeyEvent.KEYCODE_R -> 21
+            KeyEvent.KEYCODE_DPAD_UP -> 22
+            KeyEvent.KEYCODE_DPAD_DOWN -> 23
+            KeyEvent.KEYCODE_F3 -> 24
+            else -> return 0
+        }
+        return 1 shl bit
     }
 
     private fun petKeyBit(code: Int): Int = when (code) {

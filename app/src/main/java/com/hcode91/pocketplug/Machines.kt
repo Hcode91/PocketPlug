@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -269,6 +269,57 @@ object Machines {
             roms = listOf(RomSpec("novag_875_31x0b87p", 0x1000L, 0x4d77b7dbL)),
             skin = Skin.CHESS,
             badge = "accord",
+        ),
+        MachineDef(
+            id = "afbm7800",
+            title = "Retro Flashback Console",
+            subtitle = "2004 mini console styled after a 1980s machine, with classic games remade for "
+                + "a NES-type chip: Adventure, Asteroids, Centipede and more. Fire picks a game; RESET goes "
+                + "back to the menu (Atari Flashback; MAME set: afbm7800)",
+            chip = "NES-compatible SoC + MMC3-style mapper",
+            region = "USA",
+            year = "2004",
+            roms = listOf(RomSpec("atariflashbackmini7800.bin", 0x100000L, 0xda4d9483L)),
+            skin = Skin.ABL_TV,
+            badge = "flashback",
+        ),
+        MachineDef(
+            id = "advision",
+            title = "Adventure Vision",
+            subtitle = "1982 tabletop console whose picture is a column of 40 red LEDs swept across the "
+                + "window by a spinning mirror. Import the console's BIOS zip, then add your cartridge dumps "
+                + "(Entex Adventure Vision; MAME set: advision)",
+            chip = "Intel 8048 @ 11 MHz + COP411 sound",
+            region = "USA",
+            year = "1982",
+            roms = listOf(
+                RomSpec("ins8048-11kdp_n.u5", 0x400L, 0x279e33d1L),
+                RomSpec("cop411l-kcn_n.u8", 0x200L, 0x81e95975L),
+            ),
+            skin = Skin.TABLETOP,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x1000,
+            knownCarts = mapOf(
+                0x3e280096L to "Defender",
+                0x33a23ebaL to "Turtles",
+                0xb6045c9eL to "Super Cobra",
+                0xc70d4028L to "Space Force",
+                0x6fa040cdL to "Code Red (homebrew)",
+            ),
+            badge = "advision",
+        ),
+        MachineDef(
+            id = "acrnsys1",
+            title = "System 1 Microcomputer Kit",
+            subtitle = "1979 kit computer: a 6502 with 1 KB of RAM, a hex keypad and an eight-digit LED display "
+                + "running a 512-byte monitor. Press m and type an address to see and change memory; "
+                + "g runs a program (Acorn System 1; MAME set: acrnsys1)",
+            chip = "MOS 6502 @ 1 MHz + INS8154",
+            region = "UK",
+            year = "1979",
+            roms = listOf(RomSpec("acrnsys1.bin", 0x200L, 0x43dcfc16L)),
+            skin = Skin.KIT,
+            badge = "acrnsys1",
         ),
         MachineDef(
             id = "abl4play",
