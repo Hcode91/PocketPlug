@@ -29,7 +29,8 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/mcs48.*` | BSD-3-Clause | Port of MAME's MCS-48 core (Dan Boris, Mirko Buffoni, Aaron Giles, Chris Kirmse) |
 | `app/src/main/cpp/common/cop410.*` | BSD-3-Clause | Port of MAME's COP400 core, COP410 subset (Curt Coder) |
 | `app/src/main/cpp/cores/advision/*` | GPL-2.0-or-later | Port of MAME's entex/advision.cpp (Dan Boris, hap), BSD-3 |
-| `app/src/main/cpp/cores/kits/*` | GPL-2.0-or-later | Port of MAME's acorn/acrnsys1.cpp (Dirk Best, Robbbert) and machine/ins8154.cpp, BSD-3 |
+| `app/src/main/cpp/cores/kits/*` | GPL-2.0-or-later | Ports of MAME's acorn/acrnsys1.cpp (Dirk Best, Robbbert) and machine/ins8154.cpp, BSD-3; rockwell/aim65.cpp and aim65_m.cpp (Peter Trauner, Dan Boris, Dirk Best, Robbbert), GPL-2.0+, with MAME's 6532 RIOT, 6821 PIA and DL1416 behaviour |
+| `app/src/main/cpp/common/via6522.h` | BSD-3-Clause | Port of MAME's 6522via.cpp (Peter Trauner, Mathis Rosenhauer) |
 | `app/src/main/cpp/cores/trkfld/g65816/*` | BSD-3-Clause | MAME G65816 CPU (Karl Stenerud; R. Belmont, Angelo Salese) |
 | `app/src/main/cpp/cores/trkfld/trkfld.*` | GPL-2.0-or-later | Port of MAME's trkfldch driver (BSD-3, David Haywood) |
 | `app/src/main/cpp/cores/spg2xx/unsp.*` | GPL-2.0-or-later | MAME u'nSP CPU (Segher Boessenkool, Ryan Holtz, David Haywood) |

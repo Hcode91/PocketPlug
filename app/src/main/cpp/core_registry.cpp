@@ -15,6 +15,7 @@
 #include "cores/chess/academy.h"
 #include "cores/chess/accord.h"
 #include "cores/kits/acrnsys1.h"
+#include "cores/kits/aim65.h"
 #include "cores/advision/advision.h"
 #include "cores/adam/adam.h"
 #include "cores/ngen/ngen.h"
@@ -151,6 +152,8 @@ Core* createCore(const std::string& id)
         return new AdamCore();
     if (id == "advision")     // Entex Adventure Vision (BIOS + cartridge)
         return new AdvisionCore();
+    if (id == "aim65")        // Rockwell AIM 65
+        return new Aim65Core();
     if (id == "acrnsys1")     // Acorn System 1
         return new AcornSystem1Core();
     if (id == "accord")       // Novag Accord (model 875)

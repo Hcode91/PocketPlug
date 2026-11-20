@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65 }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -328,6 +328,22 @@ object Machines {
                 0x6fa040cdL to "Code Red (homebrew)",
             ),
             badge = "advision",
+        ),
+        MachineDef(
+            id = "aim65",
+            title = "Advanced Interactive Microcomputer",
+            subtitle = "1977 6502 board computer with a full keyboard, a 20-character LED display and a "
+                + "built-in thermal printer. The monitor answers single-letter commands: M shows memory, "
+                + "PRINT turns the printer on and off, I enters text (Rockwell AIM 65; MAME set: aim65)",
+            chip = "6502 @ 1 MHz + 6522 x2, 6532, 6821",
+            region = "USA",
+            year = "1977",
+            roms = listOf(
+                RomSpec("aim65mon.z23", 0x1000L, 0x90e44afeL),
+                RomSpec("aim65mon.z22", 0x1000L, 0xd01914b0L),
+            ),
+            skin = Skin.AIM65,
+            badge = "aim65",
         ),
         MachineDef(
             id = "acrnsys1",

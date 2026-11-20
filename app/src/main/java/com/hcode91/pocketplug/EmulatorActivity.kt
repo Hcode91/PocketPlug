@@ -45,6 +45,7 @@ class EmulatorActivity : Activity() {
     private var kit: KitBoardView? = null
     private var tabletop: TabletopView? = null
     private var adam: AdamView? = null
+    private var aim: AimView? = null
     private var wide: WideHandheldView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -258,6 +259,16 @@ class EmulatorActivity : Activity() {
                     onMedia = { showAdamMenu() }
                 }
                 adam = v
+                setContentView(v)
+            }
+            Skin.AIM65 -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val v = AimView(this).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onReset = { setTouch(0, if (it) 1 else 0) }
+                    onMenu = { showMenu() }
+                }
+                aim = v
                 setContentView(v)
             }
             Skin.TABLETOP -> {
@@ -722,6 +733,29 @@ class EmulatorActivity : Activity() {
     }
 
     // ADAM keyboard matrix codes (row * 8 + bit, as MAME's adam_kb)
+    // AIM 65 keyboard: row * 8 + bit of MAME's KEY.0-7
+    private fun aimKey(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_SPACE -> 0; KeyEvent.KEYCODE_PERIOD -> 2; KeyEvent.KEYCODE_M -> 3; KeyEvent.KEYCODE_B -> 4
+        KeyEvent.KEYCODE_C -> 5; KeyEvent.KEYCODE_Z -> 6
+        KeyEvent.KEYCODE_APOSTROPHE -> 9; KeyEvent.KEYCODE_L -> 10; KeyEvent.KEYCODE_J -> 11; KeyEvent.KEYCODE_G -> 12
+        KeyEvent.KEYCODE_D -> 13; KeyEvent.KEYCODE_A -> 14
+        KeyEvent.KEYCODE_SYSRQ, KeyEvent.KEYCODE_INSERT -> 17; KeyEvent.KEYCODE_P -> 18; KeyEvent.KEYCODE_I -> 19
+        KeyEvent.KEYCODE_Y -> 20; KeyEvent.KEYCODE_R -> 21; KeyEvent.KEYCODE_W -> 22; KeyEvent.KEYCODE_ESCAPE -> 23
+        KeyEvent.KEYCODE_ENTER -> 24; KeyEvent.KEYCODE_MINUS -> 26; KeyEvent.KEYCODE_O -> 27; KeyEvent.KEYCODE_U -> 28
+        KeyEvent.KEYCODE_T -> 29; KeyEvent.KEYCODE_E -> 30; KeyEvent.KEYCODE_Q -> 31
+        KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_CTRL_RIGHT -> 32; KeyEvent.KEYCODE_SEMICOLON -> 50
+        KeyEvent.KEYCODE_9 -> 35; KeyEvent.KEYCODE_7 -> 36; KeyEvent.KEYCODE_5 -> 37; KeyEvent.KEYCODE_3 -> 38
+        KeyEvent.KEYCODE_1 -> 39; KeyEvent.KEYCODE_SHIFT_LEFT -> 40; KeyEvent.KEYCODE_0 -> 42; KeyEvent.KEYCODE_8 -> 43
+        KeyEvent.KEYCODE_6 -> 44; KeyEvent.KEYCODE_4 -> 45; KeyEvent.KEYCODE_2 -> 46; KeyEvent.KEYCODE_F3 -> 47
+        KeyEvent.KEYCODE_SHIFT_RIGHT -> 48; KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_FORWARD_DEL -> 49
+        KeyEvent.KEYCODE_K -> 51; KeyEvent.KEYCODE_H -> 52; KeyEvent.KEYCODE_F -> 53; KeyEvent.KEYCODE_S -> 54
+        KeyEvent.KEYCODE_F2 -> 55; KeyEvent.KEYCODE_SLASH -> 58; KeyEvent.KEYCODE_COMMA -> 59; KeyEvent.KEYCODE_N -> 60
+        KeyEvent.KEYCODE_V -> 61; KeyEvent.KEYCODE_X -> 62; KeyEvent.KEYCODE_F1 -> 63
+        KeyEvent.KEYCODE_EQUALS -> 34   // the ':  *' key
+        KeyEvent.KEYCODE_F4 -> 17       // PRINT
+        else -> -1
+    }
+
     private fun adamKey(code: Int): Int = when (code) {
         KeyEvent.KEYCODE_F7 -> 0
         in KeyEvent.KEYCODE_F1..KeyEvent.KEYCODE_F6 -> 1 + code - KeyEvent.KEYCODE_F1
@@ -1020,6 +1054,7 @@ class EmulatorActivity : Activity() {
             else if (kit != null) kit?.updateFrame(pixels)
             else if (tabletop != null) tabletop?.updateFrame(pixels)
             else if (adam != null) adam?.updateFrame(pixels)
+            else if (aim != null) aim?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
@@ -1564,6 +1599,12 @@ class EmulatorActivity : Activity() {
             if (event.repeatCount == 0) keyQueue.add(k or 0x100)
             return true
         }
+        if (aim != null) {
+            val k = aimKey(keyCode)
+            if (k < 0) return super.onKeyDown(keyCode, event)
+            if (event.repeatCount == 0) keyQueue.add(k or 0x100)
+            return true
+        }
         if (adam != null) {
             val k = adamKey(keyCode)
             if (k < 0) return super.onKeyDown(keyCode, event)
@@ -1611,6 +1652,12 @@ class EmulatorActivity : Activity() {
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (acorn != null) {
             val k = acornKey(keyCode)
+            if (k < 0) return super.onKeyUp(keyCode, event)
+            keyQueue.add(k)
+            return true
+        }
+        if (aim != null) {
+            val k = aimKey(keyCode)
             if (k < 0) return super.onKeyUp(keyCode, event)
             keyQueue.add(k)
             return true
