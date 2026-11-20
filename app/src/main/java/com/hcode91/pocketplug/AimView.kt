@@ -10,9 +10,10 @@ import kotlin.math.min
 
 /**
  * The 1977 single-board computer with its printer, drawn as the boxed
- * unit: brown top panel holding the 20-column thermal printer (paper on
- * the left) and the red 20-character 16-segment display, and the cream
- * full keyboard below, with RESET and MENU on the panel.
+ * unit: cream top housing with the 20-column thermal printer's paper coming
+ * out under a clear cover, the red 20-character 16-segment display in the
+ * brown face below it, and the cream keyboard on the brown base, laid out
+ * key for key like the real one. RESET and MENU sit by the power lamp.
  *
  * Frame (see aim65.h): 160 x 201. Rows 0-199 are the printer paper (1 = dot,
  * newest line at the bottom); row 200 holds the 20 digits' segment masks in
@@ -53,12 +54,12 @@ class AimView(ctx: Context) : View(ctx) {
     private val pointers = HashMap<Int, Int>() // pointer -> key code (or -2 reset)
     private var resetDown = false
 
-    private val resetR = RectF(1720f, 300f, 1860f, 372f)
-    private val menuR = RectF(1530f, 300f, 1670f, 372f)
+    private val resetR = RectF(1640f, 372f, 1770f, 432f)
+    private val menuR = RectF(1800f, 372f, 1930f, 432f)
 
     init {
-        val p = 118f; val k = 108f
-        val x0 = 92f
+        val p = 114f; val k = 102f
+        val x0 = 145f
         fun row(y: Float, start: Float, items: List<Triple<String, String, Int>>, widths: Map<Int, Float> = emptyMap()) {
             var x = start
             for ((i, it) in items.withIndex()) {
@@ -67,32 +68,29 @@ class AimView(ctx: Context) : View(ctx) {
                 x += w * p
             }
         }
-        val y1 = 470f
-        row(y1, x0, listOf(
-            Triple("", "ESC", 23), Triple("!", "1", 39), Triple("\"", "2", 46), Triple("#", "3", 38),
-            Triple("$", "4", 45), Triple("%", "5", 37), Triple("&", "6", 44), Triple("'", "7", 36),
-            Triple("(", "8", 43), Triple(")", "9", 35), Triple("", "0", 42), Triple("*", ":", 34),
-            Triple("=", "-", 26), Triple("", "DEL", 49)))
+        // the real layout, row by row
+        val y1 = 506f
+        row(y1, x0 + 1.25f * p, listOf(
+            Triple("!", "1", 39), Triple("\"", "2", 46), Triple("#", "3", 38), Triple("$", "4", 45),
+            Triple("%", "5", 37), Triple("&", "6", 44), Triple("'", "7", 36), Triple("(", "8", 43),
+            Triple(")", "9", 35), Triple("", "0", 42), Triple("*", ":", 34), Triple("", "F3", 47),
+            Triple("", "PRINT", 17)))
         row(y1 + p, x0, listOf(
-            Triple("", "CTRL", CTRL), Triple("", "Q", 31), Triple("", "W", 22), Triple("", "E", 30),
+            Triple("", "ESC", 23), Triple("", "Q", 31), Triple("", "W", 22), Triple("", "E", 30),
             Triple("", "R", 21), Triple("", "T", 29), Triple("", "Y", 20), Triple("", "U", 28),
-            Triple("", "I", 19), Triple("", "O", 27), Triple("", "P", 18), Triple("@", "LF", 9),
-            Triple("", "PRINT", 17)), mapOf(12 to 2f))
-        row(y1 + 2 * p, x0 + p * 0.5f, listOf(
-            Triple("", "A", 14), Triple("", "S", 54), Triple("", "D", 13), Triple("", "F", 53),
-            Triple("", "G", 12), Triple("", "H", 52), Triple("", "J", 11), Triple("", "K", 51),
-            Triple("", "L", 10), Triple("+", ";", 50), Triple("", "RETURN", 24)), mapOf(10 to 2.5f))
+            Triple("", "I", 19), Triple("", "O", 27), Triple("", "P", 18), Triple("=", "-", 26),
+            Triple("", "F2", 55), Triple("", "RETURN", 24)), mapOf(0 to 1.5f, 13 to 1.5f))
+        row(y1 + 2 * p, x0, listOf(
+            Triple("", "CTRL", CTRL), Triple("", "A", 14), Triple("", "S", 54), Triple("", "D", 13),
+            Triple("", "F", 53), Triple("", "G", 12), Triple("", "H", 52), Triple("", "J", 11),
+            Triple("", "K", 51), Triple("", "L", 10), Triple("+", ";", 50), Triple("@", "LF", 9),
+            Triple("", "F1", 63), Triple("", "DEL", 49)), mapOf(0 to 1.25f))
         row(y1 + 3 * p, x0, listOf(
             Triple("", "SHIFT", SHIFT_L), Triple("", "Z", 6), Triple("", "X", 62), Triple("", "C", 5),
             Triple("", "V", 61), Triple("", "B", 4), Triple("", "N", 60), Triple("", "M", 3),
             Triple("<", ",", 59), Triple(">", ".", 2), Triple("?", "/", 58), Triple("", "SHIFT", SHIFT_R)),
-            mapOf(0 to 1.5f, 11 to 2.5f))
-        keys.add(Key(x0 + p * 3f, y1 + 4 * p, k + 7f * p, "", "", 0))
-        // function keys, a column on the right
-        val fx = x0 + 14f * p + 70f
-        keys.add(Key(fx, y1, k, "", "F1", 63))
-        keys.add(Key(fx, y1 + p, k, "", "F2", 55))
-        keys.add(Key(fx, y1 + 2 * p, k, "", "F3", 47))
+            mapOf(0 to 1.5f, 11 to 1.5f))
+        keys.add(Key(x0 + 2.2f * p, y1 + 4 * p, k + 8.3f * p, "", "", 0))
     }
 
     fun updateFrame(px: IntArray) {
@@ -134,71 +132,69 @@ class AimView(ctx: Context) : View(ctx) {
             }
         }
         c.drawColor(0xFF121212.toInt())
-        // case: cream body, brown top panel
-        paint.color = 0xFFD9CFB6.toInt(); c.drawRoundRect(rect(10f, 10f, 1990f, 1090f), 30f * sc, 30f * sc, paint)
-        paint.color = 0xFFE6DDC6.toInt(); c.drawRoundRect(rect(24f, 24f, 1976f, 1076f), 24f * sc, 24f * sc, paint)
-        paint.color = 0xFF54382A.toInt(); c.drawRoundRect(rect(24f, 24f, 1976f, 420f), 24f * sc, 24f * sc, paint)
-        c.drawRect(rect(24f, 380f, 1976f, 420f), paint)
-        paint.color = 0xFF3E281D.toInt(); c.drawRect(rect(24f, 414f, 1976f, 426f), paint)
+        // brown base and keyboard deck
+        paint.color = 0xFF4A3226.toInt(); c.drawRoundRect(rect(10f, 300f, 1990f, 1090f), 40f * sc, 40f * sc, paint)
+        paint.color = 0xFF55392B.toInt(); c.drawRoundRect(rect(40f, 488f, 1960f, 1076f), 30f * sc, 30f * sc, paint)
+        // cream top housing with the brown front face under it
+        paint.color = 0xFF4E3428.toInt(); c.drawRect(rect(30f, 330f, 1970f, 470f), paint)
+        paint.color = 0xFFDCD4C2.toInt(); c.drawRoundRect(rect(30f, 14f, 1970f, 342f), 34f * sc, 34f * sc, paint)
+        paint.shader = LinearGradient(0f, Y(300f), 0f, Y(342f), 0x00000000, 0x30000000, Shader.TileMode.CLAMP)
+        c.drawRect(rect(30f, 300f, 1970f, 342f), paint); paint.shader = null
+        // vent slots, top right
+        paint.color = 0xFFBDB4A0.toInt()
+        for (i in 0 until 14) c.drawRect(rect(1660f + i * 18f, 40f, 1668f + i * 18f, 74f), paint)
         drawPrinter(c)
         drawDisplay(c)
+        // jacks on the left of the face, power lamp
+        for (i in 0 until 3) {
+            paint.color = 0xFF1A1210.toInt(); c.drawCircle(X(150f + i * 82f), Y(402f), 24f * sc, paint)
+            paint.color = 0xFFB9B7B2.toInt(); c.drawCircle(X(150f + i * 82f), Y(402f), 17f * sc, paint)
+            paint.color = 0xFF2A2420.toInt(); c.drawCircle(X(150f + i * 82f), Y(402f), 7f * sc, paint)
+        }
+        paint.color = 0xFFFF2A1C.toInt(); c.drawCircle(X(1590f), Y(402f), 11f * sc, paint)
         drawButtons(c)
-        // keyboard well
-        paint.color = 0xFFCFC5AB.toInt(); c.drawRoundRect(rect(64f, 448f, 1936f, 1060f), 14f * sc, 14f * sc, paint)
         for (k in keys) drawKey(c, k)
     }
 
     private fun drawPrinter(c: Canvas) {
-        // housing and paper window
-        paint.color = 0xFF2A2420.toInt(); c.drawRoundRect(rect(70f, 52f, 570f, 396f), 14f * sc, 14f * sc, paint)
-        paint.color = 0xFF181513.toInt(); c.drawRoundRect(rect(100f, 76f, 540f, 352f), 8f * sc, 8f * sc, paint)
-        // paper: the last 74 rows, 125 dots wide
-        val win = rect(126f, 84f, 514f, 340f)
-        val rows = 74
-        c.drawBitmap(paper, Rect(0, 200 - rows, 125, 200), win, bmp)
-        // shade where the paper curls in at the bottom
-        paint.shader = LinearGradient(0f, Y(300f), 0f, Y(340f), 0x00000000, 0x55000000, Shader.TileMode.CLAMP)
-        c.drawRect(rect(126f, 300f, 514f, 340f), paint)
-        paint.shader = null
-        // paper tongue out of the top slot, and the tear bar
-        paint.color = 0xFFF4F1E8.toInt(); c.drawRect(rect(126f, 36f, 514f, 84f), paint)
-        paint.color = 0xFF9EA1A4.toInt(); c.drawRoundRect(rect(112f, 70f, 528f, 86f), 6f * sc, 6f * sc, paint)
-        paint.color = 0xFFC8CBCE.toInt(); c.drawRect(rect(112f, 70f, 528f, 75f), paint)
-        // paper feed slot / roll cover lines
-        stroke.color = 0xFF3A322C.toInt(); stroke.strokeWidth = 4f * sc
-        c.drawLine(X(100f), Y(372f), X(540f), Y(372f), stroke)
+        // recess in the housing, the paper rising out of it under a clear cover
+        paint.color = 0xFFC9C0AC.toInt(); c.drawRoundRect(rect(110f, 40f, 710f, 300f), 30f * sc, 30f * sc, paint)
+        paint.color = 0xFFB3AA96.toInt(); c.drawRoundRect(rect(130f, 60f, 690f, 282f), 24f * sc, 24f * sc, paint)
+        // paper: the last 64 rows, 125 dots wide
+        val win = rect(170f, 6f, 650f, 250f)
+        c.drawBitmap(paper, Rect(0, 200 - 64, 125, 200), win, bmp)
+        paint.shader = LinearGradient(0f, Y(6f), 0f, Y(40f), 0x40000000, 0x00000000, Shader.TileMode.CLAMP)
+        c.drawRect(rect(170f, 6f, 650f, 40f), paint); paint.shader = null
+        // clear dome over the print head
+        paint.color = 0x55FFFFFF; c.drawRoundRect(rect(140f, 160f, 680f, 280f), 50f * sc, 50f * sc, paint)
+        stroke.color = 0x80FFFFFF.toInt(); stroke.strokeWidth = 4f * sc
+        c.drawRoundRect(rect(140f, 160f, 680f, 280f), 50f * sc, 50f * sc, stroke)
+        paint.color = 0x50FFFFFF; c.drawRoundRect(rect(180f, 172f, 640f, 192f), 10f * sc, 10f * sc, paint)
     }
 
     private fun drawDisplay(c: Canvas) {
-        paint.color = 0xFF1B1210.toInt(); c.drawRoundRect(rect(620f, 92f, 1940f, 262f), 12f * sc, 12f * sc, paint)
-        paint.color = 0xFF2C0707.toInt(); c.drawRoundRect(rect(642f, 112f, 1918f, 242f), 6f * sc, 6f * sc, paint)
-        // five 4-character modules
-        for (m in 0 until 5) {
-            paint.color = 0xFF380B0A.toInt()
-            c.drawRoundRect(rect(656f + m * 252f, 124f, 896f + m * 252f, 230f), 6f * sc, 6f * sc, paint)
-        }
+        paint.color = 0xFF140D0B.toInt(); c.drawRoundRect(rect(520f, 348f, 1480f, 466f), 8f * sc, 8f * sc, paint)
+        paint.color = 0xFF2C0707.toInt(); c.drawRect(rect(536f, 360f, 1464f, 454f), paint)
         stroke.strokeCap = Paint.Cap.ROUND
         for (d in 0 until 20) {
-            val m = d / 4; val i = d % 4
-            val l = 676f + m * 252f + i * 54f
-            val t = 140f
-            val w = 38f; val h = 72f
+            val l = 556f + d * 45.5f + (d / 4) * 2f
+            val t = 374f
+            val w = 28f; val h = 56f
             val s = seg[d]
             for (b in 0 until 16) {
                 val p = SEG[b]
                 val on = (s shr b) and 1 != 0
-                stroke.strokeWidth = 6.5f * sc
-                stroke.color = if (on) 0xFFFF2A1C.toInt() else 0x22FF4030
+                stroke.strokeWidth = 5f * sc
+                stroke.color = if (on) 0xFFFF2A1C.toInt() else 0x1CFF4030
                 // a slight forward slant, like the real parts
-                val sk = 0.12f
+                val sk = 0.14f
                 fun sx(fx: Float, fy: Float) = X(l + fx * w + (1f - fy) * sk * w)
                 c.drawLine(sx(p[0], p[1]), Y(t + p[1] * h), sx(p[2], p[3]), Y(t + p[3] * h), stroke)
             }
         }
         stroke.strokeCap = Paint.Cap.BUTT
-        // glare on the filter
-        paint.shader = LinearGradient(0f, Y(112f), 0f, Y(180f), 0x18FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
-        c.drawRect(rect(642f, 112f, 1918f, 180f), paint)
+        paint.shader = LinearGradient(0f, Y(360f), 0f, Y(400f), 0x18FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawRect(rect(536f, 360f, 1464f, 400f), paint)
         paint.shader = null
     }
 
@@ -208,23 +204,21 @@ class AimView(ctx: Context) : View(ctx) {
             paint.color = if (pressed) darker(col) else col
             val rr = rect(r).apply { if (pressed) offset(0f, 5f * sc) }
             c.drawRoundRect(rr, 10f * sc, 10f * sc, paint)
-            text.color = 0xFFF1E9D8.toInt(); text.textSize = 30f * sc; text.isFakeBoldText = true
-            c.drawText(label, rr.centerX(), rr.centerY() + 11f * sc, text)
+            text.color = 0xFFF1E9D8.toInt(); text.textSize = 26f * sc; text.isFakeBoldText = true
+            c.drawText(label, rr.centerX(), rr.centerY() + 9f * sc, text)
             text.isFakeBoldText = false
         }
+        btn(resetR, "RESET", resetDown, 0xFF7E2A20.toInt())
         btn(menuR, "MENU", false, 0xFF6E5444.toInt())
-        btn(resetR, "RESET", resetDown, 0xFF9A2E22.toInt())
     }
 
     private fun darker(c: Int) = Color.rgb(Color.red(c) * 4 / 5, Color.green(c) * 4 / 5, Color.blue(c) * 4 / 5)
 
     private fun drawKey(c: Canvas, k: Key) {
         val pressed = k.code in down || k.code in latched
-        val r = RectF(k.x, k.y, k.x + k.w, k.y + 108f)
-        paint.color = 0xFF9C9178.toInt(); c.drawRoundRect(rect(r.left, r.top + 8f, r.right, r.bottom + 8f), 12f * sc, 12f * sc, paint)
-        val dark = k.isMod() || k.main.length > 1 && k.main != "PRINT" && k.code != 0
-        var col = if (dark) 0xFF7A5A44.toInt() else 0xFFF1EBDA.toInt()
-        if (k.code == 17) col = 0xFF9A2E22.toInt()
+        val r = RectF(k.x, k.y, k.x + k.w, k.y + 102f)
+        paint.color = 0xFFA89A72.toInt(); c.drawRoundRect(rect(r.left, r.top + 8f, r.right, r.bottom + 8f), 12f * sc, 12f * sc, paint)
+        var col = 0xFFEDE2BE.toInt()
         if (pressed) col = darker(col)
         paint.color = col
         val rr = rect(r).apply { if (pressed) offset(0f, 5f * sc) }
@@ -232,7 +226,7 @@ class AimView(ctx: Context) : View(ctx) {
         // dished top
         paint.color = Color.argb(28, 255, 255, 255)
         c.drawRoundRect(RectF(rr.left + 10f * sc, rr.top + 8f * sc, rr.right - 10f * sc, rr.bottom - 18f * sc), 10f * sc, 10f * sc, paint)
-        text.color = if (dark || k.code == 17) 0xFFF4ECDA.toInt() else 0xFF2A221C.toInt()
+        text.color = 0xFF2A221C.toInt()
         if (k.top.isEmpty()) {
             text.textSize = (if (k.main.length > 2) 26f else 44f) * sc
             c.drawText(k.main, rr.centerX(), rr.centerY() + text.textSize * 0.36f, text)
@@ -249,7 +243,7 @@ class AimView(ctx: Context) : View(ctx) {
         val vx = (x - ox) / sc; val vy = (y - oy) / sc
         if (resetR.contains(vx, vy)) return -2
         if (menuR.contains(vx, vy)) return -3
-        for (k in keys) if (vx >= k.x - 5f && vx < k.x + k.w + 5f && vy >= k.y - 5f && vy < k.y + 113f) return k.code
+        for (k in keys) if (vx >= k.x - 5f && vx < k.x + k.w + 5f && vy >= k.y - 5f && vy < k.y + 107f) return k.code
         return -1
     }
 
