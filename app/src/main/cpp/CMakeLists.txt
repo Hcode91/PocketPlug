@@ -51,6 +51,9 @@ set_source_files_properties(${CHD_FLAC_SOURCES} PROPERTIES
     COMPILE_FLAGS "-std=gnu99 -O2 -w -DHAVE_CONFIG_H -I${CHD}/flac/include -I${CHD}/flac/src/include")
 set_source_files_properties(${CHD}/lzma/LzmaDec.c PROPERTIES COMPILE_FLAGS "-O2 -w")
 
+# GeneralPlus GPL32600: DidjDroid's ARM926 interpreter reports memory aborts with C++ exceptions
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/cores/gpl32/arm926.cpp PROPERTIES COMPILE_FLAGS "-fexceptions -frtti")
+
 add_library(pocketplug SHARED
     jni_bridge.cpp
     core_registry.cpp

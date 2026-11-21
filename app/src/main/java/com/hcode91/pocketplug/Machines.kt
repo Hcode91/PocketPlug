@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -48,7 +48,7 @@ data class MachineDef(
 val MachineDef.category: String
     get() = when (skin) {
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
-        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE -> "Handhelds"
+        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292, Skin.APF, Skin.ASTROCADE -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
@@ -479,6 +479,19 @@ object Machines {
             year = "2006",
             roms = listOf(RomSpec("atgames_sms.u5", 0x400000L, 0xbf23cd7dL)),
             skin = Skin.PLUG_PAD,
+        ),
+        MachineDef(
+            id = "arcadege",
+            title = "Arcade Genius",
+            subtitle = "Camera handheld with a menu of games in Action, Puzzle, Relax, Simulation, Sport and Table "
+                + "rooms (Airborne, Balloon Boy, Flag Match...). Pick with the D-pad and A; B goes back. The games "
+                + "and menus run; there is no sound, touch screen or camera yet, and nothing is saved "
+                + "(Millennium 2000; MAME set: arcadege, which doesn't run in MAME)",
+            chip = "GeneralPlus GPL32600A (ARM926 @ 200 MHz + 2D PPU)",
+            region = "Germany",
+            year = "2000s",
+            roms = listOf(RomSpec("tc58nvg0s3eta00.u3", 0x8400000L, 0x9b4db25eL)),
+            skin = Skin.ARCADE_GENIUS,
         ),
         MachineDef(
             id = "astrocde",

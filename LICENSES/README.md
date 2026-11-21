@@ -19,6 +19,8 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/st2302/*` | BSD-3-Clause | MAME `st2302u_bbl_spi.cpp`, `bl_handhelds_menucontrol.cpp`, `generic_spi_flash.cpp`, `st7735_lcdc.cpp` (David Haywood) and `st2xxx.cpp` / `st2205u.cpp` (AJR) |
 | `app/src/main/cpp/common/ymfm/*` | BSD-3-Clause | ymfm (Aaron Giles) - `common/ymfm/LICENSE` |
 | `app/src/main/cpp/common/mdvdp.h`, `app/src/main/cpp/cores/md/*` | BSD-3-Clause / GPL-2.0-or-later | PocketPlug (Mega Drive VDP written from the documented hardware behaviour, the Firecore extensions worked out from the AtGames games; banking after MAME's sega/megadriv_firecore.cpp, David Haywood, BSD-3) |
+| `app/src/main/cpp/cores/gpl32/arm926.*` | GPL-3.0-or-later | ARM926EJ-S interpreter from DidjDroid (same author) |
+| `app/src/main/cpp/cores/gpl32/gpl32*` | GPL-3.0-or-later | PocketPlug (the GPL32600's peripherals and PPU worked out from the Arcade Genius application) |
 | `app/src/main/cpp/common/smsvdp.h`, `app/src/main/cpp/cores/sms/*` | BSD-3-Clause / GPL-2.0-or-later | PocketPlug (SMS / Game Gear VDP written from the documented hardware behaviour; the AtGames chip's registers worked out from its menu code) |
 | `app/src/main/cpp/cores/astrocde/*` | GPL-2.0-or-later | Port of MAME's bally/astrohome.cpp and astrocde_v.cpp (Nicola Salmoria, Mike Coates, Frank Palazzolo, Aaron Giles) and sound/astrocde.cpp (Aaron Giles, Frank Palazzolo), BSD-3 |
 | `app/src/main/cpp/cores/apf/*` | BSD-3-Clause | MAME `src/mame/apf/apf.cpp` (Robbbert) and `src/devices/bus/apf` (Fabio Priuli) |

@@ -56,6 +56,7 @@ class EmulatorActivity : Activity() {
     private var aim: AimView? = null
     private var altair: AltairView? = null
     private var wide: WideHandheldView? = null
+    private var genius: ArcadeGeniusView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
     private var atari: AtariXlView? = null
@@ -379,6 +380,15 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 wide = v
+                setContentView(v)
+            }
+            Skin.ARCADE_GENIUS -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val v = ArcadeGeniusView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                genius = v
                 setContentView(v)
             }
             Skin.UNIVERSITY_BOARD -> {
@@ -1348,6 +1358,7 @@ class EmulatorActivity : Activity() {
             else if (aim != null) aim?.updateFrame(pixels)
             else if (altair != null) altair?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
+            else if (genius != null) genius?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
             if (track != null && n > 0) {
@@ -1491,6 +1502,7 @@ class EmulatorActivity : Activity() {
         Skin.ASTROCADE -> AstroBits.keyBit(code)
         Skin.MINI_ARCADE -> MiniArcadeView.keyBit(code)
         Skin.TV_CONSOLE, Skin.PLUG_PAD -> A3dBits.keyBit(code)
+        Skin.ARCADE_GENIUS -> GeniusBits.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
@@ -1606,6 +1618,18 @@ class EmulatorActivity : Activity() {
             if (x < -0.5f) m = m or 0x40
             if (x > 0.5f) m = m or 0x80
             if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m }
+            return true
+        }
+        if (machine.skin == Skin.ARCADE_GENIUS && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            var m = 0
+            if (y < -0.5f) m = m or GeniusBits.UP
+            if (y > 0.5f) m = m or GeniusBits.DOWN
+            if (x < -0.5f) m = m or GeniusBits.LEFT
+            if (x > 0.5f) m = m or GeniusBits.RIGHT
+            if (m != stickMask) { stickMask = m; setTouch(3, m); genius?.externalMask = keyInputs or m }
             return true
         }
         if (machine.skin == Skin.FLIGHT_STICK && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -1965,6 +1989,7 @@ class EmulatorActivity : Activity() {
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
+        genius?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
         astroPad?.externalMask = keyInputs
@@ -2031,6 +2056,7 @@ class EmulatorActivity : Activity() {
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
+        genius?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
         astroPad?.externalMask = keyInputs
