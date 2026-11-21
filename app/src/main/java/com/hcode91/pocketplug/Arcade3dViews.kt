@@ -131,12 +131,17 @@ class Arcade3dConsoleView(ctx: Context) : View(ctx) {
 }
 
 /** The console's black pad: d-pad, START, and the A B C buttons with a small X above. */
-class Arcade3dPadView(ctx: Context) : View(ctx) {
+class Arcade3dPadView(ctx: Context, private val blue: Boolean = false) : View(ctx) {
     var onInput: ((Int) -> Unit)? = null
+    /** blue AtGames pad: its RESET key */
+    var onReset: (() -> Unit)? = null
+    private val reset = RectF()
+    private var resetDown = false
     var externalMask = 0
         set(v) { field = v; invalidate() }
     private class Btn(val label: String, val bit: Int) { var x = 0f; var y = 0f; var r = 0f }
-    private val btns = listOf(Btn("A", A3dBits.A), Btn("B", A3dBits.B), Btn("C", A3dBits.C), Btn("X", A3dBits.X))
+    private val btns = if (blue) listOf(Btn("A", A3dBits.A), Btn("B", A3dBits.B), Btn("C", A3dBits.C))
+        else listOf(Btn("A", A3dBits.A), Btn("B", A3dBits.B), Btn("C", A3dBits.C), Btn("X", A3dBits.X))
     private val body = RectF()
     private val start = RectF()
     private var dcx = 0f; private var dcy = 0f; private var dr = 0f
@@ -154,8 +159,13 @@ class Arcade3dPadView(ctx: Context) : View(ctx) {
         btns[0].apply { x = bx; y = by + br * 0.6f; r = br }
         btns[1].apply { x = bx + br * 2.5f; y = by; r = br }
         btns[2].apply { x = bx + br * 5f; y = by - br * 0.6f; r = br }
-        btns[3].apply { x = bx + br * 2.5f; y = by - br * 2.6f; r = br * 0.6f }
+        if (!blue) btns[3].apply { x = bx + br * 2.5f; y = by - br * 2.6f; r = br * 0.6f }
         start.set(body.centerX() - body.width() * 0.06f, body.centerY() + body.height() * 0.05f, body.centerX() + body.width() * 0.06f, body.centerY() + body.height() * 0.15f)
+        if (blue) {
+            // RESET and START side by side in the middle, as on the AtGames pad
+            start.offset(body.width() * 0.07f, 0f)
+            reset.set(start); reset.offset(-body.width() * 0.14f, 0f)
+        }
     }
 
     override fun onDraw(c: Canvas) {
@@ -167,7 +177,8 @@ class Arcade3dPadView(ctx: Context) : View(ctx) {
             addCircle(body.right - body.height() * 0.5f, body.centerY(), body.height() * 0.5f, Path.Direction.CW)
             addRoundRect(RectF(body.left + body.height() * 0.4f, body.top + body.height() * 0.04f, body.right - body.height() * 0.4f, body.bottom - body.height() * 0.1f), 30f, 30f, Path.Direction.CW)
         }
-        p.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFF2D2E33.toInt(), 0xFF0E0E10.toInt(), Shader.TileMode.CLAMP)
+        p.shader = if (blue) LinearGradient(0f, body.top, 0f, body.bottom, 0xFF3A62D8.toInt(), 0xFF14309A.toInt(), Shader.TileMode.CLAMP)
+            else LinearGradient(0f, body.top, 0f, body.bottom, 0xFF2D2E33.toInt(), 0xFF0E0E10.toInt(), Shader.TileMode.CLAMP)
         c.drawPath(path, p)
         p.shader = null
         // d-pad
@@ -190,6 +201,11 @@ class Arcade3dPadView(ctx: Context) : View(ctx) {
         c.drawRoundRect(start, start.height() / 2, start.height() / 2, p)
         t.lbl(start.height() * 0.6f, 0xFF8E9098.toInt())
         c.drawText("START", start.centerX(), start.bottom + t.textSize * 1.1f, t)
+        if (blue) {
+            p.color = if (resetDown) 0xFF6A6C74.toInt() else 0xFF2E2F34.toInt()
+            c.drawRoundRect(reset, reset.height() / 2, reset.height() / 2, p)
+            c.drawText("RESET", reset.centerX(), reset.bottom + t.textSize * 1.1f, t)
+        }
         // buttons
         for (b in btns) {
             val on = (lit and b.bit) != 0
@@ -219,6 +235,13 @@ class Arcade3dPadView(ctx: Context) : View(ctx) {
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (blue && (e.actionMasked == MotionEvent.ACTION_DOWN || e.actionMasked == MotionEvent.ACTION_POINTER_DOWN)) {
+            val i = e.actionIndex
+            if (RectF(reset).apply { inset(-12f, -14f) }.contains(e.getX(i), e.getY(i))) {
+                resetDown = true; performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY); onReset?.invoke(); invalidate()
+            }
+        }
+        if (resetDown && (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL)) { resetDown = false; invalidate() }
         val up = when (e.actionMasked) {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> e.getPointerId(e.actionIndex)
             MotionEvent.ACTION_CANCEL -> -2

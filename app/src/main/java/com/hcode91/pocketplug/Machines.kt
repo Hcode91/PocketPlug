@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -47,7 +47,7 @@ data class MachineDef(
 /** Which shelf of the machine list a machine sits on. */
 val MachineDef.category: String
     get() = when (skin) {
-        Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE -> "TV games"
+        Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292, Skin.APF, Skin.ASTROCADE -> "Consoles"
@@ -453,6 +453,18 @@ object Machines {
                 "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
                 "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. The texts are in German (SPIEL = game).",
             ),
+        ),
+        MachineDef(
+            id = "atgsms",
+            title = "20 Master System & Game Gear Classics",
+            subtitle = "Plug & play TV pad with 20 Master System and Game Gear games (Sonic Chaos, Alex Kidd, "
+                + "Columns, Fantasy Zone...). Pick a game in the menu with A; RESET goes back to the menu. Game "
+                + "Gear games fill the TV picture (AtGames; MAME set: atgsms, which doesn't run in MAME)",
+            chip = "AtGames SMS-on-a-chip (Z80 + SMS / Game Gear VDP + PSG)",
+            region = "USA",
+            year = "2006",
+            roms = listOf(RomSpec("atgames_sms.u5", 0x400000L, 0xbf23cd7dL)),
+            skin = Skin.PLUG_PAD,
         ),
         MachineDef(
             id = "astrocde",

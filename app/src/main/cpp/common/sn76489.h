@@ -24,13 +24,15 @@ public:
         m_volTable[15] = 0;
         reset();
     }
+    // Sega's variant (SMS / Game Gear): 15-bit shift, taps 0x01 / 0x08 (MAME's segapsg)
+    void setSega() { m_feedback = 0x8000; m_tap1 = 0x01; m_tap2 = 0x08; reset(); }
     void reset()
     {
         std::memset(&s, 0, sizeof(s));
         for (int i = 0; i < 4; i += 2) { s.reg[i] = 0; s.reg[i + 1] = 0x0f; }
         s.reg[4] = 0; s.reg[5] = 0x0f; s.reg[6] = 0; s.reg[7] = 0x0f;
         for (int i = 0; i < 4; i++) { s.volume[i] = 0; s.period[i] = (i == 3) ? 0 : 0x400; }
-        s.rng = FEEDBACK;
+        s.rng = m_feedback;
         s.output[3] = s.rng & 1;
     }
     void write(uint8_t data)
@@ -56,7 +58,7 @@ public:
             if (!(data & 0x80)) s.reg[r] = (s.reg[r] & 0x3f0) | (data & 0x0f);
             int n = s.reg[6];
             s.period[3] = ((n & 3) == 3) ? (s.period[2] << 1) : (1 << (5 + (n & 3)));
-            s.rng = FEEDBACK;
+            s.rng = m_feedback;
             break;
         }
         }
@@ -70,9 +72,9 @@ public:
             for (int i = 0; i < 3; i++)
                 if (--s.count[i] <= 0) { s.output[i] ^= 1; s.count[i] = s.period[i]; }
             if (--s.count[3] <= 0) {
-                bool fb = ((s.rng & 0x04) != 0) != (((s.rng & 0x08) != 0) && (s.reg[6] & 4));
+                bool fb = ((s.rng & m_tap1) != 0) != (((s.rng & m_tap2) != 0) && (s.reg[6] & 4));
                 s.rng >>= 1;
-                if (fb) s.rng |= FEEDBACK;
+                if (fb) s.rng |= m_feedback;
                 s.output[3] = s.rng & 1;
                 s.count[3] = s.period[3];
             }
@@ -82,6 +84,6 @@ public:
     }
 
 private:
-    static constexpr uint32_t FEEDBACK = 0x10000;
+    uint32_t m_feedback = 0x10000, m_tap1 = 0x04, m_tap2 = 0x08;
     int m_volTable[16];
 };

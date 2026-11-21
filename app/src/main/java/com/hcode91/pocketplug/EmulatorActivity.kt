@@ -487,6 +487,19 @@ class EmulatorActivity : Activity() {
                 mini = v
                 setContentView(v)
             }
+            Skin.PLUG_PAD -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val pad = Arcade3dPadView(this, blue = true).apply {
+                    onInput = { setTouch(1, it) }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                }
+                a3dPad = pad
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.85f)
+                    add(pad, 0.6f)
+                })
+            }
             Skin.TV_CONSOLE -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val console = Arcade3dConsoleView(this).apply {
@@ -1477,7 +1490,7 @@ class EmulatorActivity : Activity() {
         Skin.APF -> ApfBits.keyBit(code)
         Skin.ASTROCADE -> AstroBits.keyBit(code)
         Skin.MINI_ARCADE -> MiniArcadeView.keyBit(code)
-        Skin.TV_CONSOLE -> A3dBits.keyBit(code)
+        Skin.TV_CONSOLE, Skin.PLUG_PAD -> A3dBits.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
