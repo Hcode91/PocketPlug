@@ -459,9 +459,8 @@ object Machines {
             title = "40 Bonus Games in 1",
             subtitle = "Mega Drive-style plug & play with 40 small games (Air Hockey, Black Sheep, Chess, Space "
                 + "Hunter...). START picks a game in the menu; RESET goes back to it. The console's own extended "
-                + "graphics mode (256 colours, 6-bit tiles) is emulated, so 35 of the 40 games show their screens "
-                + "(MAME shows 17); Cross the Road, Curling 2010, Fish Story, Jack's Pea and Jewel Magic run but "
-                + "draw only part of the picture (AtGames / Firecore; MAME set: atgame40)",
+                + "graphics mode (256 colours, 6-bit tiles) is emulated, so all 40 games show their screens "
+                + "(MAME shows 17) (AtGames / Firecore; MAME set: atgame40)",
             chip = "Firecore (Mega Drive on a chip: 68000 + Z80 + VDP + YM2612)",
             region = "Europe",
             year = "2012",

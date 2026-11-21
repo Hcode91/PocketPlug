@@ -70,6 +70,11 @@ bool FirecoreCore::load(const std::vector<RomFile>& roms, std::string& error)
     m_vdp.pal = true;
     m_vdp.busRead16 = [this](uint32_t a) { return read16(a & 0xffffff); };
     m_psg.setSega();
+    if (getenv("MDDMA")) m_vdp.traceDma = [this](uint32_t src, uint32_t dst, uint32_t len) {
+        fprintf(stderr, "dma %06x -> %05x x%u r24=%02x:", src, dst, len, m_vdp.s.reg[24]);
+        for (uint32_t i = 0; i < 2 * len && i < 48; i++) fprintf(stderr, " %04x", read16((src + i * 2) & 0xffffff));
+        fprintf(stderr, "\n");
+    };
     if (getenv("MDVTRACE")) m_vdp.traceWrite = [](uint8_t c, uint16_t a, uint16_t d) { fprintf(stderr, "vdpw %02x %04x %04x\n", c, a, d); };
     g_core = this;
     m68k_bus_set(&kBus);
@@ -283,6 +288,11 @@ void FirecoreCore::audioLine(int)
 void FirecoreCore::runFrame()
 {
     if (g_core != this) { g_core = this; m68k_bus_set(&kBus); }
+    static int dumpAt = getenv("MDDUMP") ? atoi(getenv("MDDUMP")) : -1;
+    if (dumpAt >= 0 && m_frameNo++ == dumpAt) {          // debugging: VDP state to /tmp/mdvdp.bin
+        if (FILE* f = fopen("/tmp/mdvdp.bin", "wb")) { fwrite(&m_vdp.s, sizeof(m_vdp.s), 1, f); fclose(f); }
+        if (FILE* f = fopen("/tmp/mdram.bin", "wb")) { fwrite(m_s.ram, sizeof(m_s.ram), 1, f); fclose(f); }
+    }
     const int vis = m_vdp.visibleLines();
     for (int line = 0; line < LINES; line++) {
         bool vb = m_vdp.beginLine(line);

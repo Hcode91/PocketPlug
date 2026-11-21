@@ -18,6 +18,7 @@ class MdVdp {
 public:
     static constexpr int W = 320, H = 240;
     bool pal = true;
+    std::function<void(uint32_t, uint32_t, uint32_t)> traceDma;   // debugging
     std::function<uint16_t(uint32_t)> busRead16 = [](uint32_t) { return uint16_t(0); };
 
     struct State {
@@ -172,12 +173,17 @@ private:
     {
         uint32_t len = uint32_t(s.reg[19] | s.reg[20] << 8); if (!len) len = 0x10000;
         int mode = s.reg[23] >> 6;
+        // Firecore: in extended mode with register 24 bit 3 clear the length counts 32-bit units
+        if (mode < 2 && (s.reg[24] & 0x88) == 0x80) len *= 2;
         if (mode < 2) {   // 68000 -> VDP
             uint32_t src = (uint32_t(s.reg[21]) | uint32_t(s.reg[22]) << 8 | uint32_t(s.reg[23] & 0x7f) << 16) << 1;
+            if (traceDma) traceDma(src, s.addr, len);
             for (uint32_t i = 0; i < len; i++) {
                 writeTarget(busRead16(src));
                 s.addr = (s.addr + s.reg[15]) & 0x1ffff;
-                src = (src & 0xfe0000) | ((src + 2) & 0x1ffff);
+                // the Mega Drive's DMA source wraps within 128 KB; the Firecore's doesn't in its
+                // extended mode, where games copy straight across the boundary
+                src = (s.reg[24] & 0x80) ? ((src + 2) & 0xfffffe) : ((src & 0xfe0000) | ((src + 2) & 0x1ffff));
             }
             uint32_t ns = src >> 1;
             s.reg[21] = uint8_t(ns); s.reg[22] = uint8_t(ns >> 8);
@@ -446,12 +452,13 @@ inline void renderLineExt(MdVdp& v, int y, uint32_t* out)
         if (!link) break;
     }
     uint32_t line[320];
+    const int sb = (s.reg[24] & 0x08) ? 1 : 0;   // bit 3: sprites have their own 256-colour bank
     for (int x = 0; x < w; x++) {
         uint32_t c = bg;
-        if (sprOn[x] && sprHi[x]) c = color(1, spr[x]);
+        if (sprOn[x] && sprHi[x]) c = color(sb, spr[x]);
         else if (a[x] && aHi[x]) c = color(0, a[x]);
         else if (b[x] && bHi[x]) c = color(0, b[x]);
-        else if (sprOn[x]) c = color(1, spr[x]);
+        else if (sprOn[x]) c = color(sb, spr[x]);
         else if (a[x]) c = color(0, a[x]);
         else if (b[x]) c = color(0, b[x]);
         line[x] = c;

@@ -58,6 +58,7 @@ private:
     Sn76489 m_psg;
     ymfm::ym2612 m_ym;
     uint32_t m_keys = 0;
+    int m_frameNo = 0;
     std::vector<int16_t> m_audio;
     uint32_t m_firstTop = 0;
 
