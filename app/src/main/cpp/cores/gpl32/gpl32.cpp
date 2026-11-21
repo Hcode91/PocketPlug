@@ -52,6 +52,12 @@ void GplCore::reset()
     std::memcpy(m_ram.data(), m_app.data(), std::min(m_app.size(), m_ram.size()));
     m_regs.clear();
     std::fill(m_ppuRam.begin(), m_ppuRam.end(), 0u);
+    m_spu.reset();
+    m_spu.readWord = [this](uint32_t w) -> uint16_t {
+        uint32_t a = w * 2;
+        if (a + 2 > RAM_SIZE) return 0xffff;
+        uint16_t v; std::memcpy(&v, &m_ram[a], 2); return v;
+    };
     // The start-up check at 0x9a730 probes a part on the keypad/camera lines with a handshake
     // that isn't emulated; on the real board it passes, so make it return "present".
     static const uint32_t probe[4] = { 0xe92d4010u, 0xeb0230d5u, 0xe1a04000u, 0xebfffd76u };
@@ -143,6 +149,7 @@ static uint32_t s_lastTraceR = 0;
 
 uint32_t GplCore::ioRead(uint32_t pa)
 {
+    if (pa >= 0xd0400000u && pa < 0xd0402000u) return m_spu.read(pa - 0xd0400000u);
     if (pa >= 0xd0501000u && pa < 0xd0510000u) return m_ppuRam[(pa & 0xffff) >> 2];
     if (ioReads.size() < 20000) ioReads[pa]++;
     if (pa != s_lastTraceR && traceLeft()) {
@@ -180,6 +187,12 @@ uint32_t GplCore::ioRead(uint32_t pa)
 
 void GplCore::ioWrite(uint32_t pa, uint32_t v, uint32_t mask)
 {
+    if (pa >= 0xd0400000u && pa < 0xd0402000u) {
+        uint32_t off = pa - 0xd0400000u;
+        uint32_t old = m_spu.read(off);
+        m_spu.write(off, (old & ~mask) | (v & mask));
+        return;
+    }
     if (pa >= 0xd0501000u && pa < 0xd0510000u) { uint32_t& r = m_ppuRam[(pa & 0xffff) >> 2]; r = (r & ~mask) | (v & mask); return; }
     if (ioWrites.size() < 20000) ioWrites[pa]++;
     s_lastTraceR = 0;
@@ -600,7 +613,7 @@ void GplCore::runFrame()
 size_t GplCore::readAudio(int16_t* out, size_t maxSamples)
 {
     size_t n = std::min<size_t>(maxSamples, m_audioPending);
-    std::memset(out, 0, n * 2);
+    m_spu.render(out, int(n), 44100);
     m_audioPending -= n;
     return n;
 }

@@ -10,11 +10,13 @@
 //   0xc00a0000 SD controller (no card)                          0xc00c0000 SAR ADC (battery)
 //   0xd0100000 interrupt controller (vector n = mask bit 32-n)   0xd0300000 4-channel DMA
 //   0xd0500000 PPU (gpl32_ppu.cpp)                              0xd0900000 NAND controller
-// Not done yet: sound (the SPU at 0xd0400000), the touch screen, the camera and saving to NAND.
+//   0xd0400000 SPU (gpl32_spu.cpp)
+// Not done yet: the touch screen, the camera and saving to NAND.
 
 #pragma once
 #include "../../core_api.h"
 #include "arm926.h"
+#include "gpl32_spu.h"
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -74,6 +76,7 @@ private:
     void dmaRun(int ch);
     void ppuIrq();
     uint32_t gpioRead(int port);
+    GplSpu m_spu;
     std::vector<uint32_t> m_ppuRam = std::vector<uint32_t>(0x4000);   // 0xd0500000-0xd050ffff, one 32-bit slot per entry
     uint32_t m_lastWatch = 0xdeadbeef;
     uint32_t m_adc[8] = { 0x200, 0x200, 0x200, 0x3ff, 0x200, 0x200, 0x200, 0x200 };   // channel 3: battery
