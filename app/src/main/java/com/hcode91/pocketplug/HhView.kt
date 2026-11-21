@@ -390,6 +390,7 @@ class HhSkin(
     companion object {
         fun forMachine(id: String): HhSkin? = when (id) {
             "alnattck" -> alienAttack()
+            "bambball" -> bambinoBasketball()
             "alnchase" -> alienChase()
             "alphie" -> alphie()
             "amaztron" -> amazeATron()
@@ -889,6 +890,64 @@ class HhSkin(
          *  a black front panel with the smoked VFD window, a silver strip with the
          *  SKILL 1 / OFF / SKILL 2 slide, orange FIRE and teal MOVE paddles, and the
          *  joystick disc with its four arrows. */
+        private fun bambinoBasketball() = HhSkin(
+            1000f, 1500f, 0xFF140A0A.toInt(),
+            screen = RectF(150f, 210f, 850f, 385f), bezel = 0xFF0C0606.toInt(), bezelPad = 14f,
+            menu = PointF(500f, 1400f),
+            controls = listOf(
+                Control(Kind.BUTTON, 300f, 500f, 34f, color = 0xFFEDE6D6.toInt(), bit = 0x200,
+                    label = "DISPLAY", labelAbove = true, labelColor = Color.WHITE, labelSize = 24f),
+                Control(Kind.BUTTON, 700f, 500f, 34f, color = 0xFFEDE6D6.toInt(), bit = 0x100,
+                    label = "START", labelAbove = true, labelColor = Color.WHITE, labelSize = 24f),
+                // option 0: skill level 1-3
+                Control(Kind.SWITCH, 300f, 640f, 20f, color = 0xFFDADADA.toInt(), option = 0,
+                    positions = listOf("1", "2", "3"), initial = 0, labelColor = Color.WHITE, labelSize = 22f,
+                    plate = 0xFF1A1010.toInt(), plateW = 200f, plateH = 50f),
+                // option 1: teams (0 = one player, 1 = two)
+                Control(Kind.SWITCH, 700f, 640f, 20f, color = 0xFFDADADA.toInt(), option = 1,
+                    positions = listOf("1", "2"), initial = 0, labelColor = Color.WHITE, labelSize = 22f,
+                    plate = 0xFF1A1010.toInt(), plateW = 150f, plateH = 50f),
+                Control(Kind.BUTTON, 500f, 860f, 58f, color = 0xFFF2C21E.toInt(), bit = 0x01,
+                    label = "SHOOT", labelAbove = true, labelColor = Color.WHITE, labelSize = 28f),
+                Control(Kind.BUTTON, 300f, 960f, 52f, color = 0xFFEDE6D6.toInt(), bit = 0x04,
+                    face = "\u25C0", faceColor = 0xFF8A1A14.toInt(), faceSize = 36f),
+                Control(Kind.BUTTON, 700f, 960f, 52f, color = 0xFFEDE6D6.toInt(), bit = 0x08,
+                    face = "\u25B6", faceColor = 0xFF8A1A14.toInt(), faceSize = 36f),
+                Control(Kind.BUTTON, 270f, 1200f, 52f, color = 0xFF2A2A2A.toInt(), bit = 0x10,
+                    label = "LOW", labelAbove = true, labelColor = Color.WHITE, labelSize = 26f),
+                Control(Kind.BUTTON, 500f, 1200f, 52f, color = 0xFF2A2A2A.toInt(), bit = 0x20,
+                    label = "MEDIUM", labelAbove = true, labelColor = Color.WHITE, labelSize = 26f),
+                Control(Kind.BUTTON, 730f, 1200f, 52f, color = 0xFF2A2A2A.toInt(), bit = 0x40,
+                    label = "HIGH", labelAbove = true, labelColor = Color.WHITE, labelSize = 26f),
+            ),
+            drawBody = { c, p, s ->
+                // the red hourglass case
+                val body = Path().apply {
+                    moveTo(110f, 90f); quadTo(110f, 60f, 140f, 60f); lineTo(860f, 60f); quadTo(890f, 60f, 890f, 90f)
+                    lineTo(900f, 560f); cubicTo(900f, 700f, 780f, 720f, 780f, 800f)
+                    cubicTo(780f, 880f, 920f, 900f, 920f, 1050f); lineTo(930f, 1430f); quadTo(930f, 1460f, 900f, 1460f)
+                    lineTo(100f, 1460f); quadTo(70f, 1460f, 70f, 1430f); lineTo(80f, 1050f)
+                    cubicTo(80f, 900f, 220f, 880f, 220f, 800f); cubicTo(220f, 720f, 100f, 700f, 100f, 560f); close()
+                }
+                p.shader = LinearGradient(80f, 0f, 920f, 0f, intArrayOf(0xFFA3140F.toInt(), 0xFFD9261C.toInt(), 0xFFC21E16.toInt(), 0xFF8E110C.toInt()),
+                    floatArrayOf(0f, 0.35f, 0.7f, 1f), Shader.TileMode.CLAMP)
+                c.drawPath(body, p); p.shader = null
+                s.color = 0x55000000; s.strokeWidth = 6f; c.drawPath(body, s)
+                // the black visor round the tube
+                p.color = 0xFF1A0A0A.toInt(); c.drawRoundRect(120f, 160f, 880f, 440f, 30f, 30f, p)
+                p.color = 0x22FFFFFF; c.drawRoundRect(130f, 168f, 870f, 200f, 16f, 16f, p)
+                // switch labels
+                val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 24f; textAlign = Paint.Align.CENTER
+                    typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) }
+                c.drawText("SKILL LEVEL", 300f, 590f, t)
+                c.drawText("TEAMS", 700f, 590f, t)
+                // the lower court panel
+                p.color = 0x33000000; c.drawRoundRect(170f, 1090f, 830f, 1300f, 40f, 40f, p)
+                c.drawText("DRIBBLE", 500f, 1330f, t)
+                c.drawText("BALL CARRIER", 500f, 1050f, t)
+            },
+        )
+
         private fun alienAttack() = HhSkin(
             1200f, 1000f, 0xFF120E0A.toInt(),
             screen = RectF(408f, 160f, 798f, 302f), bezel = 0xFF1C0C0A.toInt(), bezelPad = 12f,

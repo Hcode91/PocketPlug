@@ -181,6 +181,8 @@ Spg2xxCore::Spg2xxCore(const Spg2xxConfig& c) : m_cfg(c)
 {
     memset(m_bitmap, 0, sizeof(m_bitmap));
     memset(m_out, 0, sizeof(m_out));
+    for (auto& w : m_eeprom.mem) w = 0xffff;
+    m_eeprom.reset();
     m_machine.m_icountptr = &m_cpu.m_core->m_icount;
     m_machine.m_cpu_run = [this]() { m_cpu.execute_run(); };
     // set_clock_scale(2.0) in the marc250 driver; the plain boards run at the crystal
@@ -310,6 +312,7 @@ void Spg2xxCore::reset()
     m_pulse_timer->adjust(attotime::never());
     m_prev_porta = 0;
     m_prev_portb = 0;
+    m_eeprom.reset();
     m_toggle = false;
     if (m_cfg.board == 0) { switch_bank(31); m_cpu.reset(); }
     m_pulse_timer2->adjust(attotime::never());
@@ -361,8 +364,72 @@ void Spg2xxCore::write_word(uint32_t a, uint16_t d)
 // ---------------------------------------------------------------------------
 // spg2xx_game_marc250_state
 // ---------------------------------------------------------------------------
+// states: 0 in reset, 1 wait for start bit, 2 command, 3 reading, 4 data, 5 completion
+void Spg2xxCore::Eeprom93c66::csWrite(int v)
+{
+    v &= 1;
+    if (v == cs) return;
+    cs = uint8_t(v);
+    if (cs) { if (state == 0) state = 1; }
+    else state = 0;
+}
+
+void Spg2xxCore::Eeprom93c66::clkWrite(int v)
+{
+    v &= 1;
+    if (v == clk) return;
+    clk = uint8_t(v);
+    if (!clk) return;
+    switch (state) {
+    case 1:
+        if (di) { accum = bits = 0; state = 2; }
+        break;
+    case 2:
+        accum = uint16_t(accum << 1 | di);
+        if (++bits == 10) {
+            uint8_t op = uint8_t(accum >> 8);
+            addr = uint8_t(accum);
+            bits = 0;
+            switch (op) {
+            case 0:
+                switch (addr >> 6) {
+                case 0: locked = 1; state = 0; break;
+                case 1: cmd = 1; shift = 0; state = 4; break;                     // write all
+                case 2: if (!locked) for (auto& w : mem) w = 0xffff; state = locked ? 0 : 5; break;
+                case 3: locked = 0; state = 0; break;
+                }
+                break;
+            case 1: cmd = 0; shift = 0; state = 4; break;                         // write
+            case 2: shift = 0; state = 3; break;                                  // read (dummy 0 first)
+            case 3: if (!locked) mem[addr] = 0xffff; state = locked ? 0 : 5; break;   // erase
+            }
+        }
+        break;
+    case 3: {
+        int bit = bits++;
+        if (bit % 16 == 0 && bit == 0) shift = uint32_t(mem[addr]) << 16;
+        else shift = (shift << 1) | 1;
+        break;
+    }
+    case 4:
+        shift = (shift << 1) | di;
+        if (++bits == 16) {
+            if (locked) { state = 0; break; }
+            if (cmd == 0) mem[addr] = uint16_t(shift);
+            else for (auto& w : mem) w &= uint16_t(shift);
+            state = 5;
+        }
+        break;
+    }
+}
+
 uint16_t Spg2xxCore::porta_r()
 {
+    if (m_cfg.board == 4) return uint16_t(m_eeprom.doRead() << 3);
+    if (m_cfg.board == 5) {
+        // "P1", active low: mat buttons 1-4, select (bits 0-4); the rest are DIPs left high
+        return uint16_t(0xffff & ~(m_inputs >> 4 & 0x1f));
+    }
     if (m_cfg.board == 3) {
         // lexiseal "P1", active low: up 0x100, down 0x200, left 0x400, right 0x800,
         // button 2 0x1000, button 1 0x4000, button 3 (pause / start) 0x8000
@@ -392,7 +459,17 @@ uint16_t Spg2xxCore::porta_r()
 
 uint16_t Spg2xxCore::portb_r()
 {
-    if (m_cfg.board == 3) return 0xffff;
+    if (m_cfg.board == 3 || m_cfg.board == 5) return 0xffff;
+    if (m_cfg.board == 4) {
+        // "P2", active low: up, down, left, right, A, X, Y, B (input bits 0-3, 4 A, 5 B, 6 X, 7 Y)
+        uint32_t in = m_inputs; uint16_t v = 0xffff;
+        v &= uint16_t(~(in & 0x0f));
+        if (in & 0x10) v &= ~0x0010;
+        if (in & 0x20) v &= ~0x0080;
+        if (in & 0x40) v &= ~0x0020;
+        if (in & 0x80) v &= ~0x0040;
+        return v;
+    }
     // ABL's wireless sensor receiver (Kick Boxing, Wireless Tennis): bit 5 says a
     // reading is waiting on bits 0-4 (sensor in bits 3-4, reading in bits 0-2).
     // The game acks with bit 6; the line stays up for one more read, then must
@@ -452,11 +529,19 @@ uint16_t Spg2xxCore::portc_r()
 {
     // lexiseal "P3", active low: button 4 0x01, button 5 0x02
     if (m_cfg.board == 3) return uint16_t(0xffff & ~((m_inputs >> 7) & 3));
+    if (m_cfg.board == 4) return uint16_t(0xffff & ~((m_inputs >> 8 & 1) << 2));   // pause / menu
+    if (m_cfg.board == 5) return uint16_t(0xfeff & ~(m_inputs >> 9 & 0x1f));       // player 2's mat; bit 8 battery ok (low)
     return 0xffff;
 }
 
 void Spg2xxCore::porta_w(uint16_t data)
 {
+    if (m_cfg.board == 4) {
+        m_eeprom.di = data >> 2 & 1;
+        m_eeprom.csWrite(data & 1);
+        m_eeprom.clkWrite(data >> 1 & 1);
+        return;
+    }
     if (m_cfg.board != 0) return;
     if ((data & 0x1000) != (m_prev_porta & 0x1000))
     {
@@ -585,7 +670,7 @@ struct Reader {
 
 #define SPG_STATE(X) \
     X(m_ram) X(m_scrollram) X(m_hcompram) X(m_paletteram) X(m_spriteram) X(m_fiq_vector) \
-    X(m_current_bank) X(m_rng) X(m_rxPrev) X(m_rxStrobe) X(m_rxAcked) X(m_rxDrop) X(m_rxReady) X(m_rxMsg) X(m_rxNext) X(m_rxCode) X(m_rxBurst) X(m_rxSwing) X(m_prev_porta) X(m_prev_portb) X(m_toggle) X(m_toggle2) \
+    X(m_current_bank) X(m_rng) X(m_rxPrev) X(m_rxStrobe) X(m_rxAcked) X(m_rxDrop) X(m_rxReady) X(m_rxMsg) X(m_rxNext) X(m_rxCode) X(m_rxBurst) X(m_rxSwing) X(m_prev_porta) X(m_prev_portb) X(m_toggle) X(m_toggle2) X(m_eeprom) \
     X(m_cpu.m_local_core) \
     X(m_machine.m_basetime) X(m_machine.m_cpu_localtime) X(m_machine.m_seq_counter) \
     X(m_screen.m_vblank_start_time) X(m_screen.m_vblank_end_time) X(m_screen.m_last_partial_scan) X(m_screen.m_last_partial_reset) X(m_screen.m_frame_number) \

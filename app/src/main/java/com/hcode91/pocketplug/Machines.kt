@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -51,7 +51,7 @@ val MachineDef.category: String
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292, Skin.APF, Skin.ASTROCADE -> "Consoles"
-        Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
+        Skin.CHESS, Skin.NIXIE_CLOCK, Skin.BACKGAMMON -> "Chess & clocks"
         else -> "Computers"
     }
 
@@ -334,6 +334,60 @@ object Machines {
             ),
             skin = Skin.CHESS,
             badge = "vcc",
+        ),
+        MachineDef(
+            id = "bambball",
+            title = "Basketball (Bambino)",
+            subtitle = "1979 red VFD basketball game: the arrows move the ball carrier, LOW / MEDIUM / HIGH "
+                + "dribble and SHOOT shoots. Switches set the skill level and one or two teams "
+                + "(Bambino Basketball - Dribble Away; MAME set: bambball)",
+            chip = "Hitachi HD38750 (HMCS43)",
+            region = "Japan",
+            year = "1979",
+            roms = listOf(
+                RomSpec("hd38750a08", 0x880L, 0x907fef18L),
+                RomSpec("bambball.svg", 281982L, 0xdf113d8aL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "backybbs",
+            title = "Backyard Baseball & Soccer",
+            subtitle = "2005 plug-and-play pad with two kids' sports games: the D-pad moves, X picks in the menus, "
+                + "B goes back, A and Y are the action buttons, PAUSE opens the menu. Settings are kept in the "
+                + "pad's EEPROM (save state to keep them) (MAME set: backybbs)",
+            chip = "Sunplus SPG24x (u'nSP)",
+            region = "USA",
+            year = "2005",
+            roms = listOf(RomSpec("backyardbs.bin", 0x400000L, 0x9c378f27L)),
+            skin = Skin.ABL_TV,
+            badge = "backyard",
+        ),
+        MachineDef(
+            id = "ban_krkk",
+            title = "Zunou Family Mattore",
+            subtitle = "2006 Japanese brain-and-body training mat for one or two players: step on the blue, "
+                + "yellow, red and green panels to answer and pick, SELECT to choose. Tap the panels here "
+                + "(Bandai Let's! TV Play Nou to Karada o Kitaeru Taikan Zunou Family Mattore; MAME set: ban_krkk)",
+            chip = "Sunplus SPG24x (u'nSP)",
+            region = "Japan",
+            year = "2006",
+            roms = listOf(RomSpec("quiz.bin", 0x400000L, 0x6f51180aL)),
+            skin = Skin.ABL_TV,
+            badge = "mattore",
+        ),
+        MachineDef(
+            id = "backgamc",
+            title = "Backgammon Challenger",
+            subtitle = "1979 backgammon computer: you key in your moves (FROM, TO, EN) and it shows its dice and "
+                + "moves on the LEDs (FROM / DBL / TO). Drag the checkers yourself, as on the real board; long-press "
+                + "the frame to set them up again (Fidelity Backgammon Challenger; MAME "
+                + "set: backgamc)",
+            chip = "Zilog Z80 @ 3.58 MHz",
+            region = "USA",
+            year = "1979",
+            roms = listOf(RomSpec("cn19255n_101-32012", 0x1000L, 0x0a8a19b7L)),
+            skin = Skin.BACKGAMMON,
         ),
         MachineDef(
             id = "avrmax",

@@ -57,6 +57,7 @@ class EmulatorActivity : Activity() {
     private var altair: AltairView? = null
     private var wide: WideHandheldView? = null
     private var genius: ArcadeGeniusView? = null
+    private var backgammon: BackgammonView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
     private var atari: AtariXlView? = null
@@ -380,6 +381,15 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 wide = v
+                setContentView(v)
+            }
+            Skin.BACKGAMMON -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val v = BackgammonView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                backgammon = v
                 setContentView(v)
             }
             Skin.ARCADE_GENIUS -> {
@@ -1359,6 +1369,7 @@ class EmulatorActivity : Activity() {
             else if (altair != null) altair?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
             else if (genius != null) genius?.updateFrame(pixels)
+            else if (backgammon != null) backgammon?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
             if (track != null && n > 0) {
@@ -1503,6 +1514,16 @@ class EmulatorActivity : Activity() {
         Skin.MINI_ARCADE -> MiniArcadeView.keyBit(code)
         Skin.TV_CONSOLE, Skin.PLUG_PAD -> A3dBits.keyBit(code)
         Skin.ARCADE_GENIUS -> GeniusBits.keyBit(code)
+        Skin.BACKGAMMON -> when (code) {
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> 1 shl 0
+            KeyEvent.KEYCODE_DEL -> 1 shl 4
+            KeyEvent.KEYCODE_G -> 1 shl 8
+            KeyEvent.KEYCODE_R -> 1 shl 12
+            KeyEvent.KEYCODE_P -> 1 shl 13
+            KeyEvent.KEYCODE_V -> 1 shl 14
+            in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> 1 shl intArrayOf(15, 11, 7, 3, 10, 6, 2, 9, 5, 1)[code - KeyEvent.KEYCODE_0]
+            else -> 0
+        }
         Skin.KIT -> kitKeyBit(code)
         Skin.TABLETOP -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 0x01
@@ -1990,6 +2011,7 @@ class EmulatorActivity : Activity() {
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
+        backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
         astroPad?.externalMask = keyInputs
@@ -2057,6 +2079,7 @@ class EmulatorActivity : Activity() {
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
+        backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
         astroPad?.externalMask = keyInputs

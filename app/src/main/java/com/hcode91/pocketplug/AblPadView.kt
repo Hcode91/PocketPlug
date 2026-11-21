@@ -32,6 +32,12 @@ import kotlin.math.hypot
  *                beside the console itself (red label band, POWER light,
  *                RESET). NES pad bits; RESET restarts the machine.
  *
+ *  - "backyard": a chunky green pad with a yellow D-pad, A/B/X/Y and PAUSE
+ *                (SPG2xx bits: directions 0-3, A 4, B 5, X 6, Y 7, pause 8).
+ *  - "mattore":  two floor mats side by side, each four coloured panels
+ *                (blue, yellow, red, green) and a SELECT button; player 1 in
+ *                bits 4-8, player 2 in bits 9-13.
+ *
  * No maker's name or logo is drawn.
  */
 class AblPadView(ctx: Context, private val style: String) : View(ctx) {
@@ -53,6 +59,8 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         const val F_START = 0x01; const val F_SELECT = 0x02; const val F_UP = 0x04; const val F_DOWN = 0x08
         const val F_LEFT = 0x10; const val F_RIGHT = 0x20; const val F_B1 = 0x40; const val F_B2 = 0x80
         const val RESET_KEY = 0x40000000      // console RESET (not an input bit)
+        const val Y_A = 0x10; const val Y_B = 0x20; const val Y_X = 0x40; const val Y_Y = 0x80; const val Y_PAUSE = 0x100
+        const val M_BLUE = 0x10; const val M_YELLOW = 0x20; const val M_RED = 0x40; const val M_GREEN = 0x80; const val M_SELECT = 0x100
         const val L_PUNCH = 0x80; const val R_PUNCH = 0x100; const val L_KICK = 0x200; const val R_KICK = 0x400; const val GUARD = 0x800
 
         /** Gamepad / keyboard mapping for each style. */
@@ -68,7 +76,15 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_SHIFT_RIGHT -> F_SELECT
                 else -> 0
             }
-            val spg = style == "tennis" || style == "kickbox"
+            if (style == "mattore") return when (code) {
+                KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_Q -> M_BLUE
+                KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_W -> M_YELLOW
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> M_RED
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> M_GREEN
+                KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_ENTER -> M_SELECT
+                else -> 0
+            }
+            val spg = style == "tennis" || style == "kickbox" || style == "backyard"
             val dir = when (code) {
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> if (spg) S_UP else UP
                 KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> if (spg) S_DOWN else DOWN
@@ -93,6 +109,14 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                     KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_SPACE -> GUARD
                     KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER -> S_OK
                     KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_ESCAPE -> S_BACK
+                    else -> 0
+                }
+                "backyard" -> when (code) {
+                    KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_Z -> Y_A
+                    KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_X -> Y_B
+                    KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_C -> Y_X
+                    KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_V -> Y_Y
+                    KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_ESCAPE -> Y_PAUSE
                     else -> 0
                 }
                 "pinball" -> when (code) {
@@ -212,6 +236,25 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 rect(SELECT, "SELECT", jl + jw * 0.33f, t + bh * 0.69f, jl + jw * 0.67f, t + bh * 0.76f)
                 rect(RESET_KEY, "RESET", l + bw * 0.84f, t + bh * 0.66f, l + bw * 0.93f, t + bh * 0.71f)
             }
+            "backyard" -> {
+                stick(l + bw * 0.24f, t + bh * 0.52f, bh * 0.2f, 0, intArrayOf(S_UP, S_DOWN, S_LEFT, S_RIGHT))
+                val cx = l + bw * 0.76f; val cy = t + bh * 0.52f; val d = bh * 0.15f; val r = bh * 0.085f
+                circle(Y_Y, "Y", cx, cy - d, r); circle(Y_A, "A", cx, cy + d, r)
+                circle(Y_X, "X", cx - d, cy, r); circle(Y_B, "B", cx + d, cy, r)
+                rect(Y_PAUSE, "PAUSE", l + bw * 0.44f, t + bh * 0.3f, l + bw * 0.56f, t + bh * 0.37f)
+            }
+            "mattore" -> {
+                for (p in 0..1) {
+                    val ox = l + bw * (if (p == 0) 0.02f else 0.52f); val mw = bw * 0.46f
+                    val s = p * 5
+                    val px = ox + mw * 0.08f; val py = t + bh * 0.1f; val pw = mw * 0.4f; val ph = bh * 0.32f; val g = mw * 0.04f
+                    rect(M_BLUE shl s, "", px, py, px + pw, py + ph)
+                    rect(M_YELLOW shl s, "", px + pw + g, py, px + 2 * pw + g, py + ph)
+                    rect(M_RED shl s, "", px, py + ph + g, px + pw, py + 2 * ph + g)
+                    rect(M_GREEN shl s, "", px + pw + g, py + ph + g, px + 2 * pw + g, py + 2 * ph + g)
+                    rect(M_SELECT shl s, "SELECT", ox + mw * 0.35f, t + bh * 0.8f, ox + mw * 0.65f, t + bh * 0.87f)
+                }
+            }
             "kickbox" -> {
                 circle(L_PUNCH, "", l + bw * 0.36f, t + bh * 0.25f, bh * 0.2f)
                 circle(R_PUNCH, "", l + bw * 0.64f, t + bh * 0.25f, bh * 0.2f)
@@ -248,6 +291,8 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             "kickbox" -> { drawReceiver(c, held); drawKickBox(c, held) }
             "fourplay" -> drawFourPlay(c, held)
             "flashback" -> drawFlashback(c, held)
+            "backyard" -> drawBackyard(c, held)
+            "mattore" -> drawMattore(c, held)
         }
     }
 
@@ -527,6 +572,83 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         val g = ctls.first { it.bit == GUARD }
         shade(c, g.cx, g.cy, g.r, 0xFF5D8BFF.toInt(), 0xFF1D3C9A.toInt(), held and GUARD != 0)
         label(c, "GUARD", g.cx, g.cy, g.r * 0.4f, 0xFFFFFFFF.toInt())
+    }
+
+    private fun drawBackyard(c: Canvas, held: Int) {
+        val bw = body.width(); val bh = body.height()
+        // a fat green pad with two round grips and a yellow face plate
+        path.reset()
+        path.addRoundRect(RectF(body.left + bw * 0.1f, body.top + bh * 0.16f, body.right - bw * 0.1f, body.bottom - bh * 0.18f), bh * 0.2f, bh * 0.2f, Path.Direction.CW)
+        path.addCircle(body.left + bw * 0.22f, body.top + bh * 0.58f, bh * 0.36f, Path.Direction.CW)
+        path.addCircle(body.right - bw * 0.22f, body.top + bh * 0.58f, bh * 0.36f, Path.Direction.CW)
+        paint.color = 0x55000000; c.save(); c.translate(0f, bh * 0.025f); c.drawPath(path, paint); c.restore()
+        paint.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFF5CC23A.toInt(), 0xFF2E7E1A.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(path, paint); paint.shader = null
+        // yellow rings round the D-pad and buttons
+        val st = ctls.first { it.stick }
+        paint.color = 0xFFF5D12A.toInt(); c.drawCircle(st.cx, st.cy, st.r * 1.35f, paint)
+        c.drawCircle(body.left + bw * 0.76f, st.cy, bh * 0.3f, paint)
+        paint.color = 0xFF2E7E1A.toInt(); c.drawCircle(body.left + bw * 0.76f, st.cy, bh * 0.27f, paint)
+        // the D-pad: a dark cross tilted by the finger
+        val r = st.r; val a = r * 0.36f
+        val down = held and 0x0f
+        paint.color = 0xFF1E2A14.toInt()
+        c.drawRoundRect(st.cx - a, st.cy - r, st.cx + a, st.cy + r, a * 0.3f, a * 0.3f, paint)
+        c.drawRoundRect(st.cx - r, st.cy - a, st.cx + r, st.cy + a, a * 0.3f, a * 0.3f, paint)
+        paint.color = 0x33FFFFFF
+        if (down and S_UP != 0) c.drawRect(st.cx - a, st.cy - r, st.cx + a, st.cy - a, paint)
+        if (down and S_DOWN != 0) c.drawRect(st.cx - a, st.cy + a, st.cx + a, st.cy + r, paint)
+        if (down and S_LEFT != 0) c.drawRect(st.cx - r, st.cy - a, st.cx - a, st.cy + a, paint)
+        if (down and S_RIGHT != 0) c.drawRect(st.cx + a, st.cy - a, st.cx + r, st.cy + a, paint)
+        label(c, "▲", st.cx, st.cy - r * 0.68f, r * 0.3f, 0xFF6A7A5A.toInt())
+        label(c, "▼", st.cx, st.cy + r * 0.68f, r * 0.3f, 0xFF6A7A5A.toInt())
+        label(c, "◀", st.cx - r * 0.68f, st.cy, r * 0.3f, 0xFF6A7A5A.toInt())
+        label(c, "▶", st.cx + r * 0.68f, st.cy, r * 0.3f, 0xFF6A7A5A.toInt())
+        for (k in ctls) {
+            if (k.stick) continue
+            val d = held and k.bit != 0
+            if (k.r > 0f) {
+                val (lt, dk) = when (k.bit) {
+                    Y_A -> 0xFFFF5A4A.toInt() to 0xFFA0140E.toInt()
+                    Y_B -> 0xFFFFD34A.toInt() to 0xFFB07A06.toInt()
+                    Y_X -> 0xFF5D8BFF.toInt() to 0xFF1D3C9A.toInt()
+                    else -> 0xFFF2F2F2.toInt() to 0xFF9A9A9A.toInt()
+                }
+                shade(c, k.cx, k.cy, k.r, lt, dk, d)
+                label(c, k.label, k.cx, k.cy, k.r * 0.8f, 0xFF202020.toInt())
+            } else {
+                paint.color = if (d) 0xFF1E2A14.toInt() else 0xFF3A4A2A.toInt()
+                c.drawRoundRect(k.rect, k.rect.height() / 2, k.rect.height() / 2, paint)
+                label(c, k.label, k.rect.centerX(), k.rect.bottom + k.rect.height() * 0.9f, k.rect.height() * 0.7f, 0xFFF5F5E0.toInt())
+            }
+        }
+    }
+
+    private fun drawMattore(c: Canvas, held: Int) {
+        val bw = body.width(); val bh = body.height()
+        for (p in 0..1) {
+            val ox = body.left + bw * (if (p == 0) 0.02f else 0.52f); val mw = bw * 0.46f
+            val mat = RectF(ox, body.top + bh * 0.03f, ox + mw, body.bottom - bh * 0.03f)
+            paint.color = 0x55000000; c.drawRoundRect(mat.left, mat.top + bh * 0.02f, mat.right, mat.bottom + bh * 0.02f, bh * 0.05f, bh * 0.05f, paint)
+            paint.color = 0xFFF4F1E6.toInt(); c.drawRoundRect(mat, bh * 0.05f, bh * 0.05f, paint)
+            stroke.color = 0xFFD4CFBE.toInt(); stroke.strokeWidth = bw * 0.004f; c.drawRoundRect(mat, bh * 0.05f, bh * 0.05f, stroke)
+            label(c, if (p == 0) "1P" else "2P", ox + mw * 0.92f, body.top + bh * 0.1f, bh * 0.05f, 0xFF8A8270.toInt())
+        }
+        for (k in ctls) {
+            val d = held and k.bit != 0
+            val b = (k.bit shr 4).let { if (it >= 0x20) it shr 5 else it }
+            if (b == 0x10) {
+                paint.color = if (d) 0xFF606060.toInt() else 0xFF909090.toInt()
+                c.drawRoundRect(k.rect, k.rect.height() / 2, k.rect.height() / 2, paint)
+                label(c, k.label, k.rect.centerX(), k.rect.centerY(), k.rect.height() * 0.5f, Color.WHITE)
+                continue
+            }
+            val col = when (b) { 1 -> 0xFF2F6BE0.toInt(); 2 -> 0xFFF2C81E.toInt(); 4 -> 0xFFE23A2E.toInt(); else -> 0xFF2FA845.toInt() }
+            val r = RectF(k.rect).apply { if (d) inset(width() * 0.03f, height() * 0.03f) }
+            paint.color = col; c.drawRoundRect(r, r.width() * 0.12f, r.width() * 0.12f, paint)
+            if (d) { paint.color = 0x44000000; c.drawRoundRect(r, r.width() * 0.12f, r.width() * 0.12f, paint) }
+            paint.color = 0x55FFFFFF; c.drawCircle(r.centerX(), r.centerY(), r.height() * 0.22f, paint)
+        }
     }
 
     // ---- touch ----

@@ -398,7 +398,9 @@ struct Spg2xxConfig {
     uint64_t romSize = 0;
     bool marc250 = true;          // marc250/265games security pulses + banking
     int board = 0;                // 0 = marc250, 1 = plain spg2xx_game_state (abltenni), 2 = ABL Kick Boxing,
-                                  // 3 = JungleTac lexizeus/lexiseal pads (arcade3d)
+                                  // 3 = JungleTac lexizeus/lexiseal pads (arcade3d),
+                                  // 4 = Hasbro 93LC66 boards (backybbs: pad on port B, EEPROM on port A),
+                                  // 5 = plain P1/P3 pads, active low (ban_krkk: two players' mat buttons)
     bool pal = true;              // 50 Hz and the PAL flag; NTSC boards run at 60 Hz
     bool decryptAcFf = false;     // init_ablkickb: bitswap + xor 0xfafa on every word
     bool decryptZeus = false;     // init_zeus (spg2xx_lexibook.cpp)
@@ -500,6 +502,18 @@ public:
     bool m_frameDone = false;
 
     uint32_t m_inputs = 0;
+
+    // HT93LC66 serial EEPROM (MAME eeprom_serial_93cxx, 16-bit, 256 words, no write delay)
+    struct Eeprom93c66 {
+        uint16_t mem[256];
+        uint8_t state, cs, clk, di, locked, cmd, addr;
+        uint16_t bits, accum;
+        uint32_t shift;
+        void reset() { state = 0; cs = clk = di = 0; locked = 1; bits = accum = 0; shift = 0; }
+        int doRead() const { return state == 3 ? int(shift >> 31 & 1) : 1; }
+        void csWrite(int v);
+        void clkWrite(int v);
+    } m_eeprom;
 
 private:
     Spg2xxConfig m_cfg;

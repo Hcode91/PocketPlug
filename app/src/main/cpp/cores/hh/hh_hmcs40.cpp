@@ -13,7 +13,7 @@ constexpr int OPT = 100;
 struct InBit { uint16_t mask; int src; };
 struct InRow { InBit bits[4]; };
 
-enum Kind { ALNATTCK };
+enum Kind { ALNATTCK, BAMBBALL };
 
 }
 
@@ -43,6 +43,13 @@ const Hmcs40Game kGames[] = {
         { { { 0x20, B1 } } },               // Move
         { { { 0x20, B2 } } },               // Fire
     } },
+    // Bambino Basketball (1979): HD38750A08, D7-D10 select the input rows read on R0x
+    // (row 3 is the skill / teams switches, built from options 0 and 1 in readR)
+    { "bambball", BAMBBALL, HMCS40::HMCS43, false, 400000, "hd38750a08", "bambball.svg", 9, 16, 3, {
+        { { { 0x01, B1 }, { 0x02, B2 }, { 0x04, B3 }, { 0x08, UP } } },   // dribble low / medium / high, shoot
+        { { { 0x01, RIGHT }, { 0x02, LEFT } } },
+        { { { 0x04, B4 }, { 0x08, B5 } } },                               // start, display
+    } },
 };
 
 const Hmcs40Game* find(const std::string& id)
@@ -68,10 +75,13 @@ bool HhHmcs40Core::load(const std::vector<RomFile>& roms, std::string& error)
     if (!rom) { error = std::string("Missing ") + m_g->rom; return false; }
     if (!loadScreen(roms, m_g->svg, m_g->rows, m_g->cols, error)) return false;
     // MAME region: the first 0x1000 bytes at 0, then 0x100 bytes of pattern ROM at 0x1e80
-    std::vector<uint8_t> region(0x2000, 0);
+    // (HMCS42/43: 0x800 bytes at 0, then 0x80 at 0xf00, in a 0x1000 region)
+    bool small = m_g->family <= HMCS40::HMCS43;
+    size_t main = small ? 0x800 : 0x1000, pat = small ? 0xf00 : 0x1e80, patLen = small ? 0x80 : 0x100;
+    std::vector<uint8_t> region(small ? 0x1000 : 0x2000, 0);
     size_t n = rom->data.size();
-    std::memcpy(region.data(), rom->data.data(), std::min<size_t>(n, 0x1000));
-    if (n > 0x1000) std::memcpy(region.data() + 0x1e80, rom->data.data() + 0x1000, std::min<size_t>(n - 0x1000, 0x100));
+    std::memcpy(region.data(), rom->data.data(), std::min(n, main));
+    if (n > main) std::memcpy(region.data() + pat, rom->data.data() + main, std::min(n - main, patLen));
     m_cpu.configure(m_g->family, m_g->cmos, this);
     m_cpu.setRom(region);
     setClock(m_g->clock / 4.0);   // 4 oscillator clocks per machine cycle
@@ -109,7 +119,12 @@ void HhHmcs40Core::updateDisplay()
 
 uint8_t HhHmcs40Core::readR(int index)
 {
-    (void)index;
+    if (m_g->kind == BAMBBALL && index == 0) {
+        // R0x: multiplexed inputs; D10 reads skill level (option 0: 0-2) and teams (option 1: 1 = two players)
+        uint8_t r = uint8_t(readInputs(3));
+        if (m_s.inpMux & 8) r |= uint8_t((1 << (m_opt[0] > 2 ? 2 : m_opt[0])) | (m_opt[1] ? 0 : 8));
+        return r;
+    }
     return m_g->cmos ? 0xf : 0;
 }
 
@@ -125,6 +140,14 @@ void HhHmcs40Core::writeR(int index, uint8_t data)
             updateDisplay();
         }
         break;
+    case BAMBBALL:
+        if (index >= 1 && index <= 3) {
+            // R1x-R3x: vfd plate
+            int shift = (index - 1) * 4;
+            m_s.plate = (m_s.plate & ~(uint64_t(0xf) << shift)) | (uint64_t(data) << shift);
+            updateDisplay();
+        }
+        break;
     }
 }
 
@@ -132,6 +155,7 @@ uint16_t HhHmcs40Core::readD()
 {
     switch (m_g->kind) {
     case ALNATTCK: return readInputs(7) & 0x20;   // D5: multiplexed inputs
+    default: break;
     }
     return m_g->cmos ? 0xffff : 0;
 }
@@ -146,6 +170,13 @@ void HhHmcs40Core::writeD(uint16_t data, uint16_t mask)
         m_s.inpMux = data >> 7 & 0x7f;              // D7-D13: input mux
         m_s.grid = data >> 6 & 0x3ff;               // D6-D15: vfd grid
         m_s.plate = (m_s.plate & ~(uint64_t(0xf) << 16)) | (uint64_t(data & 0xf) << 16);   // D0-D3: plate
+        updateDisplay();
+        break;
+    case BAMBBALL:
+        speaker(data >> 4 & 1);                     // D4: speaker
+        m_s.inpMux = data >> 7 & 0xf;               // D7-D10: input mux
+        m_s.grid = data >> 7 & 0x1ff;               // D7-D15: vfd grid
+        m_s.plate = (m_s.plate & ~(uint64_t(0xf) << 12)) | (uint64_t(data & 0xf) << 12);   // D0-D3: plate
         updateDisplay();
         break;
     }

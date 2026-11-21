@@ -29,6 +29,7 @@ controller.
 | 20 SEGA Master System & Game Gear Classics (AtGames plug & play) | `atgsms` | Z80 + SMS / Game Gear VDP (own), Sega PSG, the chip's flash base registers worked out from the menu's launch code | Menu and all 20 games boot (MAME has no driver for it); Game Gear games are scaled to fill the TV picture |
 | Bally Professional Arcade / Home Library Computer / Computer System (Astrocade) | `astrocde`, `astrocdl`, `astrocdw` | Z80 + Astrocade data chip (bitmap, function generator, scanline interrupts) and I/O chip (sound, keypad, controllers) | Menu and Gunfight identical to MAME pixel for pixel; the sound follows MAME's; cartridges up to 8 KB |
 | Alien Attack tabletop (Coleco, 1981) | `alnattck` | Hitachi HD38800 (HMCS44, own core), VFD drawn from MAME's SVG | Same screen as MAME frame for frame (title, attract); skill / off switch |
+| Basketball (Bambino, 1979) | `bambball` | Hitachi HD38750 (HMCS43, own core), VFD drawn from MAME's SVG | Attract mode and play run; skill and teams switches |
 | Alien Chase tabletop (Tomy, 1984) | `alnchase` | NEC uPD553C (uCOM-43, own core), two-sided VFD from MAME's SVG | Every element's lit time over 600 frames within a few frames of MAME |
 | Alphie robot (Playskool, 1978) | `alphie` | TI TMS1000 (own core) | LED and sound output match MAME with the same presses |
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
@@ -42,6 +43,7 @@ controller.
 | ARB V2 Sargon 4.0 (AVE Auto Response Board rebuild) | `arbv2` | W65C02S + W65C22S at 16 MHz, magnet board, key and status LEDs | Answers 1. e2-e4 with the square and "computer move" LEDs as MAME |
 | Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
 | Elektor AVR-Max / AVR-Max-Schachzwerg / ATM18 Mini Chess Computer (2009) | `avrmax`, `avrmaxg`, `atm18mcc` | ATmega88 (own AVR core), 4-digit LED or 4 x 20 HD44780U LCD | Same display as MAME frame for frame through start-up, entering e2-e4 and the computer's reply |
+| Backgammon Challenger (Fidelity, 1979) | `backgamc` | Zilog Z80 (own Z80 core), NE591 LED latch, 4x4 keypad | Same digits as MAME frame for frame through start-up and the first roll; checkers are moved by hand on the drawn board |
 | (Advanced) Voice Chess Challenger (Fidelity, 1979 / 1980) | `vcc`, `avcc` | Z80 + 8255, 4-digit LED, TSI S14001A speech (own ports) | Same digits as MAME through start-up, CL, EN and LV; the speech matches MAME's sound |
 | Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard, printer and disk drive 6801s (own 6801 port with the serial interface), WD2793 | Boots SmartWriter and types, matching MAME's screen; boots 160 KB disks as MAME does; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape drive yet |
 | Air-Blaster Joystick (Advance Bright, 2005) | `airblsjs` | Elan EU3A05 (6502 SoC: banked 4 MB ROM, DMA, tile/sprite video, 6 ADPCM channels) | Menu and the games run (tested: the first 3D stage); identical to MAME's frames on the title. Enemy patterns differ run to run (the chip's random register) |
@@ -58,6 +60,8 @@ controller.
 | Double Players Mini Joystick 80-in-1 (Advance Bright) (PAL) | `ablmini` | VT02 / VT03 Waixing PAL, 8 MB, two pads | Menu and games match MAME's frames; two players |
 | Joystick 14-in-1 (Advance Bright "Wikid Joystick") (PAL) | `ablwikid` | SH6578 PAL, 2 MB in two halves | Menu and games match MAME's frames |
 | Wireless Tennis (Advance Bright) | `abltenni` | SunPlus SPG24x + the wireless racket receiver | Menus match MAME; serving and rallies play with the on-screen racket (MAME's driver can't get past "press the button") |
+| Backyard Baseball & Soccer (2005) | `backybbs` | SunPlus SPG24x + 93LC66 EEPROM on port A | Boots to the title and both games' menus; MAME maps only half the ROM, which garbles the graphics, so all 4 MB is mapped here |
+| Zunou Family Mattore (Bandai, 2006) | `ban_krkk` | SunPlus SPG24x, two 4-panel mats on ports A and C | Boots through the title to the game menu |
 | Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
 | Millennium Arcade 3D 15-in-1 | `arcade3d` | SunPlus SPG24x (JungleTac encrypted ROM) | Title, game menu and games (Deep Storm) run; not in MAME 0.264 to compare against |
 | Mini Arcade Console 10-in-1 (Fizz Creations) | `arcade10` | Sitronix ST2302U (W65C02 core + own SoC port), ST7735 LCD, SPI flash | Boot, menu and games match MAME's current driver frame for frame (built from MAME's source to compare) |
@@ -112,6 +116,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Arcade Genius | `arcadege` | `tc58nvg0s3eta00.u3` | 132 MB | `9b4db25e` |
 | Bally Astrocade BIOS | `astrocde` / `astrocdl` / `astrocdw` | `astro.bin` / `ballyhlc.bin` / `bioswhit.bin` | 8 KB | `ebc77f3a` / `d7c517ba` / `6eb53e79` |
 | Alien Attack | `alnattck` | `hd38800a25`, `alnattck.svg` | 4,352 / 564,266 bytes | `18b50869`, `386bf327` |
+| Basketball | `bambball` | `hd38750a08`, `bambball.svg` | 2,176 / 281,982 bytes | `907fef18`, `df113d8a` |
 | Alien Chase | `alnchase` | `d553c_258`, `alnchase.svg` | 2,048 / 576,555 bytes | `c5284ff5`, `b2c1734b` |
 | Alphie | `alphie` | `us4280809`, `tms1000_common2_micro.pla` | 1,024 / 867 bytes | `f8f14013`, `d33da3cf` |
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |
@@ -125,6 +130,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | ARB V2 | `arbv2` | `sargon_4.0` | 64 KB | `c519c9e8` |
 | Novag Accord | `accord` | `novag_875_31x0b87p` | 4 KB (4,096 bytes) | `4d77b7db` |
 | AVR-Max (and Schachzwerg) | `avrmax`, `avrmaxg` | `elektor_081101-41.ic1` / `elektor_081101-41_d.ic1` | 8 KB | `86d2a654` / `18ec7a56` |
+| Backgammon Challenger | `backgamc` | `cn19255n_101-32012` | 4 KB | `0a8a19b7` |
 | ATM18 Mini Chess Computer | `atm18mcc` | `avrmax_cc2_en-v1.0.bin`, `hd44780u_a02.bin` (from the `hd44780u` zip) | 8 / 4 KB | `715f4642`, `6d522b42` |
 | Voice Chess Challenger | `vcc` | `cn19256n_101-32013`, `cn19174n_vcc_2`, `cn19175n_vcc_3`, `101-32107` | 4 KB each | `257bb5ab`, `f33095e7`, `624f0cd5`, `f35784f9` |
 | Advanced Voice Chess Challenger | `avcc` | `101-64017`, `101-32010` (= `cn19175n_vcc_3`), `101-32107` (both from the `vcc` zip) | 8 / 4 / 4 KB | `f1133abf`, `624f0cd5`, `f35784f9` |
@@ -146,6 +152,8 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Double Players Mini Joystick 80-in-1 | `ablmini` | `ablmini.bin` | 8 MB (8,388,608 bytes) | `e65a2c3a` |
 | Joystick 14-in-1 | `ablwikid` | `mx29f1610atc.u2` | 2 MB (2,097,152 bytes) | `f16abf79` |
 | Wireless Tennis | `abltenni` | `ablpnpwirelesstennis.bin` | 4 MB (4,194,304 bytes) | `66bd8ef1` |
+| Backyard Baseball & Soccer | `backybbs` | `backyardbs.bin` | 4 MB | `9c378f27` |
+| Zunou Family Mattore | `ban_krkk` | `quiz.bin` | 4 MB | `6f51180a` |
 | Kick Boxing | `ablkickb` | `ablkickboxing.bin` | 8 MB (8,388,608 bytes) | `61394c45` |
 | Arcade 3D 15-in-1 | `arcade3d` | `arcade3d.u3` | 8 MB (8,388,608 bytes) | `130843a5` |
 | Mini Arcade Console 10-in-1 | `arcade10` | `st2x_internal_type1.bin`, `25q40.bin` | 8 KB, 512 KB | `f4dc1fc2`, `62784666` |

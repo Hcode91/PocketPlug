@@ -24,6 +24,7 @@
 #include "cores/chess/mephmod1.h"
 #include "cores/chess/arb.h"
 #include "cores/chess/vcc.h"
+#include "cores/chess/bkc.h"
 #include "cores/chess/avrmax.h"
 #include "cores/hh/hh_hmcs40.h"
 #include "cores/hh/hh_ucom4.h"
@@ -177,6 +178,22 @@ Core* createCore(const std::string& id)
         c.decryptAcFf = true;
         return new Spg2xxCore(c);
     }
+    if (id == "backybbs") {   // Backyard Baseball & Soccer (SPG24x, 60 Hz, 93LC66 EEPROM; needs all 4 MB mapped)
+        Spg2xxConfig c;
+        c.romName = "backyardbs.bin";
+        c.romSize = 0x400000;
+        c.board = 4;
+        c.pal = false;
+        return new Spg2xxCore(c);
+    }
+    if (id == "ban_krkk") {   // Bandai Let's! TV Play Zunou Family Mattore (SPG24x, 60 Hz, mat)
+        Spg2xxConfig c;
+        c.romName = "quiz.bin";
+        c.romSize = 0x400000;
+        c.board = 5;
+        c.pal = false;
+        return new Spg2xxCore(c);
+    }
     if (id == "afbm7800") {   // Atari Flashback (mini 7800): NES clone with an MMC3-style mapper
         Vt369Config c;
         c.romName = "atariflashbackmini7800.bin";
@@ -220,6 +237,8 @@ Core* createCore(const std::string& id)
         return new VccCore(false);
     if (id == "avcc")         // Fidelity Advanced Voice Chess Challenger
         return new VccCore(true);
+    if (id == "backgamc")     // Fidelity Backgammon Challenger (Z80)
+        return new BkcCore();
     if (id == "arcadege")     // Millennium Arcade Genius (GeneralPlus GPL32600, work in progress)
         return new GplCore();
     if (id == "atgame40")     // AtGames 40 Bonus Games in 1 (Firecore Mega Drive clone)

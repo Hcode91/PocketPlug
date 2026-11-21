@@ -37,7 +37,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/i8255.h` | BSD-3-Clause | Mode 0 of MAME's machine/i8255.cpp (Curt Coder, AJR) |
 | `app/src/main/cpp/common/s14001a.h` | BSD-3-Clause | Port of MAME's sound/s14001a.cpp (Jonathan Gevaryahu, Ed Bernard) |
 | `app/src/main/cpp/common/nanosvg/*` | Zlib | NanoSVG (Mikko Mononen), MAME's copy with shape titles - `nanosvg/LICENSE.txt` |
-| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp, amsterdam.cpp, mdisplay1, chess/ave_arb.cpp (hap), fidelity/vcc.cpp (Kevin Horton, Jonathan Gevaryahu, Sandro Ronco, hap), elektor/avrmax.cpp (hap), modular.cpp (Dirk Verwiebe, Cowering, Sandro Ronco, hap) / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
+| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp, amsterdam.cpp, mdisplay1, chess/ave_arb.cpp (hap), fidelity/vcc.cpp (Kevin Horton, Jonathan Gevaryahu, Sandro Ronco, hap), elektor/avrmax.cpp (hap), fidelity/bkc.cpp (Kevin Horton, Jonathan Gevaryahu, Sandro Ronco, hap), modular.cpp (Dirk Verwiebe, Cowering, Sandro Ronco, hap) / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
 | `app/src/main/cpp/common/z80/*` | MIT | superzazu/z80 (Nicolas Allemand), compiled as C++ - `common/z80/LICENSE`; PocketPlug adds the upper address byte of IN / OUT (`port_hi`) |
 | `app/src/main/cpp/common/m6801*` | BSD-3-Clause | MAME 6800/6801 instruction set (Aaron Giles) and m6801 peripherals incl. the serial interface |
 | `app/src/main/cpp/common/tms9928a.h` | BSD-3-Clause | PocketPlug (the TM 990 core's 9918 plus graphics II and the mixed modes, after MAME's tms9928a.cpp) |
@@ -54,7 +54,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/trkfld/g65816/*` | BSD-3-Clause | MAME G65816 CPU (Karl Stenerud; R. Belmont, Angelo Salese) |
 | `app/src/main/cpp/cores/trkfld/trkfld.*` | GPL-2.0-or-later | Port of MAME's trkfldch driver (BSD-3, David Haywood) |
 | `app/src/main/cpp/cores/spg2xx/unsp.*` | GPL-2.0-or-later | MAME u'nSP CPU (Segher Boessenkool, Ryan Holtz, David Haywood) |
-| `app/src/main/cpp/cores/spg2xx/*` (rest) | BSD-3-Clause | MAME SPG2xx devices (Ryan Holtz, David Haywood, Jonathan Gevaryahu), IMA ADPCM (Andrew Gardner, Aaron Giles), attotime/scheduler/screen timing (Aaron Giles); glue in spg2xx.cpp is GPL-2.0-or-later |
+| `app/src/main/cpp/cores/spg2xx/*` (rest) | BSD-3-Clause | MAME SPG2xx devices (Ryan Holtz, David Haywood, Jonathan Gevaryahu), IMA ADPCM (Andrew Gardner, Aaron Giles), attotime/scheduler/screen timing and the 93C66 serial EEPROM logic (Aaron Giles); glue in spg2xx.cpp is GPL-2.0-or-later |
 | `app/src/main/cpp/cores/ngen/*` | BSD-3-Clause | PocketPlug (written from scratch; the I/O map follows MAME's BSD-3 `skeleton/ngen.cpp` notes by Barry Rodewald) |
 | `app/src/main/cpp/cores/tm990/*` | BSD-3-Clause | PocketPlug (CPU, 9901 and 9918 written from scratch; board wiring, cycle counts and the 9918 renderer follow MAME's BSD-3 `ti/tm990189.cpp`, `cpu/tms9900` (Michael Zapf) and `video/tms9928a.cpp`) |
 | `app/src/main/cpp/cores/nixie4004/*` | BSD-3-Clause | PocketPlug (CPU written from scratch; the board wiring follows MAME's BSD-3 `homebrew/4004clk.cpp` by Miodrag Milanovic) |
