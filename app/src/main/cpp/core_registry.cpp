@@ -14,6 +14,7 @@
 #include "cores/apf/apf.h"
 #include "cores/astrocde/astrocde.h"
 #include "cores/sms/atgsms.h"
+#include "cores/md/firecore.h"
 #include "cores/st2302/bbl380.h"
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
@@ -218,6 +219,8 @@ Core* createCore(const std::string& id)
         return new VccCore(false);
     if (id == "avcc")         // Fidelity Advanced Voice Chess Challenger
         return new VccCore(true);
+    if (id == "atgame40")     // AtGames 40 Bonus Games in 1 (Firecore Mega Drive clone)
+        return new FirecoreCore();
     if (id == "atgsms")       // AtGames SMS / Game Gear plug & play
         return new AtgSmsCore();
     if (id == "astrocde")     // Bally Professional Arcade (Z80 + Astrocade custom chips)

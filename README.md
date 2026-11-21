@@ -24,6 +24,7 @@ controller.
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Mephisto Almeria 16 Bit / 32 Bit chess modules (Hegener + Glaser) | `alm16`, `alm16a`, `alm32` | Motorola 68000 / 68020 (Musashi), HD44780 LCD, magnet sensor board | All three boot to the same LCD as MAME and answer 1. e2-e4 with e7-e5 (same LEDs and LCD as MAME's alm32) |
 | Chibi Pachi: Alien Fever (pachislot keychain) | `alienfev` | Epson E0C6S46 (+1 MHz OSC3), 39x16 dot LCD | Title, menus and spinning reels; HANDLE, MODE, SELECT, SOUND buttons |
+| 40 Bonus Games in 1 (AtGames, Firecore Mega Drive on a chip) | `atgame40` | 68000 (Musashi) + Z80 + own Mega Drive VDP + ymfm YM2612 + Sega PSG; the Firecore's flash banking and its extended graphics mode (128 KB VRAM, 6-bit tiles, 256-colour 24-bit palettes) worked out from the games | Menu and 35 of the 40 games show their screens (MAME shows 17); 5 draw only part of the picture |
 | 20 SEGA Master System & Game Gear Classics (AtGames plug & play) | `atgsms` | Z80 + SMS / Game Gear VDP (own), Sega PSG, the chip's flash base registers worked out from the menu's launch code | Menu and all 20 games boot (MAME has no driver for it); Game Gear games are scaled to fill the TV picture |
 | Bally Professional Arcade / Home Library Computer / Computer System (Astrocade) | `astrocde`, `astrocdl`, `astrocdw` | Z80 + Astrocade data chip (bitmap, function generator, scanline interrupts) and I/O chip (sound, keypad, controllers) | Menu and Gunfight identical to MAME pixel for pixel; the sound follows MAME's; cartridges up to 8 KB |
 | Alien Attack tabletop (Coleco, 1981) | `alnattck` | Hitachi HD38800 (HMCS44, own core), VFD drawn from MAME's SVG | Same screen as MAME frame for frame (title, attract); skill / off switch |
@@ -105,6 +106,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Mephisto Almeria 16 Bit | `alm16` | `almeria_16bit_v0.13_even`, `..._odd` + `hd44780_a00.bin` | 64 KB each | `ee5b6ec4`, `d0be4ee4` |
 | Mephisto Almeria 16 Bit (v0.121) | `alm16a` | `almeria_16bit_v0.121_even`, `..._odd` + `hd44780_a00.bin` | 64 KB each | `3ab8fd3b`, `436c1d85` |
 | Chibi Pachi: Alien Fever | `alienfev` | `alienfev.bin` | 12 KB (12,288 bytes) | `e561599c` |
+| AtGames 40 Bonus Games in 1 | `atgame40` | `40bonusgamesin1.bin` | 16 MB | `4eba6e83` |
 | AtGames SMS / GG plug & play | `atgsms` | `atgames_sms.u5` | 4 MB | `bf23cd7d` |
 | Bally Astrocade BIOS | `astrocde` / `astrocdl` / `astrocdw` | `astro.bin` / `ballyhlc.bin` / `bioswhit.bin` | 8 KB | `ebc77f3a` / `d7c517ba` / `6eb53e79` |
 | Alien Attack | `alnattck` | `hd38800a25`, `alnattck.svg` | 4,352 / 564,266 bytes | `18b50869`, `386bf327` |

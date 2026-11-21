@@ -8,7 +8,7 @@ CFLAGS ?= -O2 -std=gnu99 -w
 DEFS = -DPOCKETPLUG '-DMUSASHI_CNF="../m68kconf.h"'
 CPP = ../app/src/main/cpp
 SRC = headless.cpp $(CPP)/core_registry.cpp \
-      $(wildcard $(CPP)/common/*.cpp) $(CPP)/common/chd/chd.cpp $(CPP)/common/z80/z80.cpp \
+      $(wildcard $(CPP)/common/*.cpp) $(CPP)/common/chd/chd.cpp $(CPP)/common/z80/z80.cpp $(wildcard $(CPP)/common/ymfm/*.cpp) \
       $(wildcard $(CPP)/cores/*/*.cpp) $(wildcard $(CPP)/cores/trkfld/g65816/*.cpp)
 # the UNIX PC core (FreeBee + Musashi) is C
 FB = $(CPP)/cores/unixpc/freebee
