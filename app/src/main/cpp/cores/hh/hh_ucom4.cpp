@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace {
-enum Kind { ALNCHASE };
+enum Kind { ALNCHASE, ASTROCMD };
 }
 
 struct Ucom4Game {
@@ -24,6 +24,8 @@ namespace {
 const Ucom4Game kGames[] = {
     // Tomy Alien Chase (1984): uPD553C, two-sided VFD (player 2 looks at the mirror image)
     { "alnchase", ALNCHASE, UCOM4::UCOM43, false, 400000, "d553c_258", 0x800, "alnchase.svg", 9, 17 },
+    // Epoch Astro Command (1982): uPD553C, VFD
+    { "astrocmd", ASTROCMD, UCOM4::UCOM43, false, 400000, "d553c_202.s01", 0x800, "astrocmd.svg", 9, 19 },
 };
 const Ucom4Game* find(const std::string& id)
 {
@@ -72,6 +74,11 @@ uint8_t HhUcom4Core::input(int port)
             return uint8_t((m_opt[0] ? 0 : 1) | (m_opt[1] ? 2 : 0));
         }
         return 0;
+    case ASTROCMD:
+        // A: SELECT, START, Missile, Bomb; B: up, down, left, right
+        if (port == UCOM4::PA) return uint8_t(in(4) | in(5) << 1 | in(6) << 2 | in(7) << 3);
+        if (port == UCOM4::PB) return uint8_t(m_in & 0xf);
+        return 0;
     }
     return 0;
 }
@@ -90,6 +97,21 @@ void HhUcom4Core::output(int port, uint8_t data)
         if (port >= UCOM4::PE) {
             int shift = (port - UCOM4::PE) * 4;
             m_s.plate = ((m_s.plate << 2 & ~(0xfu << shift)) | (uint32_t(data) << shift)) >> 2;
+        }
+        m_disp.matrix(now(), m_s.grid, m_s.plate);
+        break;
+    case ASTROCMD:
+        // C, D (, E3): grid; E, F, G, H, I: plate; E2: speaker
+        if (port == UCOM4::PC || port == UCOM4::PD) {
+            int shift = (port - UCOM4::PC) * 4;
+            m_s.grid = (m_s.grid & ~(0xfu << shift)) | (uint32_t(data) << shift);
+        } else if (port >= UCOM4::PE) {
+            int shift = (port - UCOM4::PE) * 4;
+            m_s.plate = (m_s.plate & ~(0xfu << shift)) | (uint32_t(data) << shift);
+            if (port == UCOM4::PE) {
+                speaker(data >> 2 & 1);
+                m_s.grid = (m_s.grid & ~0x100u) | (uint32_t(data >> 3 & 1) << 8);
+            }
         }
         m_disp.matrix(now(), m_s.grid, m_s.plate);
         break;

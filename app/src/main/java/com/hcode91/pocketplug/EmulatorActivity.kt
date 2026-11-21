@@ -327,8 +327,9 @@ class EmulatorActivity : Activity() {
                 setContentView(v)
             }
             Skin.HH -> {
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                val v = HhView(this, HhSkin.forMachine(machine.id)!!, width, height).apply {
+                val hhSkin = HhSkin.forMachine(machine.id)!!
+                requestedOrientation = if (hhSkin.landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = HhView(this, hhSkin, width, height).apply {
                     onInput = { setTouch(0, it) }
                     onOption = { id, value -> synchronized(coreLock) { Native.setOption(handle, id, value) } }
                     onMenu = { showMenu() }

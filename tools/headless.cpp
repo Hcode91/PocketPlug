@@ -95,6 +95,12 @@ int main(int argc, char** argv)
         if ((f + 1) % (getenv("EVERY") ? atoi(getenv("EVERY")) : 50) == 0) {
             char p[512]; snprintf(p, sizeof p, "%s/f%05d.ppm", argv[4], f + 1);
             writePPM(p, core->frameBuffer(), core->frameWidth(), core->frameHeight());
+            if (getenv("SEGS")) {   // chess cores: 4 digits at [130 + d * 8 + s]
+                const uint32_t* fb = core->frameBuffer();
+                printf("%d:", f + 1);
+                for (int d = 0; d < 4; d++) { int m = 0; for (int sg = 0; sg < 8; sg++) if (fb[130 + d * 8 + sg] > (getenv("SEGT") ? (unsigned)atoi(getenv("SEGT")) : 64u)) m |= 1 << sg; printf(" %02x", m); }
+                printf("\n");
+            }
         }
     }
     if (getenv("DUMP") && std::string(argv[1]) == "110dance") { unsigned a0 = strtoul(getenv("DUMP"), 0, 16); FILE* d = fopen("/home/claude/out/dump.bin", "wb"); for (unsigned a = a0; a < a0 + (getenv("DUMPLEN") ? strtoul(getenv("DUMPLEN"),0,16) : 0x100); a++) { uint8_t b = ((Vt1682Core*)core)->mainRead(a); fwrite(&b, 1, 1, d); } fclose(d); }

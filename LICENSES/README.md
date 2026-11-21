@@ -24,10 +24,12 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/hd44780.*` | BSD-3-Clause | Port of MAME's HD44780 (Sandro Ronco) |
 | `app/src/main/cpp/common/chessboard.h` | BSD-3-Clause | Logic of MAME's sensorboard (hap) |
 | `app/src/main/cpp/common/w65c02.*` | GPL-2.0-or-later | Own W65C02S core |
-| `app/src/main/cpp/cores/hh/*` | GPL-2.0-or-later | Ports of MAME's handheld/hh_hmcs40.cpp, hh_ucom4.cpp, hh_tms1k.cpp (hap), BSD-3 |
-| `app/src/main/cpp/common/hmcs40.*`, `ucom4.*`, `tms1k.*`, `pwmdisplay.h`, `svgscreen.*` | BSD-3-Clause | Ports of MAME's cpu/hmcs40, cpu/ucom4, cpu/tms1000 (Wilbert Pol, hap), video/pwm and screen_svg (hap, Olivier Galibert) |
+| `app/src/main/cpp/cores/hh/*` | GPL-2.0-or-later | Ports of MAME's handheld/hh_hmcs40.cpp, hh_ucom4.cpp, hh_tms1k.cpp, hh_sm510.cpp, hh_rw5000.cpp (hap), BSD-3 |
+| `app/src/main/cpp/common/hmcs40.*`, `ucom4.*`, `tms1k.*`, `sm5a.*`, `b6000.*`, `pwmdisplay.h`, `svgscreen.*` | BSD-3-Clause | Ports of MAME's cpu/hmcs40, cpu/ucom4, cpu/tms1000, cpu/sm510 (SM5A), cpu/rw5000 (B6000) (Wilbert Pol, hap), video/pwm and screen_svg (hap, Olivier Galibert) |
+| `app/src/main/cpp/common/i8255.h` | BSD-3-Clause | Mode 0 of MAME's machine/i8255.cpp (Curt Coder, AJR) |
+| `app/src/main/cpp/common/s14001a.h` | BSD-3-Clause | Port of MAME's sound/s14001a.cpp (Jonathan Gevaryahu, Ed Bernard) |
 | `app/src/main/cpp/common/nanosvg/*` | Zlib | NanoSVG (Mikko Mononen), MAME's copy with shape titles - `nanosvg/LICENSE.txt` |
-| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp, amsterdam.cpp, mdisplay1, chess/ave_arb.cpp (hap), modular.cpp (Dirk Verwiebe, Cowering, Sandro Ronco, hap) / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
+| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp, amsterdam.cpp, mdisplay1, chess/ave_arb.cpp (hap), fidelity/vcc.cpp (Kevin Horton, Jonathan Gevaryahu, Sandro Ronco, hap), modular.cpp (Dirk Verwiebe, Cowering, Sandro Ronco, hap) / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
 | `app/src/main/cpp/common/z80/*` | MIT | superzazu/z80 (Nicolas Allemand), compiled as C++ - `common/z80/LICENSE` |
 | `app/src/main/cpp/common/m6801*` | BSD-3-Clause | MAME 6800/6801 instruction set (Aaron Giles) and m6801 peripherals incl. the serial interface |
 | `app/src/main/cpp/common/tms9928a.h` | BSD-3-Clause | PocketPlug (the TM 990 core's 9918 plus graphics II and the mixed modes, after MAME's tms9928a.cpp) |

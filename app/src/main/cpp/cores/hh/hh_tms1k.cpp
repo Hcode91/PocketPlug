@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace {
-enum Kind { ALPHIE, AMAZTRON, ARCMANIA };
+enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL };
 // the guessed output PLA (O0 = bit 0 of the index)
 const uint16_t kAlphieOpla[0x20] = { 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1 };
 }
@@ -30,6 +30,8 @@ const Tms1kGame kGames[] = {
     // Coleco Amaze-A-Tron (1978): TMS1100, 2 digits + 2 LEDs, 5x5 pressure board
     { "amaztron", AMAZTRON, TMS1K::TMS1100, 300000, "mp3405", "tms1100_common3_micro.pla", "tms1100_amaztron_output.pla", nullptr, "", 4, 7 },
     // Milton Bradley Electronic Arcade Mania (1983): TMS1100, 9 LEDs
+    // A-One LSI Arrange Ball (1980): TMS1000, 2 digits + 22 LEDs (7 x 7 matrix)
+    { "arrball", ARRBALL, TMS1K::TMS1000, 325000, "mp0166", "tms1000_common2_micro.pla", "tms1000_arrball_output.pla", nullptr, "", 7, 7 },
     { "arcmania", ARCMANIA, TMS1K::TMS1100, 250000, "m34078a", "tms1100_common1_micro.pla", "tms1100_arcmania_output.pla", nullptr, "", 1, 9 },
 };
 const Tms1kGame* find(const std::string& id)
@@ -138,6 +140,9 @@ uint8_t HhTms1kCore::readK()
         if (k & 0x10) k |= 0xc;     // the 5th row is tied to K4 + K8
         return k & 0xf;
     }
+    case ARRBALL:
+        // R8: Shot, Stop, -, Speed (option 0: 1 = fast)
+        return (m_s.inpMux & 1) ? uint8_t(in(0) | in(1) << 1 | (m_opt[0] ? 8 : 0)) : 0;
     case ARCMANIA: {
         // O3: Alien Raiders (6), yellow 2 (7), Rattler (8); O4: Run Amuk (3), yellow 1 (4), Sneak Attack (5);
         // O6: orange 1-3 (0-2)
@@ -157,6 +162,7 @@ void HhTms1kCore::writeO(uint16_t o)
     switch (m_g->kind) {
     case ALPHIE: speaker(o & 1); break;
     case AMAZTRON: m_disp.matrix(now(), m_s.r, o & 0x7f); break;
+    case ARRBALL: m_disp.matrix(now(), m_s.r & 0x7f, o & 0x7f); break;
     case ARCMANIA:
         speakerLevel(__builtin_popcount(unsigned(o & 7)) / 3.0);
         m_s.inpMux = uint16_t((o >> 3 & 3) | (o >> 4 & 4));
@@ -180,6 +186,14 @@ void HhTms1kCore::writeR(uint32_t r)
         m_s.r = r >> 6 & 0xf;
         m_disp.matrix(now(), m_s.r, m_s.o & 0x7f);
         break;
+    case ARRBALL: {
+        m_s.inpMux = uint16_t(r >> 8 & 1);
+        int lv = int(r >> 9 & 3);                     // levels 0, 1, -1, 0
+        speakerLevel(lv == 1 ? 1.0 : lv == 2 ? 0.0 : 0.5);
+        m_s.r = r;
+        m_disp.matrix(now(), r & 0x7f, m_s.o & 0x7f);
+        break;
+    }
     case ARCMANIA:
         m_disp.matrix(now(), 1, r >> 1);
         m_s.r = r;

@@ -29,9 +29,15 @@ controller.
 | Alphie robot (Playskool, 1978) | `alphie` | TI TMS1000 (own core) | LED and sound output match MAME with the same presses |
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
 | Arcade Mania (Milton Bradley, 1983) | `arcmania` | TI TMS1100 (own core) | LEDs and sound match MAME with the same presses |
+| Arrange Ball (Tandy, 1980) | `arrball` | TI TMS1000 (own core) | Lamps, digits and sound match MAME with the same presses |
+| Astro Command tabletop (Epoch, 1982) | `astrocmd` | NEC uPD553C (uCOM-43, own core), VFD from MAME's SVG | Screen follows MAME closely through the attract mode and play |
+| Ataka asteroidov (Elektronika IM-53, 1992) | `atakaast` | Kvazar KB1013VK1-2 (Sharp SM5A, own core), LCD from MAME's SVG | Every LCD element matches MAME frame for frame with the same presses |
+| Autoslalom (Elektronika IM-23, 1991) | `auslalom` | Kvazar KB1013VK1-2 (Sharp SM5A, own core), LCD from MAME's SVG | Every LCD element matches MAME frame for frame with the same presses |
+| Auto Race (Mattel, 1976) | `autorace` | Rockwell B6000 (own core) | Lamps and score match MAME with the same gear and steering |
 | Mephisto Amsterdam chess computer (Hegener + Glaser, 1985) | `amsterd` | Motorola 68000 (Musashi), 4-digit LCD module, keypad module, magnet board | LCD and square LEDs as MAME; plays (book moves vary with timing, as on the real one) |
 | ARB V2 Sargon 4.0 (AVE Auto Response Board rebuild) | `arbv2` | W65C02S + W65C22S at 16 MHz, magnet board, key and status LEDs | Answers 1. e2-e4 with the square and "computer move" LEDs as MAME |
 | Novag Accord chess computer | `accord` | HD6301X0 (MAME's 6301 instruction set, own peripherals) | Starts, takes moves and thinks with the same LEDs as MAME; piezo sound |
+| (Advanced) Voice Chess Challenger (Fidelity, 1979 / 1980) | `vcc`, `avcc` | Z80 + 8255, 4-digit LED, TSI S14001A speech (own ports) | Same digits as MAME through start-up, CL, EN and LV; the speech matches MAME's sound |
 | Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard, printer and disk drive 6801s (own 6801 port with the serial interface), WD2793 | Boots SmartWriter and types, matching MAME's screen; boots 160 KB disks as MAME does; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape drive yet |
 | Air-Blaster Joystick (Advance Bright, 2005) | `airblsjs` | Elan EU3A05 (6502 SoC: banked 4 MB ROM, DMA, tile/sprite video, 6 ADPCM channels) | Menu and the games run (tested: the first 3D stage); identical to MAME's frames on the title. Enemy patterns differ run to run (the chip's random register) |
 | Altair 8800b (MITS, 1976) | `al8800b` | Intel 8080, front panel (LEDs, address/data and control switches), 88-2SIO terminal, 88-DCDD 8" disks | Front panel works (examine, deposit, run, single step, accumulator switches; the bus lights while running), Kill the Bit built in; terminal and disks as on the turnkey (booting disks uses the turnkey's boot PROM) |
@@ -101,9 +107,16 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Alphie | `alphie` | `us4280809`, `tms1000_common2_micro.pla` | 1,024 / 867 bytes | `f8f14013`, `d33da3cf` |
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |
 | Arcade Mania | `arcmania` | `m34078a`, `tms1100_common1_micro.pla`, `tms1100_arcmania_output.pla` | 2,048 / 867 / 365 bytes | `90ea0087`, `62445fc9`, `a1517b15` |
+| Arrange Ball | `arrball` | `mp0166`, `tms1000_common2_micro.pla`, `tms1000_arrball_output.pla` | 1,024 / 867 / 365 bytes | `a78694db`, `d33da3cf`, `ffc206fb` |
+| Astro Command | `astrocmd` | `d553c_202.s01`, `astrocmd.svg` | 2,048 / 335,380 bytes | `b4b34883`, `950af2c4` |
+| Ataka asteroidov | `atakaast` | `im-53.bin` (= `mc-25` from the `gnw_mmouse` zip), `atakaast.svg` | 1,856 / 105,570 bytes | `cb820c32`, `3d79aacc` |
+| Autoslalom | `auslalom` | `im-23.bin`, `auslalom.svg` | 1,856 / 117,520 bytes | `3b6e726f`, `2f90fd4c` |
+| Auto Race | `autorace` | `b6000ca` | 512 bytes | `a112c928` |
 | Mephisto Amsterdam | `amsterd` | `amsterda-u.bin`, `amsterda-l.bin` | 32 KB each | `0a75514e`, `6e17d8fa` |
 | ARB V2 | `arbv2` | `sargon_4.0` | 64 KB | `c519c9e8` |
 | Novag Accord | `accord` | `novag_875_31x0b87p` | 4 KB (4,096 bytes) | `4d77b7db` |
+| Voice Chess Challenger | `vcc` | `cn19256n_101-32013`, `cn19174n_vcc_2`, `cn19175n_vcc_3`, `101-32107` | 4 KB each | `257bb5ab`, `f33095e7`, `624f0cd5`, `f35784f9` |
+| Advanced Voice Chess Challenger | `avcc` | `101-64017`, `101-32010` (= `cn19175n_vcc_3`), `101-32107` (both from the `vcc` zip) | 8 / 4 / 4 KB | `f1133abf`, `624f0cd5`, `f35784f9` |
 | Coleco Adam | `adam` | `os7.u2`, `eos 6 rev 57 08dd.u22`, `wp_r80.rom` (adam zip) | 8 KB, 16 KB, 32 KB | `3aa93ef3`, `ef6403c5`, `58d86a2a` |
 | | | `master rev a 174b.u6` (adam zip), `keyboard.u2` (adam_kb), `printer.u2` (adam_prn) | 2 KB each | `035a7a3d`, `ef204746`, `e8db783b` |
 | | | `adam disk u10 ad 31 rev a 09-27-84.u10` (adam_fdc) | 4 KB | `4b0b7143` |

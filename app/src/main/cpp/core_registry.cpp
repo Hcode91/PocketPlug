@@ -19,8 +19,11 @@
 #include "cores/chess/almeria.h"
 #include "cores/chess/mephmod1.h"
 #include "cores/chess/arb.h"
+#include "cores/chess/vcc.h"
 #include "cores/hh/hh_hmcs40.h"
 #include "cores/hh/hh_ucom4.h"
+#include "cores/hh/hh_sm510.h"
+#include "cores/hh/hh_rw5000.h"
 #include "cores/hh/hh_tms1k.h"
 #include "cores/kits/acrnsys1.h"
 #include "cores/kits/aim65.h"
@@ -198,12 +201,20 @@ Core* createCore(const std::string& id)
         return new AccordCore("novag_875_31x0b87p");
     if (HhTms1kCore::known(id))    // TI TMS1000-family handhelds (alphie, amaztron, arcmania, ...)
         return new HhTms1kCore(id);
+    if (HhRw5000Core::known(id))   // Rockwell B6000 handhelds (autorace)
+        return new HhRw5000Core(id);
+    if (HhSm510Core::known(id))    // Sharp SM5xx LCD handhelds (atakaast, auslalom)
+        return new HhSm510Core(id);
     if (HhUcom4Core::known(id))    // NEC uCOM-4 handhelds (alnchase, ...)
         return new HhUcom4Core(id);
     if (HhHmcs40Core::known(id))   // Hitachi HMCS40 handhelds (alnattck, ...)
         return new HhHmcs40Core(id);
     if (id == "arbv2")        // ARB V2 Sargon 4.0 (AVE Auto Response Board rebuild)
         return new ArbV2Core();
+    if (id == "vcc")          // Fidelity Voice Chess Challenger (Z80 + S14001A)
+        return new VccCore(false);
+    if (id == "avcc")         // Fidelity Advanced Voice Chess Challenger
+        return new VccCore(true);
     if (id == "amsterd")      // Mephisto Amsterdam (68000)
         return new MephMod1Core(false, "amsterda-u.bin", "amsterda-l.bin");
     if (id == "alm32")        // Mephisto Almeria 32 Bit (68020)

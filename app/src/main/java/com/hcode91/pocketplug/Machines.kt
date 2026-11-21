@@ -301,6 +301,41 @@ object Machines {
             badge = "arb",
         ),
         MachineDef(
+            id = "vcc",
+            title = "Voice Chess Challenger",
+            subtitle = "1979 talking chess computer: key your moves in (from square, to square, EN) and it speaks "
+                + "its replies and shows them on the LEDs. The board has no sensors: move the pieces yourself. "
+                + "LV sets the level, RE resets (Fidelity Voice Chess Challenger; MAME set: vcc)",
+            chip = "Zilog Z80 @ 4 MHz + TSI S14001A speech",
+            region = "USA",
+            year = "1979",
+            roms = listOf(
+                RomSpec("cn19256n_101-32013", 0x1000L, 0x257bb5abL),
+                RomSpec("cn19174n_vcc_2", 0x1000L, 0xf33095e7L),
+                RomSpec("cn19175n_vcc_3", 0x1000L, 0x624f0cd5L),
+                RomSpec("101-32107", 0x1000L, 0xf35784f9L),
+            ),
+            skin = Skin.CHESS,
+            badge = "vcc",
+        ),
+        MachineDef(
+            id = "avcc",
+            title = "Advanced Voice Chess Challenger",
+            subtitle = "1980 stronger talking chess computer on the same board: key moves in (from, to, EN); it "
+                + "speaks its moves and shows them on the LEDs. Move the pieces yourself. Import the avcc zip and "
+                + "MAME's vcc zip (shared program and speech ROMs) (Fidelity Advanced Voice Chess Challenger; MAME set: avcc)",
+            chip = "Zilog Z80 @ 4 MHz + TSI S14001A speech",
+            region = "USA",
+            year = "1980",
+            roms = listOf(
+                RomSpec("101-64017", 0x2000L, 0xf1133abfL),
+                RomSpec("101-32010", 0x1000L, 0x624f0cd5L),
+                RomSpec("101-32107", 0x1000L, 0xf35784f9L),
+            ),
+            skin = Skin.CHESS,
+            badge = "vcc",
+        ),
+        MachineDef(
             id = "amsterd",
             title = "Amsterdam Chess Computer",
             subtitle = "1985 world microcomputer champion program on a 68000, in the modular magnetic board with "
@@ -482,6 +517,78 @@ object Machines {
                 RomSpec("tms1100_common1_micro.pla", 0x363L, 0x62445fc9L),
                 RomSpec("tms1100_arcmania_output.pla", 0x16dL, 0xa1517b15L),
             ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "arrball",
+            title = "Arrange Ball",
+            subtitle = "1980 LED puzzle: SHOT sends a ball round the arc into the numbered grid, STOP halts it; "
+                + "line the lit lamps up to the pattern for the level. SLOW / FAST sets the speed "
+                + "(Tandy Arrange Ball; MAME set: arrball)",
+            chip = "TI TMS1000",
+            region = "Japan",
+            year = "1980",
+            roms = listOf(
+                RomSpec("mp0166", 0x400L, 0xa78694dbL),
+                RomSpec("tms1000_common2_micro.pla", 0x363L, 0xd33da3cfL),
+                RomSpec("tms1000_arrball_output.pla", 0x16dL, 0xffc206fbL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "astrocmd",
+            title = "Astro Command Tabletop",
+            subtitle = "1982 VFD shooter: fight off the invaders with MISSILE and BOMB, steer with the "
+                + "joystick; SELECT picks the game, START begins (Epoch Astro Command; MAME set: astrocmd)",
+            chip = "NEC uPD553C (uCOM-43)",
+            region = "Japan",
+            year = "1982",
+            roms = listOf(
+                RomSpec("d553c_202.s01", 0x800L, 0xb4b34883L),
+                RomSpec("astrocmd.svg", 335380L, 0x950af2c4L),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "atakaast",
+            title = "Ataka Asteroidov LCD Game",
+            subtitle = "1992 LCD game in the Game & Watch style: guard the planet from the four corners. The cross "
+                + "pad's up / down work the left cannons, B and A the right ones; GAME A, GAME B start. Import the "
+                + "atakaast zip and MAME's gnw_mmouse zip, which holds the same program "
+                + "(Elektronika IM-53; MAME set: atakaast)",
+            chip = "Kvazar KB1013VK1-2 (Sharp SM5A)",
+            region = "USSR",
+            year = "1992",
+            roms = listOf(
+                RomSpec("im-53.bin", 0x740L, 0xcb820c32L),
+                RomSpec("atakaast.svg", 105570L, 0x3d79aaccL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "auslalom",
+            title = "Autoslalom LCD Game",
+            subtitle = "1991 LCD skiing-style car game: steer through the gates with the arrow keys, SPEED to go "
+                + "faster; GAME A / GAME B start, TIME shows the clock (Elektronika IM-23; MAME set: auslalom)",
+            chip = "Kvazar KB1013VK1-2 (Sharp SM5A)",
+            region = "USSR",
+            year = "1991",
+            roms = listOf(
+                RomSpec("im-23.bin", 0x740L, 0x3b6e726fL),
+                RomSpec("auslalom.svg", 117520L, 0x2f90fd4cL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "autorace",
+            title = "Auto Race LED Game",
+            subtitle = "1976 LED racing handheld: slide START / RESET to start, shift through GEAR 1-4 and steer "
+                + "the car (the bright bar at the bottom) round the others with the slide at the foot of the "
+                + "track (Mattel Auto Race; MAME set: autorace)",
+            chip = "Rockwell B6000",
+            region = "USA",
+            year = "1976",
+            roms = listOf(RomSpec("b6000ca", 0x200L, 0xa112c928L)),
             skin = Skin.HH,
         ),
         MachineDef(
