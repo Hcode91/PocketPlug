@@ -485,7 +485,7 @@ object Machines {
             title = "Arcade Genius",
             subtitle = "Camera handheld with a menu of games in Action, Puzzle, Relax, Simulation, Sport and Table "
                 + "rooms (Airborne, Balloon Boy, Flag Match...). Pick with the D-pad and A; B goes back. The games "
-                + "and menus run with their sound effects; there is no touch screen or camera yet, and nothing is saved "
+                + "and menus run with their sound effects; the camera (DC, DV) isn't emulated and nothing is saved "
                 + "(Millennium 2000; MAME set: arcadege, which doesn't run in MAME)",
             chip = "GeneralPlus GPL32600A (ARM926 @ 200 MHz + 2D PPU)",
             region = "Germany",

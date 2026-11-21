@@ -11,7 +11,8 @@
 //   0xd0100000 interrupt controller (vector n = mask bit 32-n)   0xd0300000 4-channel DMA
 //   0xd0500000 PPU (gpl32_ppu.cpp)                              0xd0900000 NAND controller
 //   0xd0400000 SPU (gpl32_spu.cpp)
-// Not done yet: the touch screen, the camera and saving to NAND.
+// Not done yet: the camera, the motion sensor and saving to NAND. (This model has no touch
+// screen: the touch driver in the firmware is never called.)
 
 #pragma once
 #include "../../core_api.h"
