@@ -70,6 +70,7 @@ object SkinPreview {
             }
             stack(ctx, tv(ctx) to 0.75f, ApfConsoleView(ctx, "") to 0.34f, row to 0.95f)
         }
+        Skin.ASTROCADE -> stack(ctx, tv(ctx) to 0.75f, AstrocadeConsoleView(ctx, "") to 0.62f, AstrocadeControllerView(ctx) to 0.55f)
         Skin.TV_CONSOLE -> stack(ctx, tv(ctx) to 0.85f, Arcade3dConsoleView(ctx) to 0.42f, Arcade3dPadView(ctx) to 0.5f)
         Skin.EGG_PET -> EggPetView(ctx, if (m.badge == "angel" || m.badge == "umino") m.badge else "gen1")
         Skin.PHONE_CASE -> PhoneCaseView(ctx, m.id == "36pcase")

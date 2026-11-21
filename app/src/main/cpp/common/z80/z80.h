@@ -30,6 +30,7 @@ struct z80 {
   bool iff1 : 1, iff2 : 1;
   bool halted : 1;
   bool int_pending : 1, nmi_pending : 1;
+  uint8_t port_hi; // upper address byte (A8-A15) of the current IN / OUT
 };
 
 void z80_init(z80* const z);

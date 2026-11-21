@@ -29,6 +29,10 @@ import kotlin.math.min
  *    4-digit LED display (FROM / TO) and the 4 x 4 keypad. The board has no
  *    sensors; moves are keyed in, pieces are moved by hand.
  *
+ *  - "avrmax" / "atm18": the Elektor AVR-Max boards, a green PCB with the 4-digit
+ *    red LED display (or the 4 x 20 LCD module) and the 11 tact switches; the board
+ *    above is only for moving the pieces by hand.
+ *
  * No maker's name or logo is drawn (the Academy's LCD shows what its ROM writes).
  */
 class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
@@ -77,6 +81,11 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
     private val vcc = style == "vcc"
     // RE, speaker, CL, EN / LV, DM, PB, PV / A1-D4 / E5-H8 (vcc.h input bits)
     private val vccBits = intArrayOf(0x10000, 0x10, 0x100, 0x1000, 0x2, 0x20, 0x200, 0x2000, 0x4, 0x40, 0x400, 0x4000, 0x8, 0x80, 0x800, 0x8000)
+    private val elektorLcd = style == "atm18"
+    private val elektor = style == "avrmax" || elektorLcd
+    // A1 B2 C3 / D4 E5 F6 / G7 H8 - / FN CL GO (avrmax.h input bits)
+    private val elkBits = intArrayOf(0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80, 0, 0x100, 0x200, 0x400)
+    private val lcd4 = IntArray(640)
     private val modLeft = RectF(); private val modMid = RectF(); private val modRight = RectF()
     private val spawn = Array(12) { RectF() }
     private val handR = RectF()
@@ -91,7 +100,8 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
         for (i in 0 until 64) squareLed[i] = px[66 + i]
         for (i in 0 until 24) leds[i] = px[130 + i]
         for (i in 0 until 256) lcd[i] = px[160 + i]
-        if (modular1 || vcc) for (i in 0 until 32) lcdSeg[i] = px[130 + i]
+        if (modular1 || vcc || elektor) for (i in 0 until 32) lcdSeg[i] = px[130 + i]
+        if (elektorLcd && px.size >= 840) for (i in 0 until 640) lcd4[i] = px[200 + i]
         if (arb) for (i in 0 until 12) arbLed[i] = px[130 + i]
         postInvalidate()
     }
@@ -121,6 +131,20 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
             for (i in 0 until 10) {
                 val cy = board.top + (board.height()) * ys[i]
                 keys[i].set(kx - kr, cy - kr, kx + kr, cy + kr)
+            }
+        } else if (elektor) {
+            // the hand board on top, the PCB under it: display on the left, 3 x 4 switches on the right
+            val bw = min(w * 0.84f, (h - toolH) * 0.6f)
+            sq = bw / 8f
+            board.set((w - bw) / 2, h * 0.02f + sq * 0.3f, (w - bw) / 2 + bw, h * 0.02f + sq * 0.3f + bw)
+            panel.set(w * 0.03f, board.bottom + sq * 0.55f, w * 0.97f, min(h - toolH - h * 0.015f, board.bottom + sq * 5.2f))
+            lcdR.set(panel.left + panel.width() * 0.04f, panel.top + panel.height() * 0.3f, panel.left + panel.width() * 0.6f, panel.top + panel.height() * (if (elektorLcd) 0.62f else 0.66f))
+            val kp = RectF(panel.left + panel.width() * 0.66f, panel.top + panel.height() * 0.08f, panel.right - panel.width() * 0.03f, panel.bottom - panel.height() * 0.06f)
+            val kw = kp.width() / 3f; val kh = kp.height() / 4f
+            val ks = min(kw, kh) * 0.36f
+            for (i in 0 until 12) {
+                val cx = kp.left + kw * (i % 3 + 0.5f); val cy = kp.top + kh * (i / 3 + 0.58f)
+                keys[i].set(cx - ks, cy - ks, cx + ks, cy + ks)
             }
         } else if (vcc) {
             // board on top; under it the display and the keypad, side by side
@@ -197,7 +221,7 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
 
     // ---- drawing ----
     override fun onDraw(c: Canvas) {
-        if (vcc) drawVcc(c) else if (arb) drawArb(c) else if (accord) drawAccord(c) else if (almeria) drawAlmeria(c) else if (modular1) drawModular1(c) else drawAcademy(c)
+        if (elektor) drawElektor(c) else if (vcc) drawVcc(c) else if (arb) drawArb(c) else if (accord) drawAccord(c) else if (almeria) drawAlmeria(c) else if (modular1) drawModular1(c) else drawAcademy(c)
         drawBoardPanel(c)
     }
 
@@ -375,6 +399,66 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
             text.textSize = sq * 0.12f; c.drawText(st[i], lx + sq * 0.15f, cy + text.textSize * 0.35f, text)
         }
         text.textAlign = Paint.Align.CENTER
+    }
+
+    private fun drawElektor(c: Canvas) {
+        c.drawColor(0xFF2E3238.toInt())
+        // a plain wooden board for moving the pieces
+        paint.color = 0xFF5C3A1E.toInt(); c.drawRoundRect(board.left - sq * 0.3f, board.top - sq * 0.3f, board.right + sq * 0.3f, board.bottom + sq * 0.3f, sq * 0.1f, sq * 0.1f, paint)
+        drawSquares(c, 0xFFE8D0A0.toInt(), 0xFF9C6234.toInt())
+        drawPieces(c)
+        // the green PCB with its traces and mounting holes
+        paint.color = 0xFF16602E.toInt(); c.drawRoundRect(panel, sq * 0.08f, sq * 0.08f, paint)
+        stroke.color = 0xFF2A8044.toInt(); stroke.strokeWidth = 3f
+        for (i in 0 until 9) { val y = panel.top + panel.height() * (0.75f + i * 0.025f); c.drawLine(panel.left + panel.width() * 0.05f, y, panel.left + panel.width() * 0.6f, y, stroke) }
+        paint.color = 0xFFC8C8C0.toInt()
+        for ((hx, hy) in listOf(0.02f to 0.06f, 0.98f to 0.06f, 0.02f to 0.94f, 0.98f to 0.94f)) c.drawCircle(panel.left + panel.width() * hx, panel.top + panel.height() * hy, sq * 0.08f, paint)
+        // the ATmega in its socket between display and switches
+        paint.color = 0xFF1A1A1A.toInt()
+        c.drawRect(panel.left + panel.width() * 0.61f, panel.top + panel.height() * 0.06f, panel.left + panel.width() * 0.645f, panel.bottom - panel.height() * 0.08f, paint)
+        // a row of resistors under the display
+        for (i in 0 until 8) {
+            val x = panel.left + panel.width() * (0.1f + i * 0.055f); val y = panel.top + panel.height() * 0.86f
+            paint.color = 0xFF8EB4D8.toInt(); c.drawRoundRect(x - sq * 0.07f, y - sq * 0.18f, x + sq * 0.07f, y + sq * 0.18f, sq * 0.05f, sq * 0.05f, paint)
+        }
+        if (elektorLcd) {
+            // LCD module: dark frame, yellow-green panel, 4 x 20 characters
+            paint.color = 0xFF0E0E0E.toInt(); c.drawRoundRect(lcdR.left - sq * 0.12f, lcdR.top - sq * 0.12f, lcdR.right + sq * 0.12f, lcdR.bottom + sq * 0.12f, sq * 0.05f, sq * 0.05f, paint)
+            paint.color = 0xFF9DB040.toInt(); c.drawRect(lcdR, paint)
+            val cw = lcdR.width() / (20 * 6 + 1); val ch = lcdR.height() / (4 * 9 + 1)
+            for (line in 0 until 4) for (pos in 0 until 20) for (r in 0 until 8) {
+                val bits = lcd4[(line * 20 + pos) * 8 + r]
+                for (col in 0 until 5) {
+                    paint.color = if ((bits shr (4 - col)) and 1 != 0) 0xFF1C2410.toInt() else 0x10000000
+                    val x = lcdR.left + (1 + pos * 6 + col) * cw; val y = lcdR.top + (1 + line * 9 + r) * ch
+                    c.drawRect(x, y, x + cw * 0.92f, y + ch * 0.92f, paint)
+                }
+            }
+        } else {
+            // four big red digits, each in its own grey block
+            val dw = lcdR.width() / 4f
+            for (d in 0 until 4) {
+                val cell = RectF(lcdR.left + dw * d + 3f, lcdR.top, lcdR.left + dw * (d + 1) - 3f, lcdR.bottom)
+                paint.color = 0xFF9A9A98.toInt(); c.drawRect(cell, paint)
+                paint.color = 0xFF2A0C0C.toInt(); c.drawRect(cell.left + dw * 0.06f, cell.top + dw * 0.08f, cell.right - dw * 0.06f, cell.bottom - dw * 0.08f, paint)
+                var seg = 0
+                for (k in 0 until 8) if (lcdSeg[d * 8 + k] > 0) seg = seg or (1 shl k)
+                drawSevenSeg(c, RectF(cell.left + dw * 0.14f, cell.top + dw * 0.16f, cell.right - dw * 0.06f, cell.bottom - dw * 0.16f), seg, 0xFFFF2A20.toInt(), 0xFF46100C.toInt())
+            }
+        }
+        // the tact switches with their silk-screen labels
+        val labels = arrayOf("A1", "B2", "C3", "D4", "E5", "F6", "G7", "H8", "", "FN", "CL", "GO")
+        for (i in 0 until 12) {
+            val k = keys[i]
+            if (elkBits[i] == 0) continue
+            val down = keyMask and elkBits[i] != 0
+            text.color = 0xFFF0F0F0.toInt(); text.textSize = k.height() * 0.36f
+            c.drawText(labels[i], k.centerX(), k.top - k.height() * 0.12f, text)
+            paint.color = 0xFFB8B8B4.toInt(); c.drawRect(k, paint)
+            paint.color = 0xFF8A8A86.toInt(); for ((px, py) in listOf(0.15f to 0.15f, 0.85f to 0.15f, 0.15f to 0.85f, 0.85f to 0.85f)) c.drawCircle(k.left + k.width() * px, k.top + k.height() * py, k.width() * 0.06f, paint)
+            paint.color = if (down) 0xFF101010.toInt() else 0xFF3A2A22.toInt()
+            c.drawCircle(k.centerX(), k.centerY(), k.width() * 0.3f, paint)
+        }
     }
 
     private fun drawVcc(c: Canvas) {
@@ -624,10 +708,10 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
 
     // ---- touch ----
     private fun keyAt(x: Float, y: Float): Int {
-        val n = if (modular1) 18 else if (vcc) 16 else if (arb) 10 else 8
+        val n = if (modular1) 18 else if (vcc) 16 else if (elektor) 12 else if (arb) 10 else 8
         for (i in 0 until n) {
-            val r = RectF(keys[i]).apply { if (modular1 || vcc) inset(-width() * 0.06f, -height() * 0.12f) else inset(-width() * 0.2f, -height() * 0.4f) }
-            if (r.contains(x, y)) return if (modular1) m1Bits[i] else if (vcc) vccBits[i] else if (arb) arbBits[i] else 1 shl i
+            val r = RectF(keys[i]).apply { if (modular1 || vcc) inset(-width() * 0.06f, -height() * 0.12f) else if (elektor) inset(-width() * 0.25f, -height() * 0.25f) else inset(-width() * 0.2f, -height() * 0.4f) }
+            if (r.contains(x, y)) { val b = if (modular1) m1Bits[i] else if (vcc) vccBits[i] else if (elektor) elkBits[i] else if (arb) arbBits[i] else 1 shl i; if (b != 0) return b }
         }
         return 0
     }

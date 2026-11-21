@@ -17,6 +17,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/e0c6s46/*` | BSD-3-Clause | MAME `src/devices/cpu/e0c6200` (hap) - `MAME-e0c6200.txt` |
 | `app/src/main/cpp/cores/vt369/*` | GPL-2.0-or-later | MAME VT SoC + PPU incl. VT02/03, VT "4FFx", SH6578 and the nes_clone.cpp afbm7800 mapper (BSD-3, David Haywood, Ernesto Corvi, Brad Oliver, Fabio Priuli), VT3xx sound CPU (BSD-3, David Haywood), VT369 ADPCM decoder (GPL-2.0+, NewRisingSun) and NES APU (GPL-2.0+, Matthew Conte) |
 | `app/src/main/cpp/cores/st2302/*` | BSD-3-Clause | MAME `st2302u_bbl_spi.cpp`, `bl_handhelds_menucontrol.cpp`, `generic_spi_flash.cpp`, `st7735_lcdc.cpp` (David Haywood) and `st2xxx.cpp` / `st2205u.cpp` (AJR) |
+| `app/src/main/cpp/cores/astrocde/*` | GPL-2.0-or-later | Port of MAME's bally/astrohome.cpp and astrocde_v.cpp (Nicola Salmoria, Mike Coates, Frank Palazzolo, Aaron Giles) and sound/astrocde.cpp (Aaron Giles, Frank Palazzolo), BSD-3 |
 | `app/src/main/cpp/cores/apf/*` | BSD-3-Clause | MAME `src/mame/apf/apf.cpp` (Robbbert) and `src/devices/bus/apf` (Fabio Priuli) |
 | `app/src/main/cpp/common/mc6847*` | BSD-3-Clause | MAME `src/devices/video/mc6847.cpp` 0.264 (Nathan Woods), fonts included |
 | `app/src/main/cpp/common/pia6821.h` | BSD-3-Clause | MAME `src/devices/machine/6821pia.cpp` (Aaron Giles, Nathan Woods) |
@@ -26,11 +27,12 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/w65c02.*` | GPL-2.0-or-later | Own W65C02S core |
 | `app/src/main/cpp/cores/hh/*` | GPL-2.0-or-later | Ports of MAME's handheld/hh_hmcs40.cpp, hh_ucom4.cpp, hh_tms1k.cpp, hh_sm510.cpp, hh_rw5000.cpp (hap), BSD-3 |
 | `app/src/main/cpp/common/hmcs40.*`, `ucom4.*`, `tms1k.*`, `sm5a.*`, `b6000.*`, `pwmdisplay.h`, `svgscreen.*` | BSD-3-Clause | Ports of MAME's cpu/hmcs40, cpu/ucom4, cpu/tms1000, cpu/sm510 (SM5A), cpu/rw5000 (B6000) (Wilbert Pol, hap), video/pwm and screen_svg (hap, Olivier Galibert) |
+| `app/src/main/cpp/common/avr8.*` | BSD-3-Clause | PocketPlug (written for this project from Atmel's instruction set manual and ATmega88 datasheet) |
 | `app/src/main/cpp/common/i8255.h` | BSD-3-Clause | Mode 0 of MAME's machine/i8255.cpp (Curt Coder, AJR) |
 | `app/src/main/cpp/common/s14001a.h` | BSD-3-Clause | Port of MAME's sound/s14001a.cpp (Jonathan Gevaryahu, Ed Bernard) |
 | `app/src/main/cpp/common/nanosvg/*` | Zlib | NanoSVG (Mikko Mononen), MAME's copy with shape titles - `nanosvg/LICENSE.txt` |
-| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp, amsterdam.cpp, mdisplay1, chess/ave_arb.cpp (hap), fidelity/vcc.cpp (Kevin Horton, Jonathan Gevaryahu, Sandro Ronco, hap), modular.cpp (Dirk Verwiebe, Cowering, Sandro Ronco, hap) / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
-| `app/src/main/cpp/common/z80/*` | MIT | superzazu/z80 (Nicolas Allemand), compiled as C++ - `common/z80/LICENSE` |
+| `app/src/main/cpp/cores/chess/*` | GPL-2.0-or-later | Ports of MAME's academy.cpp, amsterdam.cpp, mdisplay1, chess/ave_arb.cpp (hap), fidelity/vcc.cpp (Kevin Horton, Jonathan Gevaryahu, Sandro Ronco, hap), elektor/avrmax.cpp (hap), modular.cpp (Dirk Verwiebe, Cowering, Sandro Ronco, hap) / mboard / mdisplay2 (Sandro Ronco, hap) and novag/accord.cpp (hap), BSD-3 |
+| `app/src/main/cpp/common/z80/*` | MIT | superzazu/z80 (Nicolas Allemand), compiled as C++ - `common/z80/LICENSE`; PocketPlug adds the upper address byte of IN / OUT (`port_hi`) |
 | `app/src/main/cpp/common/m6801*` | BSD-3-Clause | MAME 6800/6801 instruction set (Aaron Giles) and m6801 peripherals incl. the serial interface |
 | `app/src/main/cpp/common/tms9928a.h` | BSD-3-Clause | PocketPlug (the TM 990 core's 9918 plus graphics II and the mixed modes, after MAME's tms9928a.cpp) |
 | `app/src/main/cpp/common/sn76489.h` | BSD-3-Clause | Port of MAME's sn76496.cpp (Nicola Salmoria et al.) |

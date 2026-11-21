@@ -34,6 +34,8 @@ class EmulatorActivity : Activity() {
     private var mat: DanceMatView? = null
     private val pads = arrayOfNulls<ApvsControllerView>(2)
     private val apfPads = arrayOfNulls<ApfControllerView>(2)
+    private var astroPad: AstrocadeControllerView? = null
+    private var astroConsole: AstrocadeConsoleView? = null
     private var a3dPad: Arcade3dPadView? = null
     private var mini: MiniArcadeView? = null
     private var pet: EggPetView? = null
@@ -455,6 +457,24 @@ class EmulatorActivity : Activity() {
                     add(tv, 0.75f)
                     add(console, 0.34f)
                     add(row, 0.95f)
+                })
+            }
+            Skin.ASTROCADE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val console = AstrocadeConsoleView(this, if (cartFile != null) title.toString() else "").apply {
+                    onKeys = { setTouch(2, it) }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                }
+                val pad = AstrocadeControllerView(this).apply {
+                    onInput = { setTouch(1, it) }
+                    onKnob = { x -> synchronized(coreLock) { Native.setAnalog(handle, 0, x, 0f) } }
+                }
+                astroConsole = console; astroPad = pad
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.75f)
+                    add(console, 0.62f)
+                    add(pad, 0.55f)
                 })
             }
             Skin.MINI_ARCADE -> {
@@ -1455,6 +1475,7 @@ class EmulatorActivity : Activity() {
         Skin.KEYCHAIN -> KeychainGameView.keyBit(code)
         Skin.HH -> HhView.keyBit(code)
         Skin.APF -> ApfBits.keyBit(code)
+        Skin.ASTROCADE -> AstroBits.keyBit(code)
         Skin.MINI_ARCADE -> MiniArcadeView.keyBit(code)
         Skin.TV_CONSOLE -> A3dBits.keyBit(code)
         Skin.KIT -> kitKeyBit(code)
@@ -1933,6 +1954,8 @@ class EmulatorActivity : Activity() {
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
+        astroPad?.externalMask = keyInputs
+        astroConsole?.externalMask = keyInputs
         a3dPad?.externalMask = keyInputs
         mini?.externalMask = keyInputs
         return true
@@ -1997,6 +2020,8 @@ class EmulatorActivity : Activity() {
         wide?.externalMask = keyInputs or stickMask
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
+        astroPad?.externalMask = keyInputs
+        astroConsole?.externalMask = keyInputs
         a3dPad?.externalMask = keyInputs
         mini?.externalMask = keyInputs
         return true

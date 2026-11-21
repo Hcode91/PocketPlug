@@ -12,6 +12,7 @@
 #include "cores/vt369/vt369.h"
 #include "cores/spg2xx/spg2xx.h"
 #include "cores/apf/apf.h"
+#include "cores/astrocde/astrocde.h"
 #include "cores/st2302/bbl380.h"
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
@@ -20,6 +21,7 @@
 #include "cores/chess/mephmod1.h"
 #include "cores/chess/arb.h"
 #include "cores/chess/vcc.h"
+#include "cores/chess/avrmax.h"
 #include "cores/hh/hh_hmcs40.h"
 #include "cores/hh/hh_ucom4.h"
 #include "cores/hh/hh_sm510.h"
@@ -215,6 +217,18 @@ Core* createCore(const std::string& id)
         return new VccCore(false);
     if (id == "avcc")         // Fidelity Advanced Voice Chess Challenger
         return new VccCore(true);
+    if (id == "astrocde")     // Bally Professional Arcade (Z80 + Astrocade custom chips)
+        return new AstrocadeCore("astro.bin");
+    if (id == "astrocdl")     // Bally Home Library Computer
+        return new AstrocadeCore("ballyhlc.bin");
+    if (id == "astrocdw")     // Bally Computer System (white case)
+        return new AstrocadeCore("bioswhit.bin");
+    if (id == "avrmax")       // Elektor AVR-Max (ATmega88, LED)
+        return new AvrMaxCore("elektor_081101-41.ic1", false);
+    if (id == "avrmaxg")      // Elektor AVR-Max-Schachzwerg (German)
+        return new AvrMaxCore("elektor_081101-41_d.ic1", false);
+    if (id == "atm18mcc")     // Elektor ATM18 Mini Chess Computer (LCD)
+        return new AvrMaxCore("avrmax_cc2_en-v1.0.bin", true);
     if (id == "amsterd")      // Mephisto Amsterdam (68000)
         return new MephMod1Core(false, "amsterda-u.bin", "amsterda-l.bin");
     if (id == "alm32")        // Mephisto Almeria 32 Bit (68020)

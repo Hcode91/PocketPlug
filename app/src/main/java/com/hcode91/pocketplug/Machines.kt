@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -50,7 +50,7 @@ val MachineDef.category: String
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE -> "Handhelds"
         Skin.EGG_PET -> "Pets"
-        Skin.APVS_1292, Skin.APF -> "Consoles"
+        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK -> "Chess & clocks"
         else -> "Computers"
     }
@@ -336,6 +336,47 @@ object Machines {
             badge = "vcc",
         ),
         MachineDef(
+            id = "avrmax",
+            title = "AVR-Max Chess Computer",
+            subtitle = "2009 magazine build: micro-Max chess on an ATmega88 with a 4-digit LED display. Key your move "
+                + "(e.g. E5 B2 E5 D4 for e2-e4) and press GO twice; FN 1 new game, FN 2 level. The board on screen is "
+                + "only for moving the pieces yourself (Elektor AVR-Max; MAME set: avrmax)",
+            chip = "Atmel ATmega88 @ 8 MHz",
+            region = "Netherlands",
+            year = "2009",
+            roms = listOf(RomSpec("elektor_081101-41.ic1", 0x2000L, 0x86d2a654L)),
+            skin = Skin.CHESS,
+            badge = "avrmax",
+        ),
+        MachineDef(
+            id = "avrmaxg",
+            title = "AVR-Max-Schachzwerg",
+            subtitle = "German edition of the AVR-Max: the same micro-Max chess on an ATmega88 with a 4-digit LED "
+                + "display, German display text (Elektor AVR-Max-Schachzwerg; MAME set: avrmaxg)",
+            chip = "Atmel ATmega88 @ 8 MHz",
+            region = "Germany",
+            year = "2009",
+            roms = listOf(RomSpec("elektor_081101-41_d.ic1", 0x2000L, 0x18ec7a56L)),
+            skin = Skin.CHESS,
+            badge = "avrmax",
+        ),
+        MachineDef(
+            id = "atm18mcc",
+            title = "ATM18 Mini Chess Computer",
+            subtitle = "2009 magazine build: micro-Max chess on the ATM18 board with a 4 x 20 LCD. Key your move and "
+                + "press GO twice; FN for setup. Import the atm18mcc zip and MAME's hd44780u zip (the LCD's "
+                + "character ROM) (Elektor ATM18 Mini Chess Computer; MAME set: atm18mcc)",
+            chip = "Atmel ATmega88 @ 16 MHz + HD44780U LCD",
+            region = "Netherlands",
+            year = "2009",
+            roms = listOf(
+                RomSpec("avrmax_cc2_en-v1.0.bin", 0x2000L, 0x715f4642L),
+                RomSpec("hd44780u_a02.bin", 0x1000L, 0x6d522b42L),
+            ),
+            skin = Skin.CHESS,
+            badge = "atm18",
+        ),
+        MachineDef(
             id = "amsterd",
             title = "Amsterdam Chess Computer",
             subtitle = "1985 world microcomputer champion program on a 68000, in the modular magnetic board with "
@@ -412,6 +453,52 @@ object Machines {
                 "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
                 "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. The texts are in German (SPIEL = game).",
             ),
+        ),
+        MachineDef(
+            id = "astrocde",
+            title = "Professional Arcade",
+            subtitle = "1978 console with four built-in programs: pick one with the keypad number, then follow the "
+                + "screen (= is GO). The hand controller's knob turns (drag round its ring) and pushes as a stick; "
+                + "add cartridges of up to 8 KB (Bally Professional Arcade; MAME set: astrocde)",
+            chip = "Zilog Z80 @ 1.79 MHz + Bally custom video and I/O chips",
+            region = "USA",
+            year = "1978",
+            roms = listOf(RomSpec("astro.bin", 0x2000L, 0xebc77f3aL)),
+            skin = Skin.ASTROCADE,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x2000,
+            cartLibrary = "astrocde",
+            builtInGame = "Gunfight, Checkmate, Calculator, Scribbling",
+        ),
+        MachineDef(
+            id = "astrocdl",
+            title = "Home Library Computer",
+            subtitle = "1977 first release of the same console, with Gunfight, Checkmate, Calculator and Scribbling "
+                + "built in; shares the cartridge library (Bally Home Library Computer; MAME set: astrocdl)",
+            chip = "Zilog Z80 @ 1.79 MHz + Bally custom video and I/O chips",
+            region = "USA",
+            year = "1977",
+            roms = listOf(RomSpec("ballyhlc.bin", 0x2000L, 0xd7c517baL)),
+            skin = Skin.ASTROCADE,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x2000,
+            cartLibrary = "astrocde",
+            builtInGame = "Gunfight, Checkmate, Calculator, Scribbling",
+        ),
+        MachineDef(
+            id = "astrocdw",
+            title = "Computer System (white)",
+            subtitle = "The white-cased Bally Computer System, the same console with the four built-in programs; "
+                + "shares the cartridge library (Bally Computer System; MAME set: astrocdw)",
+            chip = "Zilog Z80 @ 1.79 MHz + Bally custom video and I/O chips",
+            region = "USA",
+            year = "1977",
+            roms = listOf(RomSpec("bioswhit.bin", 0x2000L, 0x6eb53e79L)),
+            skin = Skin.ASTROCADE,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x2000,
+            cartLibrary = "astrocde",
+            builtInGame = "Gunfight, Checkmate, Calculator, Scribbling",
         ),
         MachineDef(
             id = "apfm1000",
