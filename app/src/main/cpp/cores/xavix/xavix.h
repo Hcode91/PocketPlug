@@ -29,6 +29,8 @@ public:
         int i2cPage = 16;
         int sdaBit = 3, sclBit = 4;   // IO1 pins of the EEPROM
         bool lotrIo = false;      // IN1 bits 1-2 read random (MAME xavix_i2c_lotr_state)
+        int camBlobs = 2;
+        bool camBar = false;       // the toy is one reflective strip: draw a bar from sticker 0 to sticker 1          // reflective stickers in view: two gloves / hands, or one sword
         bool camera = false;      // Bandai "Taikan" camera: 32x31 infrared image on ADC channel 0, clocked on IN1 bits 1-2;
                                   // IO1 bit 5 lights the LEDs, so reflective stickers show up in the difference
 
@@ -161,6 +163,7 @@ private:
     XavixSound m_snd;
     bool m_eepromInit = false;
     float m_ax[2] = { -0.45f, 0.45f }, m_ay[2] = { 0.1f, 0.1f };
+    float m_bx[2] = { -0.45f, 0.45f }, m_by[2] = { 0.1f, 0.1f };   // where the stickers are now, chasing m_ax / m_ay
     float m_reach[2] = { 0, 0 };   // how far each glove has travelled into a punch, 0..1
     bool m_analogSet = false;
     uint8_t cameraPixel(int row, int col, bool led);

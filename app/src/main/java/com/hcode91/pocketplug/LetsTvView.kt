@@ -84,12 +84,13 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
     private val path = Path()
     private val btns = mutableListOf<Btn>()
     private val cam = RectF()
-    private val stickers = arrayOf(PointF(-0.45f, 0.1f), PointF(0.45f, 0.1f))
+    private val stickers = if (theme == "onmyou") arrayOf(PointF(0f, 0.1f), PointF(0f, 0.1f)) else arrayOf(PointF(-0.45f, 0.1f), PointF(0.45f, 0.1f))
     private val pointerBtn = HashMap<Int, Int>()
     private val pointerSticker = HashMap<Int, Int>()
     private val downAt = HashMap<Int, PointF>()
     private val downTime = HashMap<Int, Long>()
     private var touchMask = 0
+    private val nStickers = if (theme == "onmyou") 1 else 2
     private var punchMask = 0
     private val punchEnd = LongArray(2)
 
@@ -352,8 +353,8 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             c.drawLine(cam.left, cam.top + cam.height() * k / 8, cam.right, cam.top + cam.height() * k / 8, stroke)
         }
         text.textSize = cam.height() * 0.07f; text.color = 0x88FFFFFF.toInt()
-        c.drawText(if (theme == "onmyou") "drag the sword  ·  tap to strike" else "drag the stickers  ·  tap to punch", cam.centerX(), cam.bottom - cam.height() * 0.05f, text)
-        for (g in 0..1) {
+        c.drawText(when (theme) { "onmyou" -> "point and swing the sword"; "punch" -> "drag the gloves  ·  tap to punch"; else -> "drag your hands" }, cam.centerX(), cam.bottom - cam.height() * 0.05f, text)
+        for (g in 0 until nStickers) {
             val p = stickers[g]
             val x = cam.centerX() + p.x * cam.width() / 2; val y = cam.centerY() + p.y * cam.height() / 2
             val hit = held and (PUNCH_L shl g) != 0
@@ -364,7 +365,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             c.drawRoundRect(x - r, y - r, x + r, y + r, r * 0.25f, r * 0.25f, paint)
             paint.color = 0x66FFFFFF; c.drawRect(x - r * 0.7f, y - r * 0.7f, x, y, paint)
             text.textSize = r * 0.8f; text.color = 0xFF30384A.toInt()
-            c.drawText(if (g == 0) "L" else "R", x, y + r * 0.3f, text)
+            if (nStickers > 1) c.drawText(if (g == 0) "L" else "R", x, y + r * 0.3f, text)
         }
     }
 
@@ -393,7 +394,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
     private fun stickerAt(x: Float, y: Float): Int {
         if (!hasCamera(theme) || !RectF(cam).apply { inset(-30f, -30f) }.contains(x, y)) return -1
         var best = -1; var bd = Float.MAX_VALUE
-        for (g in 0..1) {
+        for (g in 0 until nStickers) {
             val sx = cam.centerX() + stickers[g].x * cam.width() / 2; val sy = cam.centerY() + stickers[g].y * cam.height() / 2
             val d = hypot(x - sx, y - sy)
             if (d < bd) { bd = d; best = g }

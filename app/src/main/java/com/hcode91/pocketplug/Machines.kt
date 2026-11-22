@@ -377,7 +377,7 @@ object Machines {
         MachineDef(
             id = "ban_omt",
             title = "Onmyou Taisenki",
-            subtitle = "2005 camera sword game: the camera tracks the sticker on the toy sword. the sticker moves the menu cursor and O picks; drag it in the camera window and tap it to strike. Story mode reaches the first stage; the battle menu is still being worked on (Bandai Let's! TV Play Touin Ougi Onmyou Taisenki; MAME set: ban_omt)",
+            subtitle = "2005 camera sword game: the camera tracks the sticker on the toy sword. the sticker moves the cursor and O picks; swing it across the camera window to pick a direction or strike (Bandai Let's! TV Play Touin Ougi Onmyou Taisenki; MAME set: ban_omt)",
             chip = "SSD 2000 (XaviX, 6502 core)",
             region = "Japan",
             year = "2005",
@@ -410,7 +410,7 @@ object Machines {
         MachineDef(
             id = "ban_pr2j",
             title = "Issho ni Henshin! (Yes! PreCure 5)",
-            subtitle = "2007 dance-along camera game: move your hands (the two stickers) in front of the camera. Reaches the title; the camera controls are still being worked on (Bandai Yes! PreCure 5: Issho ni Henshin! Metamorphose!; MAME set: ban_pr2j)",
+            subtitle = "2007 dance-along camera game: the two stickers are the ends of the toy wand. Reaches the title; starting a game isn't worked out yet (Bandai Yes! PreCure 5: Issho ni Henshin! Metamorphose!; MAME set: ban_pr2j)",
             chip = "SSD 2002 SuperXaviX (6502 core)",
             region = "Japan",
             year = "2007",
@@ -432,7 +432,7 @@ object Machines {
         MachineDef(
             id = "ban_ult",
             title = "Narikiri Fight (Ultraman)",
-            subtitle = "2006 camera fighting game: strike the poses and fire the beam with your arms. Hold a hand over a button to pick it; the trial battle starts, the attacks are still being worked on (Bandai Let's! TV Play Narikiri Fight Ultraman; MAME set: ban_ult)",
+            subtitle = "2006 camera fighting game: strike the poses and fire the beam with your arms. Hold a hand over a button to pick it, and in battle move your hands the way the arrows show (Bandai Let's! TV Play Narikiri Fight Ultraman; MAME set: ban_ult)",
             chip = "SSD 2002 SuperXaviX (6502 core)",
             region = "Japan",
             year = "2006",

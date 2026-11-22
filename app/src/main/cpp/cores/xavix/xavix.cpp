@@ -485,8 +485,19 @@ uint8_t XavixCore::cameraPixel(int row, int col, bool led)
 {
     int v = 0x18 + ((row * 7 + col * 13) & 7);
     if (!led) return uint8_t(v);
-    for (int g = 0; g < 2; g++) {
-        float px = m_ax[g], py = m_ay[g] - 0.6f * m_reach[g];   // the arm reaches up and out
+    if (m_cfg.camBar) {
+        float ax = 15.5f + m_bx[0] * 14.0f, ay = 15.0f + m_by[0] * 13.0f;
+        float bx = 15.5f + m_bx[1] * 14.0f, by = 15.0f + m_by[1] * 13.0f;
+        float dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+        float t = l2 > 0 ? ((col - ax) * dx + (row - ay) * dy) / l2 : 0;
+        t = std::max(0.0f, std::min(1.0f, t));
+        float ex = col - (ax + t * dx), ey = row - (ay + t * dy);
+        float d2 = ex * ex + ey * ey;
+        if (d2 < 2.25f) v += int(200 * (1.0f - d2 / 3.6f));
+        return uint8_t(v > 255 ? 255 : v);
+    }
+    for (int g = 0; g < m_cfg.camBlobs; g++) {
+        float px = m_bx[g], py = m_by[g] - 0.6f * m_reach[g];   // the arm reaches up and out
         float cx = 15.5f + px * 14.0f;
         float cy = 15.0f + py * 13.0f;
         float r = 2.5f + m_reach[g];
@@ -714,6 +725,10 @@ void XavixCore::runFrame()
         float target = (m_inputs >> (9 + g) & 1) ? 1.0f : 0.0f;
         if (m_reach[g] < target) m_reach[g] = std::min(target, m_reach[g] + 0.2f);
         else if (m_reach[g] > target) m_reach[g] = std::max(target, m_reach[g] - 0.2f);
+        // a real sticker moves at arm speed: chase the finger at most ~2.5 camera pixels a frame
+        const float STEP = 0.18f;
+        m_bx[g] += std::max(-STEP, std::min(STEP, m_ax[g] - m_bx[g]));
+        m_by[g] += std::max(-STEP, std::min(STEP, m_ay[g] - m_by[g]));
     }
     for (int line = 0; line < LINES; line++) {
         m_vpos = line;
