@@ -45,6 +45,7 @@ class EmulatorActivity : Activity() {
     private var nixie: NixieClockView? = null
     private var joypad: JoystickPadView? = null
     private var ablPad: AblPadView? = null
+    private var letsTv: LetsTvView? = null
     private var flightStick: FlightStickView? = null
     private var keychain: KeychainGameView? = null
     private var hh: HhView? = null
@@ -368,6 +369,19 @@ class EmulatorActivity : Activity() {
                     onReset = { synchronized(coreLock) { Native.reset(handle) } }
                 }
                 ablPad = m
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.92f)
+                    add(m, 0.8f)
+                })
+            }
+            Skin.LETS_TV -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val m = LetsTvView(this, machine.badge).apply {
+                    onInput = { setTouch(0, it) }
+                    onAnalog = { g, x, y -> synchronized(coreLock) { Native.setAnalog(handle, g, x, y) } }
+                }
+                letsTv = m
                 setContentView(StackLayout(this).apply {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)
@@ -1506,6 +1520,7 @@ class EmulatorActivity : Activity() {
         Skin.HANDHELD -> handheldKeyBit(code)
         Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
         Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
+        Skin.LETS_TV -> LetsTvView.keyBit(machine.badge, code)
         Skin.FLIGHT_STICK -> FlightStickView.keyBit(code)
         Skin.KEYCHAIN -> KeychainGameView.keyBit(code)
         Skin.HH -> HhView.keyBit(code)
@@ -2006,6 +2021,7 @@ class EmulatorActivity : Activity() {
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
+        letsTv?.externalMask = keyInputs
         flightStick?.externalMask = keyInputs or stickMask
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs
@@ -2074,6 +2090,7 @@ class EmulatorActivity : Activity() {
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
+        letsTv?.externalMask = keyInputs
         flightStick?.externalMask = keyInputs or stickMask
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs

@@ -49,6 +49,7 @@ object SkinPreview {
     private fun build(ctx: Context, m: MachineDef): View = when (m.skin) {
         Skin.DANCE_MAT -> stack(ctx, tv(ctx) to 0.92f, DanceMatView(ctx) to 1.12f)
         Skin.ABL_TV -> stack(ctx, tv(ctx) to 0.92f, AblPadView(ctx, m.badge) to 0.8f)
+        Skin.LETS_TV -> stack(ctx, tv(ctx) to 0.92f, LetsTvView(ctx, m.badge) to 0.8f)
         Skin.JOYSTICK_TV -> stack(ctx, tv(ctx) to 0.92f, JoystickPadView(ctx) to 0.8f)
         Skin.KEYCHAIN -> KeychainGameView(ctx)
         Skin.HH -> HhView(ctx, HhSkin.forMachine(m.id)!!, 960, 350)

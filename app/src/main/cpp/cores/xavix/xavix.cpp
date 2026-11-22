@@ -394,6 +394,9 @@ void XavixCore::lowWrite(uint16_t a, uint8_t d)
         updateIrqs();
         break;
     case 0x7b81:
+#ifdef XAVIX_DEBUG
+        if (getenv("XADC")) { static uint32_t n = 0; if ((n++ % 500) == 0) fprintf(stderr, "adc %02x pc %02x:%04x n=%u\n", d, m_cpu.codebank, m_cpu.pc, n); }
+#endif
         m_s.adcControl = d;
         m_s.adcLatch = 0;          // the analogue inputs are unused (0)
         if (m_cfg.camera && !(d & 0x13)) {
@@ -711,6 +714,7 @@ void XavixCore::runFrame()
     }
     frameCycles = done;
 #ifdef XAVIX_DEBUG
+    if (getenv("XAVIX_PCALL")) { static int f2 = 0; if ((++f2 % 150) == 0) fprintf(stderr, "frame %d pc %02x:%04x\n", f2, m_cpu.codebank, m_cpu.pc); }
     if (const char* dumpAt = getenv("XAVIX_RAMDUMP")) {   // debugging aid for the headless runner
         static int dbgFrame = 0;
         if (++dbgFrame == atoi(dumpAt)) { FILE* f = fopen("/tmp/xram.bin", "wb"); if (f) { fwrite(m_s.ram, 1, 0x4000, f); fclose(f); } }

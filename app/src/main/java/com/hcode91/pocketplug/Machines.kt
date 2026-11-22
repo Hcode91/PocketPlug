@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -47,7 +47,7 @@ data class MachineDef(
 /** Which shelf of the machine list a machine sits on. */
 val MachineDef.category: String
     get() = when (skin) {
-        Skin.DANCE_MAT, Skin.ABL_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
+        Skin.DANCE_MAT, Skin.ABL_TV, Skin.LETS_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292, Skin.APF, Skin.ASTROCADE -> "Consoles"
@@ -362,6 +362,83 @@ object Machines {
             roms = listOf(RomSpec("backyardbs.bin", 0x400000L, 0x9c378f27L)),
             skin = Skin.ABL_TV,
             badge = "backyard",
+        ),
+        MachineDef(
+            id = "ban_naru",
+            title = "Naruto Ninja Taikan",
+            subtitle = "2006 camera game: stand in front of the unit and throw ninja moves with the glove. Boots to the title; the camera and the sound of this second-generation chip are still being worked out (Bandai Let's! TV Play Naruto Ninja Taikan: Dattebayo!; MAME set: ban_naru)",
+            chip = "SSD XaviX 2 (own 32-bit core)",
+            region = "Japan",
+            year = "2006",
+            roms = listOf(RomSpec("naruto.bin", 0x800000L, 0xe3465ad2L)),
+            skin = Skin.LETS_TV,
+            badge = "ninja",
+        ),
+        MachineDef(
+            id = "ban_omt",
+            title = "Onmyou Taisenki",
+            subtitle = "2005 camera sword game: the camera tracks the sticker on the toy sword. O picks, X goes back; drag the sticker in the camera window and tap it to strike. Menus and story select work; fights are still being worked on (Bandai Let's! TV Play Touin Ougi Onmyou Taisenki; MAME set: ban_omt)",
+            chip = "SSD 2000 (XaviX, 6502 core)",
+            region = "Japan",
+            year = "2005",
+            roms = listOf(RomSpec("otmj.bin", 0x400000L, 0x1c1dc6fbL)),
+            skin = Skin.LETS_TV,
+            badge = "onmyou",
+        ),
+        MachineDef(
+            id = "ban_onep",
+            title = "Punch Battle (One Piece)",
+            subtitle = "2004 boxing game: the camera follows the reflective stickers on two gloves. O starts and skips; drag the gloves in the camera window and tap or flick one to punch. Reaches the battles; punches don't land yet (Bandai Let's! TV Play Taikan Kakutou One Piece Punch Battle; MAME set: ban_onep)",
+            chip = "SSD 2000 (XaviX, 6502 core)",
+            region = "Japan",
+            year = "2004",
+            roms = listOf(RomSpec("onepiece.bin", 0x800000L, 0xc5cb5a5fL)),
+            skin = Skin.LETS_TV,
+            badge = "punch",
+        ),
+        MachineDef(
+            id = "ban_ordj",
+            title = "Ongeki Battle (Kamen Rider Hibiki)",
+            subtitle = "2005 drumming fight: beat the two taiko heads and the rims with the sticks. Reaches the forest battle; the motion sensors in the real sticks are still being worked out (Bandai Let's! TV Play Ongeki Battle! Kamen Rider Hibiki; MAME set: ban_ordj)",
+            chip = "SSD 2002 SuperXaviX (6502 core)",
+            region = "Japan",
+            year = "2005",
+            roms = listOf(RomSpec("ordj.u2", 0x800000L, 0x78fbb00fL)),
+            skin = Skin.LETS_TV,
+            badge = "drums",
+        ),
+        MachineDef(
+            id = "ban_pr2j",
+            title = "Issho ni Henshin! (Yes! PreCure 5)",
+            subtitle = "2007 dance-along camera game: move your hands (the two stickers) in front of the camera. Reaches the title; the camera controls are still being worked on (Bandai Yes! PreCure 5: Issho ni Henshin! Metamorphose!; MAME set: ban_pr2j)",
+            chip = "SSD 2002 SuperXaviX (6502 core)",
+            region = "Japan",
+            year = "2007",
+            roms = listOf(RomSpec("pr2j.u2", 0x800000L, 0xe46bf811L)),
+            skin = Skin.LETS_TV,
+            badge = "rainbow",
+        ),
+        MachineDef(
+            id = "ban_tam2",
+            title = "Tamagotchi School Senshuken",
+            subtitle = "2006 plug-in TV game of school contests: the arrows move through the menus, the big yellow button picks (Bandai Let's! TV Play Tamagotchi; MAME set: ban_tam2)",
+            chip = "Sunplus SPG24x (u'nSP)",
+            region = "Japan",
+            year = "2006",
+            roms = listOf(RomSpec("tvgametamagotchi2.bin", 0x800000L, 0xcc4322faL)),
+            skin = Skin.LETS_TV,
+            badge = "tamagotchi",
+        ),
+        MachineDef(
+            id = "ban_ult",
+            title = "Narikiri Fight (Ultraman)",
+            subtitle = "2006 camera fighting game: strike the poses and fire the beam with your arms. Reaches the title and the trial play; the camera controls are still being worked on (Bandai Let's! TV Play Narikiri Fight Ultraman; MAME set: ban_ult)",
+            chip = "SSD 2002 SuperXaviX (6502 core)",
+            region = "Japan",
+            year = "2006",
+            roms = listOf(RomSpec("ultraman.u1", 0x800000L, 0xbc2a94fbL)),
+            skin = Skin.LETS_TV,
+            badge = "hero",
         ),
         MachineDef(
             id = "ban_krrj",

@@ -62,6 +62,13 @@ controller.
 | Wireless Tennis (Advance Bright) | `abltenni` | SunPlus SPG24x + the wireless racket receiver | Menus match MAME; serving and rallies play with the on-screen racket (MAME's driver can't get past "press the button") |
 | Backyard Baseball & Soccer (2005) | `backybbs` | SunPlus SPG24x + 93LC66 EEPROM on port A | Boots to the title and both games' menus; MAME maps only half the ROM, which garbles the graphics, so all 4 MB is mapped here |
 | Zunou Family Mattore (Bandai, 2006) | `ban_krkk` | SunPlus SPG24x, two 4-panel mats on ports A and C | Boots through the title to the game menu |
+| Naruto Ninja Taikan (Bandai, 2006) | `ban_naru` | SSD XaviX 2: own 32-bit CPU core, sprite GPU into a 2048×1024 surface, I2C EEPROM | Boots to the title; the camera and sound aren't done yet |
+| Onmyou Taisenki (Bandai, 2005) | `ban_omt` | SSD 2000: XaviX core plus the extra J/K/L/M and pointer opcodes, 24C02 EEPROM, 32×31 ADC camera with sticker tracking | Menus and character select work; fights still being worked on |
+| Punch Battle (Bandai, 2004) | `ban_onep` | SSD 2000 with the glove camera | Reaches the battles and the camera follows the gloves; punches don't land yet |
+| Ongeki Battle (Bandai, 2005) | `ban_ordj` | SSD 2002 SuperXaviX: double-speed CPU, 512-wide output, bitmap layer and second palette | Title, menus and the first battle; the drumstick sensors aren't done yet |
+| Issho ni Henshin! (Bandai, 2007) | `ban_pr2j` | SuperXaviX with the camera on the extra ports | Reaches the title |
+| Tamagotchi School Senshuken (Bandai, 2006) | `ban_tam2` | Sunplus SPG24x core | Plays |
+| Narikiri Fight (Bandai, 2006) | `ban_ult` | SuperXaviX with the camera, 24C01 EEPROM | Title and the trial-play demo |
 | Keroro Dotabata Daikessen (Bandai, 2006) | `ban_krrj` | SSD XaviX: own 6502 core with code / data banks and far calls, tilemaps, sprites, HSL palette, 16-voice wavetable sound | Same picture as MAME frame for frame from boot through the menus; the mini-games play with sound |
 | Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
 | Millennium Arcade 3D 15-in-1 | `arcade3d` | SunPlus SPG24x (JungleTac encrypted ROM) | Title, game menu and games (Deep Storm) run; not in MAME 0.264 to compare against |
@@ -155,6 +162,13 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Wireless Tennis | `abltenni` | `ablpnpwirelesstennis.bin` | 4 MB (4,194,304 bytes) | `66bd8ef1` |
 | Backyard Baseball & Soccer | `backybbs` | `backyardbs.bin` | 4 MB | `9c378f27` |
 | Zunou Family Mattore | `ban_krkk` | `quiz.bin` | 4 MB | `6f51180a` |
+| Naruto Ninja Taikan | `ban_naru` | `naruto.bin` | 8 MB | `e3465ad2` |
+| Onmyou Taisenki | `ban_omt` | `otmj.bin` | 4 MB | `1c1dc6fb` |
+| Punch Battle | `ban_onep` | `onepiece.bin` | 8 MB | `c5cb5a5f` |
+| Ongeki Battle | `ban_ordj` | `ordj.u2` | 8 MB | `78fbb00f` |
+| Issho ni Henshin! | `ban_pr2j` | `pr2j.u2` | 8 MB | `e46bf811` |
+| Tamagotchi School Senshuken | `ban_tam2` | `tvgametamagotchi2.bin` | 8 MB | `cc4322fa` |
+| Narikiri Fight | `ban_ult` | `ultraman.u1` | 8 MB | `bc2a94fb` |
 | Keroro Dotabata Daikessen | `ban_krrj` | `krrj.u2` | 4 MB | `16f0fe78` |
 | Kick Boxing | `ablkickb` | `ablkickboxing.bin` | 8 MB (8,388,608 bytes) | `61394c45` |
 | Arcade 3D 15-in-1 | `arcade3d` | `arcade3d.u3` | 8 MB (8,388,608 bytes) | `130843a5` |
