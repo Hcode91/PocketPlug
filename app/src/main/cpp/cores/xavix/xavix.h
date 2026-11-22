@@ -161,6 +161,7 @@ private:
     XavixSound m_snd;
     bool m_eepromInit = false;
     float m_ax[2] = { -0.45f, 0.45f }, m_ay[2] = { 0.1f, 0.1f };
+    float m_reach[2] = { 0, 0 };   // how far each glove has travelled into a punch, 0..1
     bool m_analogSet = false;
     uint8_t cameraPixel(int row, int col, bool led);
     uint8_t cameraClock();

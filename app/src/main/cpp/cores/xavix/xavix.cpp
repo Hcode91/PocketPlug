@@ -7,6 +7,7 @@
 #include "xavix.h"
 #include <cmath>
 #include <algorithm>
+#include <set>
 #include <cstdio>
 #include <cstdlib>
 
@@ -81,6 +82,11 @@ uint8_t XavixCore::txarray(uint16_t o) const
 uint8_t XavixCore::lowBypass(uint16_t a)
 {
     a &= 0x7fff;
+#ifdef XAVIX_DEBUG
+    static int wlo = -2, whi = 0;
+    if (wlo == -2) { const char* e = getenv("XRDW"); if (e) { sscanf(e, "%x-%x", &wlo, &whi); } else wlo = -1; }
+    if (wlo >= 0 && a >= wlo && a <= whi) { static std::set<uint32_t> seen; uint32_t k = (m_cpu.codebank << 16) | m_cpu.pc; if (seen.insert(k).second) fprintf(stderr, "read %04x pc %02x:%04x\n", a, m_cpu.codebank, m_cpu.pc); }
+#endif
     if (a < 0x4000) return m_s.ram[a];
     if (a < 0x5000) return txarray(a & 0xfff);
     if (a >= 0x6000 && a < 0x6800) return m_s.sprite[a & 0x7ff];
@@ -211,7 +217,7 @@ uint8_t XavixCore::ioRead(int port)
         m_s.rng = m_s.rng * 1103515245u + 12345u;
         in = uint8_t((in & ~0x06) | ((m_s.rng >> 16) & 0x06));
     }
-    if (port && m_cfg.camera && !m_cfg.camOnEx) in = uint8_t((in & ~0x06) | (cameraClock() ? 0x06 : 0));
+    if (port && m_cfg.camera && !m_cfg.camOnEx) in = uint8_t((in & ~0x06) | cameraClock());
     if (port && m_cfg.i2cSize) {
         int sda = (m_s.i2c.state == I2C_IDLE) ? m_s.i2c.sdaw : m_s.i2c.sdar;
         in = uint8_t((in & ~(1 << m_cfg.sdaBit)) | (sda << m_cfg.sdaBit));
@@ -224,6 +230,11 @@ uint8_t XavixCore::ioRead(int port)
 uint8_t XavixCore::lowRead(uint16_t a)
 {
     a &= 0x7fff;
+#ifdef XAVIX_DEBUG
+    static int wlo = -2, whi = 0;
+    if (wlo == -2) { const char* e = getenv("XRDW"); if (e) { sscanf(e, "%x-%x", &wlo, &whi); } else wlo = -1; }
+    if (wlo >= 0 && a >= wlo && a <= whi) { static std::set<uint32_t> seen; uint32_t k = (m_cpu.codebank << 16) | m_cpu.pc; if (seen.insert(k).second) fprintf(stderr, "read %04x pc %02x:%04x\n", a, m_cpu.codebank, m_cpu.pc); }
+#endif
     if (a < 0x4000) return m_s.ram[a];
     if (a < 0x5000) return txarray(a & 0xfff);
     if (a < 0x6000) return 0;
@@ -240,7 +251,7 @@ uint8_t XavixCore::lowRead(uint16_t a)
         if (a >= 0x7a30 && a <= 0x7a32) {
             int i = a - 0x7a30;
             uint8_t in = uint8_t(m_cfg.exDefault[i] | (i == 0 ? (m_inputs >> 16) : 0));
-            if (i == 1 && m_cfg.camera && m_cfg.camOnEx) in = uint8_t((in & ~0x04) | (cameraClock() ? 0x04 : 0));
+            if (i == 1 && m_cfg.camera && m_cfg.camOnEx) in = uint8_t((in & ~0x04) | (cameraClock() & 0x04));
             return uint8_t((in & ~m_s.sxDir[i]) | (m_s.sxOut[i] & m_s.sxDir[i]));
         }
     }
@@ -402,6 +413,9 @@ void XavixCore::lowWrite(uint16_t a, uint8_t d)
         if (m_cfg.camera && !(d & 0x13)) {
             // each row: one conversion to start, then 32 pixels
             uint32_t c = m_s.camCount++;
+#ifdef XAVIX_DEBUG
+            if (getenv("XCAM") && c % 66 == 0) fprintf(stderr, "conv %u clock %u\n", c, m_s.camClock % 4010);
+#endif
             int row = int(c / 33), col = int(c % 33) - 1;
             m_s.adcLatch = (col < 0 || row > 31) ? 0 : cameraPixel(row, col, m_s.camLed);
         }
@@ -447,6 +461,8 @@ void XavixCore::mathDo(bool mulShf)
 // the LEDs' state at the sync decides whether the stickers light up
 uint8_t XavixCore::cameraClock()
 {
+    // bit 1: frame sync, high for the 8 reads of the sync; bit 2: pixel clock,
+    // held high through the sync and toggling on every read after it
     const uint32_t FRAME = 2 + 8 + 4000;
     uint32_t p = m_s.camClock++ % FRAME;
     if (p < 2) return 0;
@@ -454,10 +470,13 @@ uint8_t XavixCore::cameraClock()
         if (p == 2) {
             m_s.camCount = 0;
             m_s.camLed = m_cfg.camOnEx ? (m_s.sxOut[1] >> 5 & 1) : (m_s.io1Data >> 5 & 1);
+#ifdef XAVIX_DEBUG
+            if (getenv("XCAM")) fprintf(stderr, "sync led=%d io1=%02x pc=%04x\n", m_s.camLed, m_s.io1Data, m_cpu.pc);
+#endif
         }
-        return 1;
+        return 0x06;
     }
-    return p & 1;
+    return (p & 1) ? 0x04 : 0;
 }
 
 // two reflective stickers (the gloves / the sword) as soft round blobs that only
@@ -467,12 +486,10 @@ uint8_t XavixCore::cameraPixel(int row, int col, bool led)
     int v = 0x18 + ((row * 7 + col * 13) & 7);
     if (!led) return uint8_t(v);
     for (int g = 0; g < 2; g++) {
-        bool punch = m_inputs >> (9 + g) & 1;
-        float px = m_ax[g], py = m_ay[g];
-        if (punch) py -= 0.6f;                      // the arm reaches up and out
+        float px = m_ax[g], py = m_ay[g] - 0.6f * m_reach[g];   // the arm reaches up and out
         float cx = 15.5f + px * 14.0f;
         float cy = 15.0f + py * 13.0f;
-        float r = punch ? 3.5f : 2.5f;
+        float r = 2.5f + m_reach[g];
         float dx = col - cx, dy = row - cy;
         float d2 = dx * dx + dy * dy;
         if (d2 < r * r) v += int(200 * (1.0f - d2 / (r * r * 1.6f)));
@@ -691,6 +708,13 @@ void XavixCore::runFrame()
     double frameCycles = 0;
     double done = 0;
     m_rendered = -1;
+    // a punch glides out over a few frames: the games track the sticker from
+    // frame to frame and throw away any jump of five camera pixels or more
+    for (int g = 0; g < 2; g++) {
+        float target = (m_inputs >> (9 + g) & 1) ? 1.0f : 0.0f;
+        if (m_reach[g] < target) m_reach[g] = std::min(target, m_reach[g] + 0.2f);
+        else if (m_reach[g] > target) m_reach[g] = std::max(target, m_reach[g] - 0.2f);
+    }
     for (int line = 0; line < LINES; line++) {
         m_vpos = line;
         if (line == 240) {
@@ -714,6 +738,13 @@ void XavixCore::runFrame()
     }
     frameCycles = done;
 #ifdef XAVIX_DEBUG
+    if (const char* w = getenv("XWATCH")) {   // "addr,addr,..": print those RAM bytes every frame
+        static int wf = 0; wf++;
+        fprintf(stderr, "%d:", wf);
+        std::string ws(w); size_t p0 = 0;
+        while (p0 < ws.size()) { size_t p1 = ws.find(',', p0); if (p1 == std::string::npos) p1 = ws.size(); fprintf(stderr, " %02x", m_s.ram[strtoul(ws.substr(p0, p1 - p0).c_str(), 0, 16) & 0x3fff]); p0 = p1 + 1; }
+        fprintf(stderr, "\n");
+    }
     if (getenv("XAVIX_PCALL")) { static int f2 = 0; if ((++f2 % 150) == 0) fprintf(stderr, "frame %d pc %02x:%04x\n", f2, m_cpu.codebank, m_cpu.pc); }
     if (const char* dumpAt = getenv("XAVIX_RAMDUMP")) {   // debugging aid for the headless runner
         static int dbgFrame = 0;

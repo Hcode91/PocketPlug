@@ -63,12 +63,12 @@ controller.
 | Backyard Baseball & Soccer (2005) | `backybbs` | SunPlus SPG24x + 93LC66 EEPROM on port A | Boots to the title and both games' menus; MAME maps only half the ROM, which garbles the graphics, so all 4 MB is mapped here |
 | Zunou Family Mattore (Bandai, 2006) | `ban_krkk` | SunPlus SPG24x, two 4-panel mats on ports A and C | Boots through the title to the game menu |
 | Naruto Ninja Taikan (Bandai, 2006) | `ban_naru` | SSD XaviX 2: own 32-bit CPU core, sprite GPU into a 2048×1024 surface, I2C EEPROM | Boots to the title; the camera and sound aren't done yet |
-| Onmyou Taisenki (Bandai, 2005) | `ban_omt` | SSD 2000: XaviX core plus the extra J/K/L/M and pointer opcodes, 24C02 EEPROM, 32×31 ADC camera with sticker tracking | Menus and character select work; fights still being worked on |
-| Punch Battle (Bandai, 2004) | `ban_onep` | SSD 2000 with the glove camera | Reaches the battles and the camera follows the gloves; punches don't land yet |
+| Onmyou Taisenki (Bandai, 2005) | `ban_omt` | SSD 2000: XaviX core plus the extra J/K/L/M and pointer opcodes, 24C02 EEPROM, 32×31 ADC camera with sticker tracking | The sword sticker drives the menu cursor; story mode reaches the first stage, where the battle menu still needs work |
+| Punch Battle (Bandai, 2004) | `ban_onep` | SSD 2000 with the glove camera | Plays: the camera follows both gloves and punches land |
 | Ongeki Battle (Bandai, 2005) | `ban_ordj` | SSD 2002 SuperXaviX: double-speed CPU, 512-wide output, bitmap layer and second palette | Title, menus and the first battle; the drumstick sensors aren't done yet |
 | Issho ni Henshin! (Bandai, 2007) | `ban_pr2j` | SuperXaviX with the camera on the extra ports | Reaches the title |
 | Tamagotchi School Senshuken (Bandai, 2006) | `ban_tam2` | Sunplus SPG24x core | Plays |
-| Narikiri Fight (Bandai, 2006) | `ban_ult` | SuperXaviX with the camera, 24C01 EEPROM | Title and the trial-play demo |
+| Narikiri Fight (Bandai, 2006) | `ban_ult` | SuperXaviX with the camera, 24C01 EEPROM | Hover a hand over the button to start the trial battle; attacks still being worked out |
 | Keroro Dotabata Daikessen (Bandai, 2006) | `ban_krrj` | SSD XaviX: own 6502 core with code / data banks and far calls, tilemaps, sprites, HSL palette, 16-voice wavetable sound | Same picture as MAME frame for frame from boot through the menus; the mini-games play with sound |
 | Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
 | Millennium Arcade 3D 15-in-1 | `arcade3d` | SunPlus SPG24x (JungleTac encrypted ROM) | Title, game menu and games (Deep Storm) run; not in MAME 0.264 to compare against |
