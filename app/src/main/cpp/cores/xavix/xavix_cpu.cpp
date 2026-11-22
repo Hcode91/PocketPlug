@@ -467,7 +467,7 @@ bool XavixCore::step2000(uint8_t op, int& cyc)
         p = (p & ~(FN | FV | FZ)) | (v & 0xc0) | ((a & v) ? 0 : FZ); cyc = 4; } break;
     case 0x3c: ad = uint16_t(f16() + c.x); v = rdD(ad);              // BIT abs,X
         p = (p & ~(FN | FV | FZ)) | (v & 0xc0) | ((a & v) ? 0 : FZ); cyc = 4; break;
-    case 0x04: { uint8_t z = fetch(c.pc++); v = rdZ(z); asr(v); wrZ(z, v); cyc = 5; } break;   // ASR zp (MAME keeps the value)
+    case 0x04: { uint8_t z = fetch(c.pc++); wrZ(z, asr(rdZ(z))); cyc = 5; } break;   // ASR zp (MAME writes the old value back; Issho ni Henshin! needs the shift)
     case 0x14: { uint8_t z = uint8_t(fetch(c.pc++) + c.x); wrZ(z, asr(rdZ(z))); cyc = 6; } break;
     case 0x0c: ad = f16(); wrD(ad, asr(rdD(ad))); cyc = 6; break;
     case 0x1c: ad = uint16_t(f16() + c.x); wrD(ad, asr(rdD(ad))); cyc = 7; break;

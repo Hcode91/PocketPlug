@@ -325,6 +325,11 @@ uint8_t XavixCore::lowRead(uint16_t a)
 void XavixCore::lowWrite(uint16_t a, uint8_t d)
 {
     a &= 0x7fff;
+#ifdef XAVIX_DEBUG
+    static int wlo = -2, whi = 0;
+    if (wlo == -2) { const char* e = getenv("XWRW"); if (e) { sscanf(e, "%x-%x", &wlo, &whi); } else wlo = -1; }
+    if (wlo >= 0 && a >= wlo && a <= whi) { static std::set<uint32_t> seen; uint32_t k = (m_cpu.codebank << 16) | m_cpu.pc; if (seen.insert(k).second) fprintf(stderr, "write %04x=%02x pc %02x:%04x\n", a, d, m_cpu.codebank, m_cpu.pc); }
+#endif
     if (a < 0x4000) { m_s.ram[a] = d; return; }
     if (a < 0x5000) {
         uint16_t o = a & 0xfff;
