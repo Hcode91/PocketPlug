@@ -791,6 +791,14 @@ reset and the scanline toggle.
 
 ## To do
 
+- **iPod Classic (click-wheel games)** - parked. The 54 iPod games need the
+  real firmware on emulated hardware (the Classic's Samsung S5L8702; the 5G /
+  5.5G PortalPlayer chips are the better-documented alternative). The Classic
+  firmware is encrypted with a key in the chip, so the plan is to boot firmware
+  dumped already-decrypted from the owner's own iPod (freemyipod tools; may not
+  work on the 2009 thin 160 GB model), plus a disk image with the games synced,
+  so the firmware handles the games' DRM itself. Still to check: how the Classic
+  unlocks game files.
 - **NGEN 386 models** (`ngen386`, `ngenb38`, `386i`) - parked. They need a 386
   CPU core with protected mode and a different I/O map; MAME only has skeleton
   drivers for them, and testing needs 386-era CTOS / BTOS II system disks
