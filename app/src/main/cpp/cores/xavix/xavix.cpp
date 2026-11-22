@@ -509,10 +509,13 @@ uint8_t XavixCore::cameraPixel(int row, int col, bool led)
         return uint8_t(v > 255 ? 255 : v);
     }
     for (int g = 0; g < m_cfg.camBlobs; g++) {
-        float px = m_bx[g], py = m_by[g] - 0.6f * m_reach[g];   // the arm reaches up and out
+        float px = m_bx[g], py = m_by[g] - (m_cfg.camBlobs == 1 ? 0.0f : 0.6f) * m_reach[g];   // the arm reaches up and out
         float cx = 15.5f + px * 14.0f;
         float cy = 15.0f + py * 13.0f;
-        float r = 2.5f + m_reach[g];
+        // a sword sticker seen from across the room covers only a few pixels: Onmyou Taisenki
+        // takes 16+ lit pixels for half a second as the drive held up to the unit (its menu);
+        // there the punch input stands for that, growing the spot
+        float r = m_cfg.camBlobs == 1 ? 1.3f + 2.2f * m_reach[g] : 2.5f + m_reach[g];
         float dx = col - cx, dy = row - cy;
         float d2 = dx * dx + dy * dy;
         if (d2 < r * r) v += int(200 * (1.0f - d2 / (r * r * 1.6f)));

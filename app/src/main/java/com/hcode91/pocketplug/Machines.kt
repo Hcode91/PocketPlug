@@ -377,7 +377,7 @@ object Machines {
         MachineDef(
             id = "ban_omt",
             title = "Onmyou Taisenki",
-            subtitle = "2005 camera sword game: the camera tracks the sticker on the toy sword. the sticker moves the cursor and O picks; swing it across the camera window to pick a direction or strike (Bandai Let's! TV Play Touin Ougi Onmyou Taisenki; MAME set: ban_omt)",
+            subtitle = "2005 camera sword game: the camera tracks the sticker on the toy sword. swing it top to bottom in the camera window to strike, hold ⇧ (the drive raised to the unit) for the battle menu, and O picks (Bandai Let's! TV Play Touin Ougi Onmyou Taisenki; MAME set: ban_omt)",
             chip = "SSD 2000 (XaviX, 6502 core)",
             region = "Japan",
             year = "2005",

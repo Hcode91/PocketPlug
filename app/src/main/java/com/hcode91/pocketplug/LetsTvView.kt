@@ -128,8 +128,10 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 val by = H * 0.85f
                 when (theme) {
                     "onmyou" -> {
-                        btns += Btn(0x02, "✕", W * 0.32f, by, H * 0.07f, 0xFF1C1414.toInt(), 0xFFF2E8D0.toInt())
-                        btns += Btn(0x01, "○", W * 0.68f, by, H * 0.07f, 0xFFB3201B.toInt(), 0xFFF2E8D0.toInt())
+                        btns += Btn(0x02, "✕", W * 0.24f, by, H * 0.07f, 0xFF1C1414.toInt(), 0xFFF2E8D0.toInt())
+                        btns += Btn(0x01, "○", W * 0.76f, by, H * 0.07f, 0xFFB3201B.toInt(), 0xFFF2E8D0.toInt())
+                        // hold: the drive raised up to the unit (opens the in-battle menu)
+                        btns += Btn(PUNCH_L, "⇧", W * 0.5f, by, H * 0.06f, 0xFFF2E8D0.toInt(), 0xFF1C1414.toInt())
                     }
                     "punch" -> btns += Btn(0x01, "○", W * 0.5f, by, H * 0.075f, 0xFFF4C430.toInt(), 0xFF7A1E10.toInt())
                 }
@@ -219,7 +221,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             for (k in 0 until 5) c.drawLine(x + W * 0.012f, H * (0.16f + k * 0.08f) + i * 4, x + W * 0.033f, H * (0.2f + k * 0.08f), stroke)
         }
         // yin-yang seal behind the buttons
-        val cx = W * 0.5f; val cy = H * 0.85f; val r = H * 0.1f
+        val cx = W * 0.5f; val cy = H * 0.85f; val r = H * 0.12f
         paint.color = 0xFFF2E8D0.toInt(); c.drawCircle(cx, cy, r, paint)
         paint.color = 0xFF1C1414.toInt(); c.drawArc(cx - r, cy - r, cx + r, cy + r, 90f, 180f, true, paint)
         c.drawCircle(cx, cy - r / 2, r / 2, paint)
@@ -353,7 +355,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             c.drawLine(cam.left, cam.top + cam.height() * k / 8, cam.right, cam.top + cam.height() * k / 8, stroke)
         }
         text.textSize = cam.height() * 0.07f; text.color = 0x88FFFFFF.toInt()
-        c.drawText(when (theme) { "onmyou" -> "point and swing the sword"; "punch", "ninja" -> "drag the gloves  ·  tap to punch"; else -> "drag your hands" }, cam.centerX(), cam.bottom - cam.height() * 0.05f, text)
+        c.drawText(when (theme) { "onmyou" -> "swing down to strike  ·  hold ⇧ for the menu"; "punch", "ninja" -> "drag the gloves  ·  tap to punch"; else -> "drag your hands" }, cam.centerX(), cam.bottom - cam.height() * 0.05f, text)
         for (g in 0 until nStickers) {
             val p = stickers[g]
             val x = cam.centerX() + p.x * cam.width() / 2; val y = cam.centerY() + p.y * cam.height() / 2
@@ -409,6 +411,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
     }
 
     private fun punch(g: Int) {
+        if (theme == "onmyou") return
         punchMask = punchMask or (PUNCH_L shl g)
         punchEnd[g] = System.currentTimeMillis() + 180
         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
