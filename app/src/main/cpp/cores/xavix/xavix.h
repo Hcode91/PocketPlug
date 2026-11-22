@@ -24,6 +24,18 @@ public:
     struct Config {
         std::string romName;
         uint32_t romSize = 0x400000;
+        int cpu = 0;              // 0 = XaviX (SSD 97/98), 1 = SSD 2000 / 2002 (extra opcodes, bank on the main stack)
+        int i2cSize = 0;          // 24Cxx EEPROM on IO1 (SDA bit 3, SCL bit 4): 0x100 / 0x200 / 0x400, 0 = none
+        int i2cPage = 16;
+        int sdaBit = 3, sclBit = 4;   // IO1 pins of the EEPROM
+        bool lotrIo = false;      // IN1 bits 1-2 read random (MAME xavix_i2c_lotr_state)
+        bool camera = false;      // Bandai "Taikan" camera: 32x31 infrared image on ADC channel 0, clocked on IN1 bits 1-2;
+                                  // IO1 bit 5 lights the LEDs, so reflective stickers show up in the difference
+
+        bool camOnEx = false;     // camera clock on EX1 bit 2 and LED on EX out 1 bit 5 (PreCure) instead of IN1 / IO1
+        bool superXavix = false;  // SSD 2002: twice the clock, extended I/O ports, extra video registers
+        uint8_t in1Default = 0;   // IN1 bits held high (MAME DIP defaults)
+        uint8_t exDefault[3] = { 0, 0, 0 };   // SSD 2002 extended inputs EX0-EX2
     };
     explicit XavixCore(const Config& c) : m_cfg(c) {}
 
@@ -31,12 +43,13 @@ public:
     void reset() override;
     void runFrame() override;
     const uint32_t* frameBuffer() const override { return m_out; }
-    int frameWidth() const override { return 256; }
+    int frameWidth() const override { return m_cfg.superXavix ? 512 : 256; }
     int frameHeight() const override { return 224; }
     double refreshRate() const override { return 60.0; }
     int sampleRate() const override { return 48000; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     void setInputs(uint32_t pressed) override { m_inputs = pressed; }
+    void setAnalog(int stick, float x, float y) override { if (stick >= 0 && stick < 2) { m_ax[stick] = x; m_ay[stick] = y; m_analogSet = true; } }
     bool saveState(std::vector<uint8_t>& out) override;
     bool loadState(const std::vector<uint8_t>& in) override;
 
@@ -48,6 +61,15 @@ public:
         uint8_t sstack[256];
         uint8_t sstackpos;
         uint8_t irqLine, nmiLine, nmiPending;
+        uint8_t j, k, l, m;      // SSD 2000 extra registers
+        uint32_t pa, pb;         // SSD 2000 24-bit pointers
+    };
+    // 24Cxx serial EEPROM (MAME i2cmem)
+    struct I2c {
+        uint8_t data[0x800];
+        uint8_t page[16];
+        uint8_t scl, sdaw, sdar, state, bits, shift, devsel, addresshigh;
+        int byteaddr, pageOffset, pageWritten;
     };
 
 private:
@@ -66,6 +88,12 @@ private:
     void setNZ(uint8_t v) { m_cpu.p = (m_cpu.p & ~0x82) | (v & 0x80) | (v ? 0 : 0x02); }
     void push(uint8_t v) { lowWrite(0x100 | m_cpu.s, v); m_cpu.s--; }
     uint8_t pop() { m_cpu.s++; return lowRead(0x100 | m_cpu.s); }
+    void pushBank(uint8_t b) { if (m_cfg.cpu) push(b); else m_cpu.sstack[m_cpu.sstackpos--] = b; }
+    uint8_t popBank() { return m_cfg.cpu ? pop() : m_cpu.sstack[++m_cpu.sstackpos]; }
+    bool step2000(uint8_t op, int& cyc);
+    void i2cSda(int st);
+    void i2cScl(int st);
+    void io1Lines();
 
     // ---- low bus ($0000-$7FFF) ----
     uint8_t lowRead(uint16_t a);
@@ -100,6 +128,10 @@ private:
     void drawTilemapLine(int which, int line);
     void drawSpritesLine(int line);
     void drawTileLine(int tile, int bpp, int xpos, int ypos, int drawheight, int drawwidth, int flipx, int flipy, int pal, int zval, int line);
+    void drawBitmapLine(int line);
+    void sxPalWrite(int reg, uint8_t d);
+    uint8_t sxPalRead(int reg);
+    uint32_t extSegment(int i) const { const uint8_t* e = &m_s.sxRam[0x40 + i * 4]; return e[0] | (e[1] << 8) | (e[2] << 16) | (uint32_t(e[3]) << 24); }
     void decodeInlineHeader(int& flipx, int& flipy, int& test, int& pal);
     uint8_t nextBit();
     uint8_t nextByte();
@@ -115,10 +147,9 @@ private:
     const uint8_t* m_rom = nullptr;
     uint32_t m_romLen = 1;
     uint32_t m_inputs = 0;
-    uint32_t m_out[256 * 224];
-    uint32_t m_line[256];
-    uint32_t m_pens[256];
-    uint16_t m_z[256];
+    uint32_t m_out[512 * 224];
+    uint32_t m_pens[512];
+    uint16_t m_z[512];
     int m_rendered = -1;     // last screen line drawn this frame
     int m_vpos = 0;
     uint32_t m_tmpAddr = 0;
@@ -128,6 +159,11 @@ private:
 
     Cpu m_cpu;
     XavixSound m_snd;
+    bool m_eepromInit = false;
+    float m_ax[2] = { -0.45f, 0.45f }, m_ay[2] = { 0.1f, 0.1f };
+    bool m_analogSet = false;
+    uint8_t cameraPixel(int row, int col, bool led);
+    uint8_t cameraClock();
     int64_t m_cycle = 0;       // CPU cycles run (for sound sync)
 
     struct State {
@@ -161,6 +197,12 @@ private:
         int32_t outAccL, outAccN;   // box filter down to the output rate
         int64_t outPhase;
         uint8_t posArmed;
+        I2c i2c;
+        uint32_t camClock, camCount;
+        uint8_t camLed;
+        uint8_t sxDir[3], sxOut[3];
+        uint8_t sxRam[0x600];         // SSD 2002 registers at $6A00-$6FFF that are plain storage for now
+        uint8_t punch[2];
         uint32_t rng;
     } m_s;
 };

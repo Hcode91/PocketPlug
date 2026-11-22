@@ -118,7 +118,7 @@ void XavixCore::cmp(uint8_t r, uint8_t v)
 void XavixCore::cpuInterrupt(bool nmi, bool brk)
 {
     Cpu& c = m_cpu;
-    c.sstack[c.sstackpos--] = c.codebank;
+    pushBank(c.codebank);
     c.codebank = 0;
     push(c.pc >> 8);
     push(c.pc & 0xff);
@@ -150,6 +150,7 @@ int XavixCore::cpuStep()
 
     uint8_t op = fetch(c.pc++);
     int cyc = 2;
+    if (m_cfg.cpu && step2000(op, cyc)) return cyc;
     uint16_t ad = 0;
     bool zp = false;          // effective address is on zero page (bank registers visible)
     bool cross = false;
@@ -282,13 +283,13 @@ int XavixCore::cpuStep()
     case 0x60: { uint16_t l_ = pop(); c.pc = (l_ | (pop() << 8)) + 1; cyc = 6; } break;
     case 0x40: {
         p = pop() | FB | FU; uint16_t l_ = pop(); c.pc = l_ | (pop() << 8);
-        c.codebank = c.sstack[++c.sstackpos];
+        c.codebank = popBank();
         cyc = 6; } break;
     case 0x00: c.pc++; cpuInterrupt(c.nmiPending, true); if (c.nmiPending) c.nmiPending = 0; cyc = 7; break;
 
     // CALLF bank:addr - the code bank goes on the private stack, the return address on the stack
     case 0x22: {
-        c.sstack[c.sstackpos--] = c.codebank;
+        pushBank(c.codebank);
         uint8_t bank = fetch(c.pc++);
         uint8_t lo = fetch(c.pc++);
         push(c.pc >> 8); push(c.pc & 0xff);
@@ -298,7 +299,7 @@ int XavixCore::cpuStep()
     // RETF
     case 0x80: {
         uint16_t l_ = pop(); c.pc = l_ | (pop() << 8);
-        c.codebank = c.sstack[++c.sstackpos];
+        c.codebank = popBank();
         c.pc++;
         cyc = 7; } break;
 
@@ -373,4 +374,121 @@ int XavixCore::cpuStep()
 #undef BR
 #undef RMW
     return cyc;
+}
+
+// SSD 2000 / 2002 (MAME oxavix2000.lst): J K L M scratch registers, PA / PB 24-bit
+// pointers, PHX / PLX / PHY / PLY, accumulator ops, STZ, ASR, far jumps
+bool XavixCore::step2000(uint8_t op, int& cyc)
+{
+    Cpu& c = m_cpu;
+    uint8_t& a = c.a; uint8_t& p = c.p;
+    auto asr = [&](uint8_t v) -> uint8_t {
+        p &= ~(FN | FZ | FC);
+        if (v & 1) p |= FC;
+        v >>= 1;
+        if (!v) p |= FZ;
+        else if (v & 0x40) { p |= FN; v |= 0x80; }
+        return v;
+    };
+    auto rdP = [&](uint32_t ptr) { return readFull(uint8_t(ptr >> 16), uint16_t(ptr)); };
+    auto f16 = [&]() { uint16_t v = fetch(c.pc) | (fetch(uint16_t(c.pc + 1)) << 8); c.pc += 2; return v; };
+    uint8_t* reg = nullptr;
+    switch (op & 0x0f) {
+    case 0x3: if (!(op & 0x10)) reg = &c.j; break;
+    case 0x7: if (!(op & 0x10)) reg = &c.k; break;
+    case 0xb: if (!(op & 0x10)) reg = &c.l; break;
+    case 0xf: if (!(op & 0x10)) reg = &c.m; break;
+    }
+    if (reg) {
+        // column 3 / 7 / B / F, even rows: ORA AND EOR ADC STA LDA CMP SBC with J / K / L / M
+        uint8_t v = *reg;
+        switch (op >> 5) {
+        case 0: a |= v; setNZ(a); break;
+        case 1: a &= v; setNZ(a); break;
+        case 2: a ^= v; setNZ(a); break;
+        case 3: adc(v); break;
+        case 4: *reg = a; break;
+        case 5: a = v; setNZ(a); break;
+        case 6: cmp(a, v); break;
+        case 7: sbc(v); break;
+        }
+        cyc = 2;
+        return true;
+    }
+    if ((op & 0x1f) == 0x13 || (op & 0x1f) == 0x17) {
+        // odd rows, columns 3 / 7: the same ops through PA / PB
+        uint32_t ptr = (op & 4) ? c.pb : c.pa;
+        switch (op >> 5) {
+        case 0: a |= rdP(ptr); setNZ(a); break;
+        case 1: a &= rdP(ptr); setNZ(a); break;
+        case 2: a ^= rdP(ptr); setNZ(a); break;
+        case 3: adc(rdP(ptr)); break;
+        case 4: writeFull(uint8_t(ptr >> 16), uint16_t(ptr), a); break;
+        case 5: a = rdP(ptr); setNZ(a); break;
+        case 6: cmp(a, rdP(ptr)); break;
+        case 7: sbc(rdP(ptr)); break;
+        }
+        cyc = 3;
+        return true;
+    }
+    if ((op & 0x1f) == 0x1b || (op & 0x1f) == 0x1f) {
+        uint32_t& ptr = (op & 4) ? c.pb : c.pa;
+        int sh = 0;
+        switch (op >> 5) {
+        case 0: case 2: case 4: sh = (op >> 6) * 8; ptr = (ptr & ~(0xffu << sh)) | (uint32_t(a) << sh); break;      // SPA0-2 / SPB0-2
+        case 1: case 3: case 5: sh = (op >> 6) * 8; a = uint8_t(ptr >> sh); setNZ(a); break;                         // LPA0-2 / LPB0-2
+        case 6: ptr = (ptr & ~0xffu) | ((ptr - 1) & 0xff); setNZ(uint8_t(ptr)); break;                                // DECPA / DECPB
+        case 7: ptr = (ptr & ~0xffu) | ((ptr + 1) & 0xff); setNZ(uint8_t(ptr)); break;                                // INCPA / INCPB
+        }
+        cyc = 2;
+        return true;
+    }
+    uint16_t ad;
+    uint8_t v;
+    switch (op) {
+    case 0x02: p ^= FC; break;                                       // CMC
+    case 0x12: push(c.x); cyc = 3; break;                            // PHX
+    case 0x32: c.x = pop(); setNZ(c.x); cyc = 4; break;              // PLX
+    case 0x52: push(c.y); cyc = 3; break;                            // PHY
+    case 0x72: c.y = pop(); setNZ(c.y); cyc = 4; break;              // PLY
+    case 0xb2: a = 0; setNZ(a); break;                               // CLR A
+    case 0xc2: a--; setNZ(a); break;                                 // DEC A
+    case 0xd2: a ^= 0xff; setNZ(a); break;                           // NOT A
+    case 0xe2: a++; setNZ(a); break;                                 // INC A
+    case 0xf2: a = uint8_t(0 - a); setNZ(a); break;                  // NEG A
+    case 0x89: p |= FV; break;                                       // SEV
+    case 0x82: wrZ(fetch(c.pc++), 0); cyc = 3; break;                // STZ zp
+    case 0x92: wrD(f16(), 0); cyc = 4; break;                        // STZ abs
+    case 0x9c: ad = f16(); wrD(uint16_t(ad + c.x), c.y); cyc = 5; break;   // STY abs,X
+    case 0x9e: ad = f16(); wrD(uint16_t(ad + c.y), c.x); cyc = 5; break;   // STX abs,Y
+    case 0x3a: v = fetch(c.pc++);                                    // BIT #imm
+        p = (p & ~(FN | FV | FZ)) | (v & 0xc0) | ((a & v) ? 0 : FZ); break;
+    case 0x34: { uint8_t z = uint8_t(fetch(c.pc++) + c.x); v = rdZ(z);   // BIT zp,X
+        p = (p & ~(FN | FV | FZ)) | (v & 0xc0) | ((a & v) ? 0 : FZ); cyc = 4; } break;
+    case 0x3c: ad = uint16_t(f16() + c.x); v = rdD(ad);              // BIT abs,X
+        p = (p & ~(FN | FV | FZ)) | (v & 0xc0) | ((a & v) ? 0 : FZ); cyc = 4; break;
+    case 0x04: { uint8_t z = fetch(c.pc++); v = rdZ(z); asr(v); wrZ(z, v); cyc = 5; } break;   // ASR zp (MAME keeps the value)
+    case 0x14: { uint8_t z = uint8_t(fetch(c.pc++) + c.x); wrZ(z, asr(rdZ(z))); cyc = 6; } break;
+    case 0x0c: ad = f16(); wrD(ad, asr(rdD(ad))); cyc = 6; break;
+    case 0x1c: ad = uint16_t(f16() + c.x); wrD(ad, asr(rdD(ad))); cyc = 7; break;
+    case 0x1a: a = asr(a); break;
+    case 0x42: case 0x44: case 0x54: case 0x5a: case 0x62: case 0x64: case 0x74: case 0x7a:
+    case 0xd4: case 0xda: case 0xdc: case 0xea: case 0xf4: case 0xfa: case 0xfc:
+        break;                                                       // NOP (implied)
+    case 0x5c: {                                                     // JMP bank:addr
+        uint8_t bank = fetch(c.pc++);
+        c.pc = f16();
+        c.codebank = bank;
+        cyc = 4; } break;
+    case 0x7c: {                                                     // JMPF (ind): addr, bank
+        ad = f16();
+        uint8_t lo = rdD(ad), hi = rdD(uint16_t((ad & 0xff00) | ((ad + 1) & 0xff)));
+        uint8_t bank = rdD(uint16_t(ad + 2));
+        c.pc = lo | (hi << 8);
+        c.codebank = bank;
+        cyc = 6; } break;
+    default:
+        return false;
+    }
+    return true;
 }

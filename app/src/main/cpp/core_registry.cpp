@@ -26,6 +26,7 @@
 #include "cores/chess/vcc.h"
 #include "cores/chess/bkc.h"
 #include "cores/xavix/xavix.h"
+#include "cores/xavix2/xavix2.h"
 #include "cores/xavix/xavix.h"
 #include "cores/chess/avrmax.h"
 #include "cores/hh/hh_hmcs40.h"
@@ -188,6 +189,14 @@ Core* createCore(const std::string& id)
         c.pal = false;
         return new Spg2xxCore(c);
     }
+    if (id == "ban_tam2") {   // Bandai Let's! TV Play Tamagotchi School Senshuken (SPG24x, 60 Hz)
+        Spg2xxConfig c;
+        c.romName = "tvgametamagotchi2.bin";
+        c.romSize = 0x800000;
+        c.board = 5;
+        c.pal = false;
+        return new Spg2xxCore(c);
+    }
     if (id == "ban_krkk") {   // Bandai Let's! TV Play Zunou Family Mattore (SPG24x, 60 Hz, mat)
         Spg2xxConfig c;
         c.romName = "quiz.bin";
@@ -239,6 +248,35 @@ Core* createCore(const std::string& id)
         return new VccCore(false);
     if (id == "avcc")         // Fidelity Advanced Voice Chess Challenger
         return new VccCore(true);
+    if (id == "ban_naru") {   // SSD XaviX 2 + 24C08
+        Xavix2Core::Config c;
+        c.romName = "naruto.bin";
+        return new Xavix2Core(c);
+    }
+    if (id == "ban_omt" || id == "ban_onep") {   // SSD 2000 + 24C04 EEPROM
+        XavixCore::Config c;
+        c.romName = id == "ban_omt" ? "otmj.bin" : "onepiece.bin";
+        c.romSize = id == "ban_omt" ? 0x400000 : 0x800000;
+        c.cpu = 1;
+        c.i2cSize = 0x200;
+        c.i2cPage = 16;
+        c.camera = true;
+        return new XavixCore(c);
+    }
+    if (id == "ban_ordj" || id == "ban_pr2j" || id == "ban_ult") {   // SSD 2002 (SuperXaviX)
+        XavixCore::Config c;
+        c.romName = id == "ban_ordj" ? "ordj.u2" : id == "ban_pr2j" ? "pr2j.u2" : "ultraman.u1";
+        c.romSize = 0x800000;
+        c.cpu = 1;
+        c.superXavix = true;
+        c.i2cSize = id == "ban_ult" ? 0x100 : 0x200;
+        c.i2cPage = id == "ban_ult" ? 8 : 16;
+        c.camera = id != "ban_ordj";
+        if (id == "ban_ordj") c.in1Default = 0x20;
+        if (id == "ban_pr2j") { c.sdaBit = 7; c.sclBit = 6; c.camOnEx = true; c.exDefault[2] = 0x80; }
+        if (id == "ban_ult") c.exDefault[2] = 0x80;   // MAME's default for EX2 bit 7: skips the camera calibration   // MAME's default: skips the drumstick calibration
+        return new XavixCore(c);
+    }
     if (id == "ban_krrj") {   // Keroro (SSD XaviX, 4 MB)
         XavixCore::Config c;
         c.romName = "krrj.u2";

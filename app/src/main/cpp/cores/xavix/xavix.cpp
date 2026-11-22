@@ -7,6 +7,8 @@
 #include "xavix.h"
 #include <cmath>
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 
 namespace {
 const double MAIN_CLOCK = 21477272.0;
@@ -35,12 +37,20 @@ bool XavixCore::load(const std::vector<RomFile>& roms, std::string& error)
 
 void XavixCore::reset()
 {
+    // the EEPROM keeps its contents over a reset
+    static uint8_t keep[sizeof(m_s.i2c.data)];
+    bool had = m_eepromInit;
+    if (had) std::memcpy(keep, m_s.i2c.data, sizeof(keep));
     std::memset(&m_s, 0, sizeof(m_s));
     std::memset(m_s.ram, 0xff, sizeof(m_s.ram));
     m_s.soundRegbase = 0x02;
     m_s.timerLeft = -1;
     m_s.adcLatch = 0xff;
     m_s.rng = 0x12345678;
+    if (had) std::memcpy(m_s.i2c.data, keep, sizeof(keep));
+    else std::memset(m_s.i2c.data, 0xff, sizeof(m_s.i2c.data));
+    m_eepromInit = true;
+    m_s.i2c.sdar = 1;
     for (auto& p : m_pens) p = 0xff000000;
     std::fill(std::begin(m_out), std::end(m_out), 0xff000000u);
     m_snd.reset(0x80);
@@ -87,9 +97,125 @@ uint8_t XavixCore::readBypass(uint32_t a)
     return lowBypass(uint16_t(a));
 }
 
+// ---------------------------------------------------------------- 24Cxx EEPROM (MAME i2cmem)
+
+enum { I2C_IDLE, I2C_DEVSEL, I2C_ADDRHIGH, I2C_ADDRLOW, I2C_DATAIN, I2C_READSELACK, I2C_DATAOUT, I2C_RESET };
+
+void XavixCore::i2cSda(int st)
+{
+    I2c& e = m_s.i2c;
+    st &= 1;
+    if (e.sdaw == st) return;
+    e.sdaw = uint8_t(st);
+    if (e.scl && e.sdar) {
+        if (e.sdaw) {
+            if (e.pageWritten > 0) {
+                int mask = m_cfg.i2cSize - 1;
+                int base = e.byteaddr & mask;
+                int root = base & ~(m_cfg.i2cPage - 1);
+                for (int i = 0; i < e.pageWritten; i++)
+                    e.data[(root | ((base + i) & (m_cfg.i2cPage - 1))) & mask] = e.page[i];
+                e.pageWritten = 0;
+            }
+            e.state = I2C_IDLE;
+        } else {
+            e.state = I2C_DEVSEL;
+            e.bits = 0;
+        }
+    }
+}
+
+void XavixCore::i2cScl(int st)
+{
+    I2c& e = m_s.i2c;
+    st &= 1;
+    if (e.scl == st) return;
+    e.scl = uint8_t(st);
+    int mask = m_cfg.i2cSize - 1;
+    switch (e.state) {
+    case I2C_DEVSEL: case I2C_ADDRHIGH: case I2C_ADDRLOW: case I2C_DATAIN:
+        if (e.bits < 8) {
+            if (e.scl) { e.shift = uint8_t((e.shift << 1) | e.sdaw); e.bits++; }
+        } else if (e.scl) {
+            e.bits++;
+        } else if (e.bits == 8) {
+            switch (e.state) {
+            case I2C_DEVSEL: {
+                e.devsel = e.shift;
+                int amask = 0xfe & ~(mask >> 7);
+                if (e.devsel == 0) e.state = I2C_RESET;
+                else if ((e.devsel & amask) != (0xa0 & amask)) e.state = I2C_IDLE;
+                else if (!(e.devsel & 1)) e.state = I2C_ADDRLOW;   // parts up to 2 KB: no high address byte
+                else e.state = I2C_READSELACK;
+                break; }
+            case I2C_ADDRHIGH:
+                e.addresshigh = e.shift; e.state = I2C_ADDRLOW; break;
+            case I2C_ADDRLOW:
+                e.byteaddr = (e.shift | (((e.devsel & 0xfe) << 7) & mask));
+                e.pageOffset = 0; e.pageWritten = 0;
+                e.state = I2C_DATAIN;
+                break;
+            case I2C_DATAIN:
+                e.page[e.pageOffset] = e.shift;
+                if (++e.pageOffset == m_cfg.i2cPage) e.pageOffset = 0;
+                if (++e.pageWritten > m_cfg.i2cPage) e.pageWritten = m_cfg.i2cPage;
+                break;
+            }
+            if (e.state != I2C_IDLE) e.sdar = 0;
+        } else {
+            e.bits = 0;
+            e.sdar = 1;
+        }
+        break;
+    case I2C_READSELACK:
+        e.bits = 0; e.state = I2C_DATAOUT;
+        break;
+    case I2C_DATAOUT:
+        if (e.bits < 8) {
+            if (e.scl) e.bits++;
+            else {
+                if (e.bits == 0) { e.shift = e.data[e.byteaddr & mask]; e.byteaddr++; }
+                e.sdar = (e.shift >> 7) & 1;
+                e.shift = uint8_t(e.shift << 1);
+            }
+        } else {
+            if (e.scl) { if (e.sdaw) e.state = I2C_IDLE; e.bits = 0; }
+            else e.sdar = 1;
+        }
+        break;
+    case I2C_RESET:
+        if (e.scl) { if (e.bits > 8) { e.state = I2C_IDLE; e.sdar = 1; } e.bits++; }
+        break;
+    }
+}
+
+void XavixCore::io1Lines()
+{
+    if (!m_cfg.i2cSize) return;
+    uint8_t dir = m_s.io1Dir, d = m_s.io1Data;
+    if (m_cfg.superXavix) {
+        // SSD 2002 boards: undriven lines float high
+        uint8_t v = uint8_t(d | ~dir);
+        i2cSda(v >> m_cfg.sdaBit & 1);
+        i2cScl(v >> m_cfg.sclBit & 1);
+        return;
+    }
+    i2cSda((dir & 0x08) ? (d >> 3 & 1) : 1);
+    i2cScl((dir & 0x10) ? (d >> 4 & 1) : 0);
+}
+
 uint8_t XavixCore::ioRead(int port)
 {
-    uint8_t in = port ? uint8_t(m_inputs >> 8) : uint8_t(m_inputs);
+    uint8_t in = port ? uint8_t((m_inputs >> 8) | m_cfg.in1Default) : uint8_t(m_inputs);
+    if (port && m_cfg.lotrIo) {
+        m_s.rng = m_s.rng * 1103515245u + 12345u;
+        in = uint8_t((in & ~0x06) | ((m_s.rng >> 16) & 0x06));
+    }
+    if (port && m_cfg.camera && !m_cfg.camOnEx) in = uint8_t((in & ~0x06) | (cameraClock() ? 0x06 : 0));
+    if (port && m_cfg.i2cSize) {
+        int sda = (m_s.i2c.state == I2C_IDLE) ? m_s.i2c.sdaw : m_s.i2c.sdar;
+        in = uint8_t((in & ~(1 << m_cfg.sdaBit)) | (sda << m_cfg.sdaBit));
+    }
     uint8_t dir = port ? m_s.io1Dir : m_s.io0Dir;
     uint8_t data = port ? m_s.io1Data : m_s.io0Data;
     return uint8_t((in & ~dir) | (data & dir));
@@ -106,6 +232,18 @@ uint8_t XavixCore::lowRead(uint16_t a)
     if (a < 0x6a00) return m_s.palL[a & 0xff];
     if (a < 0x6a20) return m_s.segment[a & 0x1f];
     if (a >= 0x7400 && a < 0x7580) return m_s.soundRam[a - 0x7400];
+    if (m_cfg.superXavix) {
+        if (a >= 0x6f78 && a <= 0x6f7f) return sxPalRead(a - 0x6f78);
+        if ((a >= 0x6a40 && a < 0x6a80) || (a >= 0x6c00 && a < 0x6e00) || (a >= 0x6f60 && a < 0x6fc8)) return m_s.sxRam[a - 0x6a00];
+        if (a >= 0x7a10 && a <= 0x7a12) return m_s.sxDir[a - 0x7a10];
+        if (a >= 0x7a20 && a <= 0x7a22) return m_s.sxOut[a - 0x7a20];
+        if (a >= 0x7a30 && a <= 0x7a32) {
+            int i = a - 0x7a30;
+            uint8_t in = uint8_t(m_cfg.exDefault[i] | (i == 0 ? (m_inputs >> 16) : 0));
+            if (i == 1 && m_cfg.camera && m_cfg.camOnEx) in = uint8_t((in & ~0x04) | (cameraClock() ? 0x04 : 0));
+            return uint8_t((in & ~m_s.sxDir[i]) | (m_s.sxOut[i] & m_s.sxDir[i]));
+        }
+    }
     switch (a) {
     case 0x6fc8: case 0x6fc9: case 0x6fca: case 0x6fcb: case 0x6fcc: case 0x6fcd: case 0x6fce: case 0x6fcf:
         return m_s.tmap1[a & 7];
@@ -186,6 +324,16 @@ void XavixCore::lowWrite(uint16_t a, uint8_t d)
     if (a < 0x6a00) { m_s.palL[a & 0xff] = d; updatePen(a & 0xff); renderUpTo(m_vpos); return; }
     if (a < 0x6a20) { m_s.segment[a & 0x1f] = d; return; }
     if (a >= 0x7400 && a < 0x7580) { m_s.soundRam[a - 0x7400] = d; return; }
+    if (m_cfg.superXavix) {
+        if (a >= 0x6f78 && a <= 0x6f7f) { sxPalWrite(a - 0x6f78, d); renderUpTo(m_vpos); return; }
+        if ((a >= 0x6a40 && a < 0x6a80) || (a >= 0x6c00 && a < 0x6e00) || (a >= 0x6f60 && a < 0x6fc8)) {
+            m_s.sxRam[a - 0x6a00] = d;
+            if (a >= 0x6c00 && a < 0x6e00) { updatePen(0x100 + (a & 0xff)); renderUpTo(m_vpos); }
+            return;
+        }
+        if (a >= 0x7a10 && a <= 0x7a12) { m_s.sxDir[a - 0x7a10] = d; return; }
+        if (a >= 0x7a20 && a <= 0x7a22) { m_s.sxOut[a - 0x7a20] = d; return; }
+    }
     switch (a) {
     case 0x6fc8: case 0x6fc9: case 0x6fca: case 0x6fcb: case 0x6fcc: case 0x6fcd: case 0x6fce: case 0x6fcf:
         m_s.tmap1[a & 7] = d; break;
@@ -236,9 +384,9 @@ void XavixCore::lowWrite(uint16_t a, uint8_t d)
     case 0x7984: case 0x7985: m_s.dmaDst[a - 0x7984] = d; break;
     case 0x7986: case 0x7987: m_s.dmaLen[a - 0x7986] = d; break;
     case 0x7a00: m_s.io0Data = d; break;
-    case 0x7a01: m_s.io1Data = d; break;
+    case 0x7a01: m_s.io1Data = d; io1Lines(); break;
     case 0x7a02: m_s.io0Dir = d; break;
-    case 0x7a03: m_s.io1Dir = d; break;
+    case 0x7a03: m_s.io1Dir = d; io1Lines(); break;
     case 0x7a80: m_s.ioeventEnable = d; break;
     case 0x7a81:
         m_s.ioeventActive &= ~(d & 0x0f);
@@ -248,6 +396,12 @@ void XavixCore::lowWrite(uint16_t a, uint8_t d)
     case 0x7b81:
         m_s.adcControl = d;
         m_s.adcLatch = 0;          // the analogue inputs are unused (0)
+        if (m_cfg.camera && !(d & 0x13)) {
+            // each row: one conversion to start, then 32 pixels
+            uint32_t c = m_s.camCount++;
+            int row = int(c / 33), col = int(c % 33) - 1;
+            m_s.adcLatch = (col < 0 || row > 31) ? 0 : cameraPixel(row, col, m_s.camLed);
+        }
         break;
     case 0x7c00: timerControlWrite(d); break;
     case 0x7c01: m_s.timerBase = d; break;
@@ -281,6 +435,46 @@ void XavixCore::mathDo(bool mulShf)
     if (m_s.mad) result = uint16_t(((m_s.mult[1] << 8) | m_s.mult[0]) + result);
     m_s.mult[1] = result >> 8;
     m_s.mult[0] = result & 0xff;
+}
+
+// ---------------------------------------------------------------- camera
+
+// the camera streams frames continuously: a sync (clock held high for 8 reads),
+// then the pixel clock toggling on every read; pixels count from the sync and
+// the LEDs' state at the sync decides whether the stickers light up
+uint8_t XavixCore::cameraClock()
+{
+    const uint32_t FRAME = 2 + 8 + 4000;
+    uint32_t p = m_s.camClock++ % FRAME;
+    if (p < 2) return 0;
+    if (p < 10) {
+        if (p == 2) {
+            m_s.camCount = 0;
+            m_s.camLed = m_cfg.camOnEx ? (m_s.sxOut[1] >> 5 & 1) : (m_s.io1Data >> 5 & 1);
+        }
+        return 1;
+    }
+    return p & 1;
+}
+
+// two reflective stickers (the gloves / the sword) as soft round blobs that only
+// show while the LEDs are lit; a punch brings the sticker closer, so it grows
+uint8_t XavixCore::cameraPixel(int row, int col, bool led)
+{
+    int v = 0x18 + ((row * 7 + col * 13) & 7);
+    if (!led) return uint8_t(v);
+    for (int g = 0; g < 2; g++) {
+        bool punch = m_inputs >> (9 + g) & 1;
+        float px = m_ax[g], py = m_ay[g];
+        if (punch) py -= 0.6f;                      // the arm reaches up and out
+        float cx = 15.5f + px * 14.0f;
+        float cy = 15.0f + py * 13.0f;
+        float r = punch ? 3.5f : 2.5f;
+        float dx = col - cx, dy = row - cy;
+        float d2 = dx * dx + dy * dy;
+        if (d2 < r * r) v += int(200 * (1.0f - d2 / (r * r * 1.6f)));
+    }
+    return uint8_t(v > 255 ? 255 : v);
 }
 
 // ---------------------------------------------------------------- devices
@@ -409,7 +603,7 @@ void XavixCore::reprogramSoundTimer(int i)
     if (!(m_s.soundIrqStatus & (1 << i)) || m_s.tp[i] == 0) return;
     double f = m_snd.tempoTickHz(m_s.tp[i]);
     if (f <= 0) return;
-    m_s.soundTimerPeriod[i] = int64_t(MAIN_CLOCK / f * 65536.0);
+    m_s.soundTimerPeriod[i] = int64_t((m_cfg.superXavix ? 2 : 1) * MAIN_CLOCK / f * 65536.0);
     m_s.soundTimerLeft[i] = m_s.soundTimerPeriod[i];
 }
 
@@ -461,8 +655,9 @@ uint8_t XavixCore::sndSamples(void* c, uint32_t a) { return static_cast<XavixCor
 // the sequencer runs at master clock / 128; its samples are averaged down to 48 kHz
 void XavixCore::soundSync()
 {
-    while (m_s.sndCycles >= 128) {
-        m_s.sndCycles -= 128;
+    const int div = m_cfg.superXavix ? 256 : 128;
+    while (m_s.sndCycles >= div) {
+        m_s.sndCycles -= div;
         int32_t l, r;
         m_snd.tick(l, r);
         m_s.outAccL += (l + r) / 2;
@@ -504,16 +699,24 @@ void XavixCore::runFrame()
                 m_s.videoCtrl |= 0x80;
             }
         }
-        double lineStart = line * CYC_PER_LINE;
-        double lineEnd = (line + 1) * CYC_PER_LINE;
+        double cpl = m_cfg.superXavix ? CYC_PER_LINE * 2 : CYC_PER_LINE;   // the SSD 2002 runs at twice the clock
+        double lineStart = line * cpl;
+        double lineEnd = (line + 1) * cpl;
         if (m_s.posArmed && line == m_s.posirqY) {
-            double at = lineStart + CYC_PER_LINE * m_s.posirqX / 256.0;
+            double at = lineStart + cpl * m_s.posirqX / 256.0;
             while (done < at) { int c = cpuStep(); advance(c); done += c; }
             posIrq();
         }
         while (done < lineEnd) { int c = cpuStep(); advance(c); done += c; }
     }
     frameCycles = done;
+#ifdef XAVIX_DEBUG
+    if (const char* dumpAt = getenv("XAVIX_RAMDUMP")) {   // debugging aid for the headless runner
+        static int dbgFrame = 0;
+        if (++dbgFrame == atoi(dumpAt)) { FILE* f = fopen("/tmp/xram.bin", "wb"); if (f) { fwrite(m_s.ram, 1, 0x4000, f); fclose(f); } }
+        if (getenv("XAVIX_PC")) fprintf(stderr, "frame %d pc %02x:%04x\n", dbgFrame, m_cpu.codebank, m_cpu.pc);
+    }
+#endif
     (void)frameCycles;
     soundSync();
 }
@@ -537,7 +740,7 @@ bool XavixCore::loadState(const std::vector<uint8_t>& in)
     std::memcpy(&m_s, p, sizeof(m_s)); p += sizeof(m_s);
     std::memcpy(&m_cpu, p, sizeof(m_cpu)); p += sizeof(m_cpu);
     std::memcpy(&m_snd.s, p, sizeof(m_snd.s));
-    for (int i = 0; i < 256; i++) updatePen(i);
+    for (int i = 0; i < 512; i++) updatePen(i);
     m_audio.clear();
     return true;
 }

@@ -5,7 +5,7 @@ CXX ?= g++
 CC ?= gcc
 CXXFLAGS ?= -O2 -std=c++17 -Wall
 CFLAGS ?= -O2 -std=gnu99 -w
-DEFS = -DPOCKETPLUG '-DMUSASHI_CNF="../m68kconf.h"'
+DEFS = -DPOCKETPLUG -DXAVIX_DEBUG '-DMUSASHI_CNF="../m68kconf.h"'
 CPP = ../app/src/main/cpp
 SRC = headless.cpp $(CPP)/core_registry.cpp \
       $(wildcard $(CPP)/common/*.cpp) $(CPP)/common/chd/chd.cpp $(CPP)/common/z80/z80.cpp $(wildcard $(CPP)/common/ymfm/*.cpp) \

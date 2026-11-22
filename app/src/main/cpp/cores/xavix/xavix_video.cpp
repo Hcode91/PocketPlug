@@ -10,7 +10,9 @@
 
 void XavixCore::updatePen(int pen)
 {
-    uint16_t dat = m_s.palSh[pen] | (m_s.palL[pen] << 8);
+    // pens 256-511: the SuperXaviX bitmap layer's palette ($6C00 / $6D00)
+    uint16_t dat = pen < 256 ? (m_s.palSh[pen] | (m_s.palL[pen] << 8))
+                             : (m_s.sxRam[0x200 + (pen & 0xff)] | (m_s.sxRam[0x300 + (pen & 0xff)] << 8));
     int yRaw = (((dat & 0x1f00) >> 7) | ((dat & 0x8000) >> 15)) >> 1;
     int cRaw = (((dat & 0x00e0) >> 4) | ((dat & 0x4000) >> 14)) >> 1;
     int hRaw = (((dat & 0x001f) << 1) | ((dat & 0x2000) >> 13)) >> 1;
@@ -42,7 +44,11 @@ void XavixCore::updatePen(int pen)
 
 uint8_t XavixCore::nextBit()
 {
-    if (m_tmpBit == 0) m_bit = readBypass(m_tmpAddr);
+    if (m_tmpBit == 0) {
+        uint32_t a = m_tmpAddr;
+        if (m_cfg.superXavix && (a & 0x2000000)) { a &= 0x1ffffff; a ^= 0x0600000; }
+        m_bit = readBypass(a);
+    }
     uint8_t r = (m_bit >> m_tmpBit) & 1;
     if (++m_tmpBit == 8) { m_tmpBit = 0; m_tmpAddr++; }
     return r;
@@ -63,22 +69,25 @@ void XavixCore::renderUpTo(int line)
     if (line > m_rendered) m_rendered = line;
 }
 
-namespace { int g_clipMin, g_clipMax; uint32_t* g_dst; }
+namespace { int g_clipMin, g_clipMax, g_hres; uint32_t* g_dst; }
 
 void XavixCore::renderLine(int line)
 {
-    g_dst = &m_out[(line - 16) * 256];
-    for (int x = 0; x < 256; x++) g_dst[x] = 0xff000000u;
-    int cmin = 0, cmax = 255;
+    const int w = frameWidth();
+    g_hres = m_cfg.superXavix ? 2 : 1;
+    g_dst = &m_out[(line - 16) * w];
+    for (int x = 0; x < w; x++) g_dst[x] = 0xff000000u;
+    int cmin = 0, cmax = w - 1;
     if (m_s.arenaControl & 0x01) {
         if (m_s.arenaStart != 0x00 && m_s.arenaEnd != 0x00 && m_s.arenaStart != 0xff && m_s.arenaEnd != 0xff) {
-            cmin = std::max(0, m_s.arenaEnd - 2);
-            cmax = std::min(255, m_s.arenaStart - 3);
+            cmin = std::max(0, (m_s.arenaEnd - 2) * g_hres);
+            cmax = std::min(w - 1, (m_s.arenaStart - 3) * g_hres);
         }
     }
     g_clipMin = cmin; g_clipMax = cmax;
     for (int x = cmin; x <= cmax; x++) { g_dst[x] = m_pens[0]; m_z[x] = 0; }
     if (cmin > cmax) return;
+    if (m_cfg.superXavix) drawBitmapLine(line);
     drawTilemapLine(0, line);
     drawTilemapLine(1, line);
     drawSpritesLine(line);
@@ -157,7 +166,9 @@ void XavixCore::drawTilemapLine(int which, int line)
                 }
                 tile += (m_s.segment[basereg * 2 + 1] << 16) | (m_s.segment[basereg * 2] << 8);
             } else if (alt == 3) {
-                tile = 0;     // SuperXaviX only
+                // SuperXaviX: tile number from the 32-bit extended segment 0
+                if (m_cfg.superXavix) tile = int(tile * ((ytile * xtile) / 8) * bpp + extSegment(0));
+                else tile = 0;
             }
             if (r[7] & 0x08) {
                 uint8_t extra = readBypass((r[2] << 8) + count);
@@ -221,6 +232,7 @@ void XavixCore::drawSpritesLine(int line)
         if (alt == 1) {
             tile = (tile * dh * dw * bpp) / 8;
             tile += (m_s.segment[1] << 16) | (m_s.segment[0] << 8);
+            if (m_cfg.superXavix) tile += int(extSegment(0));
         } else if (alt == 2) {
             tile *= 8;
             int basereg = (tile & 0xf0000) >> 16;
@@ -236,7 +248,7 @@ void XavixCore::drawSpritesLine(int line)
 void XavixCore::drawTileLine(int tile, int bpp, int xpos, int ypos, int drawheight, int drawwidth, int flipx, int flipy, int pal, int zval, int line)
 {
     (void)ypos;
-    if (xpos + drawwidth - 1 < g_clipMin || xpos > g_clipMax) return;
+    if ((xpos + drawwidth) * g_hres - 1 < g_clipMin || xpos * g_hres > g_clipMax) return;
     if (bpp > 4) pal &= (0xf << (bpp - 4));
     int bitsPerLine = drawwidth * bpp;
     if (flipy) line = (drawheight - 1) - line;
@@ -246,13 +258,83 @@ void XavixCore::drawTileLine(int tile, int bpp, int xpos, int ypos, int drawheig
         int col = flipx ? xpos + (drawwidth - 1) - x : xpos + x;
         uint8_t dat = 0;
         for (int i = 0; i < bpp; i++) dat |= nextBit() << i;
+        col *= g_hres;
         if (col < g_clipMin || col > g_clipMax) continue;
         if (zval >= m_z[col]) {
             int pen = (dat + (pal << 4)) & 0xff;
             if ((m_s.palSh[pen] & 0x1f) < 24) {
                 g_dst[col] = m_pens[pen];
                 m_z[col] = uint16_t(zval);
+                if (g_hres == 2 && col + 1 <= g_clipMax) { g_dst[col + 1] = m_pens[pen]; m_z[col + 1] = uint16_t(zval); }
             }
         }
     }
+}
+
+// SuperXaviX bitmap layer (MAME superxavix_state::draw_bitmap_layer); registers at $6FB0-$6FC7
+void XavixCore::drawBitmapLine(int y)
+{
+    const uint8_t* b = &m_s.sxRam[0x5b0];
+    uint8_t mode = b[0x14];
+    if (!(mode & 0x01)) return;
+    int top = b[0x00] | (b[0x01] << 8);
+    int bot = b[0x02] | (b[0x03] << 8);
+    int lft = b[0x04] | (b[0x05] << 8);
+    int rgt = b[0x06] | (b[0x07] << 8);
+    int topadr = b[0x08] | (b[0x09] << 8);
+    int start = b[0x10] | (b[0x11] << 8);
+    uint8_t step = b[0x12], size = b[0x13];
+    int base = start * 0x800, base2 = topadr * 8;
+    int bpp = ((mode & 0x0e) >> 1) + 1;
+    int zval = (mode & 0xf0) >> 4;
+    bool highres = (size & 0x70) != 0x70;
+    int hposadjust = highres ? 0x90 : 0x46;
+    top += 6; bot += 6;
+    int line = y - top;
+    if (line <= 0 || y >= bot) return;
+    m_tmpAddr = uint32_t(base + base2 + ((line * (step * 64)) / 8));
+    m_tmpBit = 0;
+    for (int x = lft - hposadjust; x < rgt - hposadjust; x++) {
+        uint8_t dat = 0;
+        for (int i = 0; i < bpp; i++) dat |= nextBit() << i;
+        int realx = highres ? x : x * 2;
+        for (int k = 0; k < (highres ? 1 : 2); k++, realx++) {
+            if (realx < g_clipMin || realx > g_clipMax) continue;
+            if ((m_s.sxRam[0x200 + dat] & 0x1f) < 24 && zval >= m_z[realx]) {
+                g_dst[realx] = m_pens[0x100 + dat];
+                m_z[realx] = uint16_t(zval);
+            }
+        }
+    }
+}
+
+// $6F78-$6F7B (characters) and $6F7C-$6F7F (bitmap): index, then hue / saturation / lightness of that entry
+void XavixCore::sxPalWrite(int reg, uint8_t d)
+{
+    bool bmp = reg >= 4;
+    int r = reg & 3;
+    uint8_t& idx = m_s.sxRam[0x578 + (bmp ? 4 : 0)];
+    if (r == 0) { idx = d; return; }
+    uint8_t* sh = bmp ? &m_s.sxRam[0x200] : m_s.palSh;
+    uint8_t* sl = bmp ? &m_s.sxRam[0x300] : m_s.palL;
+    uint16_t dat = sh[idx] | (sl[idx] << 8);
+    if (r == 1) { uint16_t hue = (d >> 2) & 0x3f; dat = uint16_t((dat & ~0x201f) | ((hue & 0x3e) >> 1) | ((hue & 1) << 13)); }
+    if (r == 2) { uint16_t sat = (d >> 4) & 0x0f; dat = uint16_t((dat & ~0x40e0) | ((sat & 0x0e) << 4) | ((sat & 1) << 14)); }
+    if (r == 3) { uint16_t lt = (d >> 2) & 0x3f; dat = uint16_t((dat & ~0x9f00) | ((lt & 0x3e) << 7) | ((lt & 1) << 15)); }
+    sh[idx] = uint8_t(dat); sl[idx] = uint8_t(dat >> 8);
+    updatePen(idx + (bmp ? 256 : 0));
+}
+
+uint8_t XavixCore::sxPalRead(int reg)
+{
+    bool bmp = reg >= 4;
+    int r = reg & 3;
+    uint8_t idx = m_s.sxRam[0x578 + (bmp ? 4 : 0)];
+    if (r == 0) return idx;
+    const uint8_t* sh = bmp ? &m_s.sxRam[0x200] : m_s.palSh;
+    const uint8_t* sl = bmp ? &m_s.sxRam[0x300] : m_s.palL;
+    uint16_t dat = sh[idx] | (sl[idx] << 8);
+    if (r == 1) return uint8_t((((dat & 0x1f) << 1) | ((dat & 0x2000) >> 13)) << 2);
+    if (r == 2) return uint8_t((((dat & 0xe0) >> 4) | ((dat & 0x4000) >> 14)) << 4);
+    return uint8_t((((dat & 0x1f00) >> 7) | ((dat & 0x8000) >> 15)) << 2);
 }
