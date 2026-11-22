@@ -88,6 +88,11 @@ uint8_t Xavix2Core::rd8(uint32_t a)
 
 void Xavix2Core::wr8(uint32_t a, uint8_t d)
 {
+#ifdef XAVIX_DEBUG
+    static int wlo = -2, whi = 0;
+    if (wlo == -2) { const char* e = getenv("X2WW"); if (e) sscanf(e, "%x-%x", &wlo, &whi); else wlo = -1; }
+    if (wlo >= 0 && a >= uint32_t(wlo) && a <= uint32_t(whi)) { static std::set<uint64_t> seen; if (seen.insert((uint64_t(a) << 32) | m_s.pc).second) fprintf(stderr, "wr %04x = %02x pc %08x\n", a, d, m_s.pc); }
+#endif
     if (a < 0x10000) { m_s.ram[a] = d; return; }
     if (a >= 0xc0000800 && a < 0xc0020000) { m_s.vram[a - 0xc0000000] = d; return; }
     if (a >= 0xffffe000) ioWrite(a, d, 1);
@@ -308,10 +313,19 @@ void Xavix2Core::buildPacket()
         int x = std::clamp(int((m_ax[g] + 1.0f) * 31.5f), 0, 63);
         int y = std::clamp(int((1.0f - m_ay[g]) * 31.5f), 0, 63);   // the unit counts y upwards
         int size = 10 + int(m_reach[g] * 40.0f);                      // the game ignores sizes of 56 and up
+#ifdef XAVIX_DEBUG
+        if (getenv("X2HIDE") && (m_inputs >> (9 + g) & 1)) size = 0;   // experiment: hand turned away
+#endif
         v |= uint64_t(x) << (3 + g * 18) | uint64_t(y) << (9 + g * 18) | uint64_t(size) << (15 + g * 18);
     }
     v |= uint64_t(5) << 39;
 #ifdef XAVIX_DEBUG
+    if (const char* e = getenv("X2FUZZ")) {   // random walk of both spots, a new step every N packets
+        static uint32_t seed = 12345, n = 0; static int f[6] = { 20, 30, 12, 44, 30, 12 };
+        if (n++ % uint32_t(atoi(e)) == 0) for (int i = 0; i < 6; i++) { seed = seed * 1103515245u + 12345u; int r = (seed >> 16) % 100;
+            if (i % 3 == 2) f[i] = r < 15 ? 0 : 4 + r % 50; else f[i] = std::clamp(f[i] + (r % 21) - 10, 0, 63); }
+        v = 5 | uint64_t(5) << 39; for (int i = 0; i < 6; i++) v |= uint64_t(f[i] & 63) << (3 + 6 * i);
+    }
     if (const char* e = getenv("X2FIELDS")) { unsigned f[6]; if (sscanf(e, "%u,%u,%u,%u,%u,%u", &f[0], &f[1], &f[2], &f[3], &f[4], &f[5]) == 6) { v = 5 | uint64_t(5) << 39; for (int i = 0; i < 6; i++) v |= uint64_t(f[i] & 63) << (3 + 6 * i); } }
 #endif
     // encode: pick for each output bit a 4-bit window whose table entry gives that bit,
@@ -528,6 +542,8 @@ void Xavix2Core::execute(int64_t cycles)
         uint32_t pc = m_s.pc;
 #ifdef XAVIX_DEBUG
         if (x2Pch) x2Pch[(pc & 0xffffff) >> 4]++;
+        { static int brk = -2; if (brk == -2) { const char* e = getenv("X2BRK"); brk = e ? int(strtoul(e, 0, 16)) : -1; }
+          if (brk >= 0 && (pc & 0xffffff) == uint32_t(brk)) { static std::set<uint32_t> seen; if (seen.insert(r[7]).second) fprintf(stderr, "brk %08x from lnk %08x r0=%08x\n", pc, r[7], r[0]); } }
 #endif
         uint32_t op = uint32_t(rd8(pc)) << 24;
         uint8_t nb = BPO[op >> 29];
@@ -653,12 +669,14 @@ void Xavix2Core::execute(int64_t cycles)
         case 0xe3: break;
         case 0xf0: hr[4] &= ~F_C; break;
         case 0xf1: hr[4] |= F_C; break;
-        case 0xf2: hr[4] &= ~F_Z; break;
-        case 0xf3: hr[4] |= F_Z; break;
+        // the game's own routines return yes / no with f7 / f6 and the callers test Z,
+        // so f6 / f7 are the Z ops and f2 / f3 the V ops (MAME has them the other way)
+        case 0xf2: hr[4] &= ~F_V; break;
+        case 0xf3: hr[4] |= F_V; break;
         case 0xf4: hr[4] &= ~F_N; break;
         case 0xf5: hr[4] |= F_N; break;
-        case 0xf6: hr[4] &= ~F_V; break;
-        case 0xf7: hr[4] |= F_V; break;
+        case 0xf6: hr[4] &= ~F_Z; break;
+        case 0xf7: hr[4] |= F_Z; break;
         case 0xf8: hr[4] &= ~F_I; break;
         case 0xf9: hr[4] |= F_I; m_s.eiCount = 2; break;
         case 0xfc: break;

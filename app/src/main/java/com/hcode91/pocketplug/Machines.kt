@@ -366,7 +366,7 @@ object Machines {
         MachineDef(
             id = "ban_naru",
             title = "Naruto Ninja Taikan",
-            subtitle = "2006 camera game: stand in front of the unit and throw ninja moves with the glove. The unit's glove tracking works (two cursors follow the gloves); starting a game and the sound aren't done yet (Bandai Let's! TV Play Naruto Ninja Taikan: Dattebayo!; MAME set: ban_naru)",
+            subtitle = "2006 camera game: stand in front of the unit and throw ninja moves with the glove. Hold a glove over a button to pick it, punch in battle. Menus, story and battles work; no sound yet, and the live camera picture behind the action is blank (Bandai Let's! TV Play Naruto Ninja Taikan: Dattebayo!; MAME set: ban_naru)",
             chip = "SSD XaviX 2 (own 32-bit core)",
             region = "Japan",
             year = "2006",
