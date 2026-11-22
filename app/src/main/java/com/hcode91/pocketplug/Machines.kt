@@ -366,7 +366,7 @@ object Machines {
         MachineDef(
             id = "ban_naru",
             title = "Naruto Ninja Taikan",
-            subtitle = "2006 camera game: stand in front of the unit and throw ninja moves with the glove. Boots to the title; the camera and the sound of this second-generation chip are still being worked out (Bandai Let's! TV Play Naruto Ninja Taikan: Dattebayo!; MAME set: ban_naru)",
+            subtitle = "2006 camera game: stand in front of the unit and throw ninja moves with the glove. The unit's glove tracking works (two cursors follow the gloves); starting a game and the sound aren't done yet (Bandai Let's! TV Play Naruto Ninja Taikan: Dattebayo!; MAME set: ban_naru)",
             chip = "SSD XaviX 2 (own 32-bit core)",
             region = "Japan",
             year = "2006",
@@ -399,7 +399,7 @@ object Machines {
         MachineDef(
             id = "ban_ordj",
             title = "Ongeki Battle (Kamen Rider Hibiki)",
-            subtitle = "2005 drumming fight: beat the two taiko heads and the rims with the sticks. Reaches the forest battle; the motion sensors in the real sticks are still being worked out (Bandai Let's! TV Play Ongeki Battle! Kamen Rider Hibiki; MAME set: ban_ordj)",
+            subtitle = "2005 drumming fight: beat the two taiko heads and the rims with the sticks. Hit the heads for strikes and the rims for side hits; the battles and rapid-fire specials play (Bandai Let's! TV Play Ongeki Battle! Kamen Rider Hibiki; MAME set: ban_ordj)",
             chip = "SSD 2002 SuperXaviX (6502 core)",
             region = "Japan",
             year = "2005",

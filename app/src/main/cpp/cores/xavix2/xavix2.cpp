@@ -4,6 +4,7 @@
 // Port of MAME's tvgames/xavix2.cpp and cpu/xavix2/xavix2.cpp (Olivier
 // Galibert, David Haywood), BSD-3-Clause; the 24Cxx EEPROM after MAME's i2cmem.
 
+#include <set>
 #include "xavix2.h"
 #include <algorithm>
 #include <climits>
@@ -71,6 +72,11 @@ void Xavix2Core::reset()
 
 uint8_t Xavix2Core::rd8(uint32_t a)
 {
+#ifdef XAVIX_DEBUG
+    static int wlo = -2, whi = 0;
+    if (wlo == -2) { const char* e = getenv("X2RW"); if (e) sscanf(e, "%x-%x", &wlo, &whi); else wlo = -1; }
+    if (wlo >= 0 && a >= uint32_t(wlo) && a <= uint32_t(whi)) { static std::set<uint64_t> seen; if (seen.insert((uint64_t(a) << 32) | m_s.pc).second) fprintf(stderr, "rd %04x pc %08x\n", a, m_s.pc); }
+#endif
     if (a < 0x10000) return m_s.ram[a];
     if (a < 0x01000000) return m_rom[a];
     if (a >= 0x40000000 && a < 0x41000000) return m_rom[a - 0x40000000];
@@ -108,8 +114,16 @@ uint32_t Xavix2Core::rgb555(uint16_t c)
     return (r << 16) | (g << 8) | b;
 }
 
+static int x2Frame = 0;
+#ifdef XAVIX_DEBUG
+static uint32_t* x2Pch = nullptr;
+#endif
+
 uint32_t Xavix2Core::ioRead(uint32_t a, int size)
 {
+#ifdef XAVIX_DEBUG
+    if (getenv("X2IO") && x2Frame >= atoi(getenv("X2IO"))) { static std::set<uint64_t> seen; if (seen.insert((uint64_t(a) << 32) | m_s.pc).second) fprintf(stderr, "R%d %08x pc %08x\n", size, a, m_s.pc); }
+#endif
     switch (a & ~(size == 4 ? 3u : 0u)) {
     case 0xffffe010: return (m_s.intActive & (1 << IRQ_DMA)) ? 6 : 0;
     case 0xffffe200: return m_s.pioMode[0];
@@ -128,6 +142,17 @@ uint32_t Xavix2Core::ioRead(uint32_t a, int size)
         uint32_t v = (in & ~m_s.pioMaskOut) | (m_s.pioData & m_s.pioMaskOut);
         return (v >> ((a & 3) * 8)) & (size == 2 ? 0xffff : 0xff);
     }
+    case 0xffffe859: {
+#ifdef XAVIX_DEBUG
+        if (const char* e = getenv("X2CAMST")) return uint32_t(strtoul(e, 0, 16));
+#endif
+        return 0;
+    }
+    case 0xffffe244: return m_s.linkStart;
+    case 0xffffe246: return m_s.linkEnd;
+    case 0xffffe248: return m_s.linkLen;
+    case 0xffffe24a: case 0xffffe24b: return m_s.linkStart;   // receive pointer: back at the start once a packet is in
+    case 0xffffe270: case 0xffffe271: return m_s.e270;
     case 0xffffe238: return 0;
     case 0xffffe239: return 2;
     case 0xffffe600: return m_s.gpu0bAdr;
@@ -145,6 +170,9 @@ uint32_t Xavix2Core::ioRead(uint32_t a, int size)
 
 void Xavix2Core::ioWrite(uint32_t a, uint32_t d, int size)
 {
+#ifdef XAVIX_DEBUG
+    if (getenv("X2IO") && x2Frame >= atoi(getenv("X2IO"))) { static std::set<uint64_t> seen; if (seen.insert((uint64_t(a) << 32) | m_s.pc).second) fprintf(stderr, "W%d %08x = %08x pc %08x\n", size, a, d, m_s.pc); }
+#endif
     auto combine32 = [&](uint32_t& reg) {
         if (size == 4) reg = d;
         else { int sh = (a & 3) * 8; uint32_t m = (size == 2 ? 0xffffu : 0xffu) << sh; reg = (reg & ~m) | ((d << sh) & m); }
@@ -159,7 +187,22 @@ void Xavix2Core::ioWrite(uint32_t a, uint32_t d, int size)
     else if (a >= 0xffffe204 && a < 0xffffe208) base = 0xffffe204;
     else if (a >= 0xffffe208 && a < 0xffffe20c) base = 0xffffe208;
     else if ((a & 1) && size == 1) base = a & ~1u;
+#ifdef XAVIX_DEBUG
+    if (a == 0xffffe858) if (const char* e = getenv("X2CAMIRQ")) { static int n = 0; if (n++ < 3) fprintf(stderr, "cam cmd %02x\n", d & 0xff); irqRaise(atoi(e)); }
+#endif
     switch (base) {
+    case 0xffffe244: combine16(m_s.linkStart); break;
+    case 0xffffe246: combine16(m_s.linkEnd); break;
+    case 0xffffe248: combine16(m_s.linkLen); break;
+    case 0xffffe270: combine16(m_s.e270); break;
+    case 0xffffe234: if (a == 0xffffe235) irqClear((1u << IRQ_LINKPOLL) | (1u << IRQ_LINKDONE)); break;   // the link's interrupts are acknowledged here
+    case 0xffffe220:
+        if ((d & 0xff) == 0x0f) {   // request a packet from the unit
+            buildPacket();
+            for (int i = 0; i < 16; i++) m_s.ram[(m_s.linkStart + i) & 0xffff] = m_pkt[i];
+            m_s.linkLeft = 20000;
+        }
+        break;
     case 0xffffe000: combine32(m_s.dmaSrc); break;
     case 0xffffe004: combine16(m_s.dmaDst); break;
     case 0xffffe008: combine16(m_s.dmaCount); break;
@@ -251,6 +294,51 @@ void Xavix2Core::gpuUpdate(uint16_t count, uint16_t adr)
 }
 
 // ---------------------------------------------------------------- PIO / EEPROM
+
+// The unit's camera finds the two reflective stickers on the gloves itself and
+// sends their positions: 43 bits (header 101, then x, y and size of each spot in
+// 6 bits, then footer 101), coded with a variable-length bit code that the game
+// unpacks through a 16-entry table (sign = output bit, size = input bits used).
+static const int8_t kNaruCode[16] = { 2, -1, -2, -2, 2, 2, 1, -3, 3, -1, -2, -2, 2, -1, 1, -2 };
+
+void Xavix2Core::buildPacket()
+{
+    uint64_t v = 5;
+    for (int g = 0; g < 2; g++) {
+        int x = std::clamp(int((m_ax[g] + 1.0f) * 31.5f), 0, 63);
+        int y = std::clamp(int((1.0f - m_ay[g]) * 31.5f), 0, 63);   // the unit counts y upwards
+        int size = 10 + int(m_reach[g] * 40.0f);                      // the game ignores sizes of 56 and up
+        v |= uint64_t(x) << (3 + g * 18) | uint64_t(y) << (9 + g * 18) | uint64_t(size) << (15 + g * 18);
+    }
+    v |= uint64_t(5) << 39;
+#ifdef XAVIX_DEBUG
+    if (const char* e = getenv("X2FIELDS")) { unsigned f[6]; if (sscanf(e, "%u,%u,%u,%u,%u,%u", &f[0], &f[1], &f[2], &f[3], &f[4], &f[5]) == 6) { v = 5 | uint64_t(5) << 39; for (int i = 0; i < 6; i++) v |= uint64_t(f[i] & 63) << (3 + 6 * i); } }
+#endif
+    // encode: pick for each output bit a 4-bit window whose table entry gives that bit,
+    // looking ahead (by a backwards pass) so the bits it leaves behind can still work
+    const int N = 43;
+    bool ok[N + 1][4][8];
+    for (int k = 0; k < 4; k++) for (int p = 0; p < 8; p++) ok[N][k][p] = true;
+    auto fits = [&](int n, int k, int pref, int bit) { return (n & ((1 << k) - 1)) == pref && ((kNaruCode[n] < 0) == bool(bit)); };
+    for (int i = N - 1; i >= 0; i--)
+        for (int k = 0; k < 4; k++)
+            for (int p = 0; p < (1 << k); p++) {
+                ok[i][k][p] = false;
+                for (int n = 0; n < 16 && !ok[i][k][p]; n++)
+                    if (fits(n, k, p, int(v >> i & 1))) { int l = std::abs(kNaruCode[n]); if (ok[i + 1][4 - l][n >> l]) ok[i][k][p] = true; }
+            }
+    std::memset(m_pkt, 0, sizeof(m_pkt));
+    int out = 0, k = 0, pref = 0;
+    for (int i = 0; i < N; i++)
+        for (int n = 0; n < 16; n++) {
+            if (!fits(n, k, pref, int(v >> i & 1))) continue;
+            int l = std::abs(kNaruCode[n]);
+            if (!ok[i + 1][4 - l][n >> l]) continue;
+            for (int j = k; j < 4; j++, out++) if (out < 128 && (n >> j & 1)) m_pkt[out >> 3] |= uint8_t(1 << (out & 7));
+            k = 4 - l; pref = n >> l;
+            break;
+        }
+}
 
 void Xavix2Core::pioUpdate()
 {
@@ -438,6 +526,9 @@ void Xavix2Core::execute(int64_t cycles)
             m_s.pc = checkInterrupt(m_s.pc);
         }
         uint32_t pc = m_s.pc;
+#ifdef XAVIX_DEBUG
+        if (x2Pch) x2Pch[(pc & 0xffffff) >> 4]++;
+#endif
         uint32_t op = uint32_t(rd8(pc)) << 24;
         uint8_t nb = BPO[op >> 29];
         uint32_t npc = pc + nb;
@@ -585,10 +676,15 @@ void Xavix2Core::execute(int64_t cycles)
 
 void Xavix2Core::runFrame()
 {
+    for (int g = 0; g < 2; g++) {
+        float target = ((m_inputs >> (9 + g)) & 1) ? 1.0f : 0.0f;
+        m_reach[g] += std::clamp(target - m_reach[g], -0.25f, 0.25f);
+    }
     const int64_t perFrame = int64_t(CPU_CLOCK / 60.0);
     const int64_t slice = perFrame / 64;
     for (int i = 0; i < 64; i++) {
         execute(slice);
+        if (m_s.linkLeft > 0) { m_s.linkLeft -= slice; if (m_s.linkLeft <= 0) { m_s.linkLeft = 0; irqRaise(IRQ_LINKDONE); } }
         if (m_s.wait && m_s.dmaLeft > 0) { m_s.dmaLeft -= slice; if (m_s.dmaLeft <= 0) { m_s.dmaLeft = 0; irqRaise(IRQ_DMA); } }
     }
     // vblank: show the 640x400 window, clear the surface to the background colour, timer interrupt
@@ -603,11 +699,20 @@ void Xavix2Core::runFrame()
     irqRaise(IRQ_TIMER);
     m_audioPending = 800;
 #ifdef XAVIX_DEBUG
+    x2Frame++;
+#ifdef XAVIX_DEBUG
+    if (const char* e = getenv("X2PCH")) {   // "from-to": count executed PCs (16-byte buckets) between those frames
+        int a = 0, b = 0; sscanf(e, "%d-%d", &a, &b);
+        if (x2Frame == a) x2Pch = (uint32_t*)calloc(1 << 20, 4);
+        if (x2Frame == b && x2Pch) { FILE* f = fopen("/tmp/x2pch.txt", "w"); for (int i = 0; i < (1 << 20); i++) if (x2Pch[i]) fprintf(f, "%06x %u\n", i << 4, x2Pch[i]); fclose(f); free(x2Pch); x2Pch = nullptr; }
+    }
+    if (const char* e = getenv("X2DUMP")) if (x2Frame == atoi(e)) { FILE* f = fopen("/tmp/x2ram.bin", "wb"); fwrite(m_s.ram, 1, sizeof(m_s.ram), f); fclose(f); }
+#endif
     if (const char* e = getenv("X2IRQ")) { static int fr2 = 0; if ((++fr2 % 4) == 0) irqRaise(atoi(e)); }
 #endif
 #ifdef XAVIX_DEBUG
     static int fr = 0;
-    if (getenv("X2DBG") && (++fr % 120) == 0) fprintf(stderr, "f%d en=%04x nmi=%04x act=%04x pc=%08x pio mode %08x %08x data %08x\n", fr, m_s.intEnabled, m_s.intNmi, m_s.intActive, m_s.pc, m_s.pioMode[0], m_s.pioMode[1], m_s.pioData);
+    if (getenv("X2DBG") && (++fr % atoi(getenv("X2DBG"))) == 0) fprintf(stderr, "f%d hr4=%02x en=%04x nmi=%04x act=%04x pc=%08x pio mode %08x %08x data %08x\n", fr, m_s.hr[4], m_s.intEnabled, m_s.intNmi, m_s.intActive, m_s.pc, m_s.pioMode[0], m_s.pioMode[1], m_s.pioData);
 #endif
 }
 

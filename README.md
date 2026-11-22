@@ -62,10 +62,10 @@ controller.
 | Wireless Tennis (Advance Bright) | `abltenni` | SunPlus SPG24x + the wireless racket receiver | Menus match MAME; serving and rallies play with the on-screen racket (MAME's driver can't get past "press the button") |
 | Backyard Baseball & Soccer (2005) | `backybbs` | SunPlus SPG24x + 93LC66 EEPROM on port A | Boots to the title and both games' menus; MAME maps only half the ROM, which garbles the graphics, so all 4 MB is mapped here |
 | Zunou Family Mattore (Bandai, 2006) | `ban_krkk` | SunPlus SPG24x, two 4-panel mats on ports A and C | Boots through the title to the game menu |
-| Naruto Ninja Taikan (Bandai, 2006) | `ban_naru` | SSD XaviX 2: own 32-bit CPU core, sprite GPU into a 2048×1024 surface, I2C EEPROM | Boots to the title; the camera and sound aren't done yet |
+| Naruto Ninja Taikan (Bandai, 2006) | `ban_naru` | SSD XaviX 2: own 32-bit CPU core, sprite GPU into a 2048×1024 surface, I2C EEPROM | The unit's serial link and glove tracking work (cursors follow the gloves on the title); the start gesture and sound aren't done yet |
 | Onmyou Taisenki (Bandai, 2005) | `ban_omt` | SSD 2000: XaviX core plus the extra J/K/L/M and pointer opcodes, 24C02 EEPROM, 32×31 ADC camera with sticker tracking | The sword sticker drives the cursor and swings pick directions; story and boss modes start |
 | Punch Battle (Bandai, 2004) | `ban_onep` | SSD 2000 with the glove camera | Plays: the camera follows both gloves and punches land |
-| Ongeki Battle (Bandai, 2005) | `ban_ordj` | SSD 2002 SuperXaviX: double-speed CPU, 512-wide output, bitmap layer and second palette | Title, menus and the first battle; the drumstick sensors aren't done yet |
+| Ongeki Battle (Bandai, 2005) | `ban_ordj` | SSD 2002 SuperXaviX: double-speed CPU, 512-wide output, bitmap layer and second palette | Plays: the drum unit's serial link is emulated, so strikes land and the specials run |
 | Issho ni Henshin! (Bandai, 2007) | `ban_pr2j` | SuperXaviX with the camera on the extra ports | Reaches the title; the toy is modelled as a bar between the two stickers, but the start trigger isn't found yet |
 | Tamagotchi School Senshuken (Bandai, 2006) | `ban_tam2` | Sunplus SPG24x core | Plays |
 | Narikiri Fight (Bandai, 2006) | `ban_ult` | SuperXaviX with the camera, 24C01 EEPROM | Hover a hand over a button to pick it; in battle, follow the on-screen arrows with your hands |

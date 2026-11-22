@@ -273,7 +273,7 @@ Core* createCore(const std::string& id)
         c.i2cSize = id == "ban_ult" ? 0x100 : 0x200;
         c.i2cPage = id == "ban_ult" ? 8 : 16;
         c.camera = id != "ban_ordj";
-        if (id == "ban_ordj") c.in1Default = 0x20;
+        if (id == "ban_ordj") { c.in1Default = 0x20; c.drumSerial = true; }
         if (id == "ban_pr2j") { c.camBar = true; c.sdaBit = 7; c.sclBit = 6; c.camOnEx = true; c.exDefault[2] = 0x80; }
         if (id == "ban_ult") c.exDefault[2] = 0x80;   // MAME's default for EX2 bit 7: skips the camera calibration   // MAME's default: skips the drumstick calibration
         return new XavixCore(c);

@@ -42,7 +42,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
         const val PUNCH_L = 1 shl 9
         const val PUNCH_R = 1 shl 10
 
-        fun hasCamera(theme: String) = theme == "onmyou" || theme == "punch" || theme == "rainbow" || theme == "hero"
+        fun hasCamera(theme: String) = theme == "onmyou" || theme == "punch" || theme == "rainbow" || theme == "hero" || theme == "ninja"
 
         fun keyBit(theme: String, code: Int): Int = when (theme) {
             "tamagotchi" -> when (code) {
@@ -57,6 +57,8 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_X -> 1 shl 17
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> 1 shl 18
                 KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> 1 shl 19
+                KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_A -> PUNCH_L
+                KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_D -> PUNCH_R
                 else -> 0
             }
             "drums" -> when (code) {
@@ -107,10 +109,12 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 btns += Btn(0x80, "", W * 0.76f, cy + H * 0.08f, H * 0.065f, 0xFFF6D44B.toInt(), 0)
             }
             "ninja" -> {
-                btns += Btn(1 shl 17, "✕", W * 0.36f, H * 0.36f, H * 0.075f, 0xFF20304A.toInt(), 0xFFE8EEF8.toInt())
-                btns += Btn(1 shl 16, "○", W * 0.64f, H * 0.36f, H * 0.075f, 0xFF20304A.toInt(), 0xFFE8EEF8.toInt())
-                btns += Btn(1 shl 18, "▲", W * 0.86f, H * 0.62f, H * 0.065f, 0xFFF08A1C.toInt(), Color.WHITE)
-                btns += Btn(1 shl 19, "▼", W * 0.86f, H * 0.82f, H * 0.065f, 0xFFF08A1C.toInt(), Color.WHITE)
+                // camera window up top, the unit's keys along the bottom
+                cam.set(W * 0.06f, H * 0.05f, W * 0.94f, H * 0.62f)
+                btns += Btn(1 shl 17, "✕", W * 0.3f, H * 0.83f, H * 0.07f, 0xFF20304A.toInt(), 0xFFE8EEF8.toInt())
+                btns += Btn(1 shl 16, "○", W * 0.5f, H * 0.83f, H * 0.07f, 0xFF20304A.toInt(), 0xFFE8EEF8.toInt())
+                btns += Btn(1 shl 18, "▲", W * 0.8f, H * 0.75f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
+                btns += Btn(1 shl 19, "▼", W * 0.8f, H * 0.91f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
             }
             "drums" -> {
                 btns += Btn(0x02, "", W * 0.27f, H * 0.5f, min(W * 0.2f, H * 0.32f), 0xFFE9DCC0.toInt(), 0)
@@ -320,30 +324,26 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
     private fun drawNinja(c: Canvas) {
         val W = width.toFloat(); val H = height.toFloat()
         c.drawColor(0xFFF4F1EA.toInt())
-        // orange swirl
+        // orange swirl behind everything
         stroke.color = 0xFFF08A1C.toInt(); stroke.strokeWidth = H * 0.05f
         c.drawArc(-W * 0.2f, -H * 0.3f, W * 1.2f, H * 1.3f, 200f, 140f, false, stroke)
         stroke.color = 0xFF2E6FD8.toInt(); stroke.strokeWidth = H * 0.02f
         c.drawArc(-W * 0.1f, -H * 0.1f, W * 1.1f, H * 1.4f, 190f, 100f, false, stroke)
-        // the blue unit
-        val u = RectF(W * 0.18f, H * 0.12f, W * 0.78f, H * 0.92f)
-        paint.color = 0x44000000; c.drawRoundRect(u.left + 8, u.top + 12, u.right + 8, u.bottom + 12, W * 0.03f, W * 0.03f, paint)
+        // the blue unit as the base the keys sit on, with its orange label and lens
+        val u = RectF(W * 0.04f, H * 0.68f, W * 0.96f, H * 0.98f)
+        paint.color = 0x44000000; c.drawRoundRect(u.left + 6, u.top + 8, u.right + 6, u.bottom + 8, W * 0.03f, W * 0.03f, paint)
         paint.shader = LinearGradient(u.left, u.top, u.right, u.bottom, 0xFF3A62C8.toInt(), 0xFF1C3A8E.toInt(), Shader.TileMode.CLAMP)
         c.drawRoundRect(u, W * 0.03f, W * 0.03f, paint); paint.shader = null
-        stroke.color = 0xFF14286A.toInt(); stroke.strokeWidth = W * 0.004f
-        c.drawLine(u.centerX(), u.top, u.centerX(), u.bottom, stroke)
-        // orange label and camera window
-        paint.color = 0xFFF08A1C.toInt(); c.drawRoundRect(u.left + u.width() * 0.08f, u.top + u.height() * 0.62f, u.right - u.width() * 0.08f, u.bottom - u.height() * 0.08f, W * 0.015f, W * 0.015f, paint)
-        paint.color = 0xFFFFE3B0.toInt(); c.drawRect(u.left + u.width() * 0.14f, u.top + u.height() * 0.69f, u.right - u.width() * 0.14f, u.top + u.height() * 0.74f, paint)
-        val cw = u.width() * 0.16f
-        paint.color = 0xFF0C1426.toInt(); c.drawRoundRect(u.centerX() - cw / 2, u.top + u.height() * 0.44f - cw / 2, u.centerX() + cw / 2, u.top + u.height() * 0.44f + cw / 2, cw * 0.15f, cw * 0.15f, paint)
-        paint.color = 0xFF3A4A6A.toInt(); c.drawCircle(u.centerX(), u.top + u.height() * 0.44f, cw * 0.28f, paint)
-        paint.color = 0x88FFFFFF.toInt(); c.drawCircle(u.centerX() - cw * 0.1f, u.top + u.height() * 0.44f - cw * 0.1f, cw * 0.07f, paint)
+        paint.color = 0xFFF08A1C.toInt(); c.drawRoundRect(u.left + W * 0.03f, u.top + u.height() * 0.3f, u.left + W * 0.14f, u.bottom - u.height() * 0.3f, W * 0.01f, W * 0.01f, paint)
+        val lx = u.left + W * 0.66f; val ly = u.centerY(); val lr = u.height() * 0.22f
+        paint.color = 0xFF0C1426.toInt(); c.drawRoundRect(lx - lr, ly - lr, lx + lr, ly + lr, lr * 0.3f, lr * 0.3f, paint)
+        paint.color = 0xFF3A4A6A.toInt(); c.drawCircle(lx, ly, lr * 0.55f, paint)
+        paint.color = 0x88FFFFFF.toInt(); c.drawCircle(lx - lr * 0.2f, ly - lr * 0.2f, lr * 0.14f, paint)
     }
 
     private fun drawCamera(c: Canvas, held: Int) {
         val W = width.toFloat()
-        val frame = when (theme) { "onmyou" -> 0xFFB3201B.toInt(); "punch" -> 0xFF5E3B1C.toInt(); "rainbow" -> 0xFFFFFFFF.toInt(); else -> 0xFF9AA4AE.toInt() }
+        val frame = when (theme) { "onmyou" -> 0xFFB3201B.toInt(); "punch" -> 0xFF5E3B1C.toInt(); "rainbow" -> 0xFFFFFFFF.toInt(); "ninja" -> 0xFFF08A1C.toInt(); else -> 0xFF9AA4AE.toInt() }
         paint.color = 0xCC0B0B12.toInt(); c.drawRoundRect(cam, W * 0.03f, W * 0.03f, paint)
         stroke.color = frame; stroke.strokeWidth = W * 0.008f; c.drawRoundRect(cam, W * 0.03f, W * 0.03f, stroke)
         // faint grid, the camera's 32 x 31 pixels in eights
@@ -353,7 +353,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             c.drawLine(cam.left, cam.top + cam.height() * k / 8, cam.right, cam.top + cam.height() * k / 8, stroke)
         }
         text.textSize = cam.height() * 0.07f; text.color = 0x88FFFFFF.toInt()
-        c.drawText(when (theme) { "onmyou" -> "point and swing the sword"; "punch" -> "drag the gloves  ·  tap to punch"; else -> "drag your hands" }, cam.centerX(), cam.bottom - cam.height() * 0.05f, text)
+        c.drawText(when (theme) { "onmyou" -> "point and swing the sword"; "punch", "ninja" -> "drag the gloves  ·  tap to punch"; else -> "drag your hands" }, cam.centerX(), cam.bottom - cam.height() * 0.05f, text)
         for (g in 0 until nStickers) {
             val p = stickers[g]
             val x = cam.centerX() + p.x * cam.width() / 2; val y = cam.centerY() + p.y * cam.height() / 2

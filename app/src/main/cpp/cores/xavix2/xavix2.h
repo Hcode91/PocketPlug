@@ -33,12 +33,13 @@ public:
     int sampleRate() const override { return 48000; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     void setInputs(uint32_t pressed) override { m_inputs = pressed; }
+    void setAnalog(int stick, float x, float y) override { if (stick >= 0 && stick < 2) { m_ax[stick] = x; m_ay[stick] = y; } }
     bool saveState(std::vector<uint8_t>& out) override;
     bool loadState(const std::vector<uint8_t>& in) override;
 
 private:
     enum { F_Z = 1, F_N = 2, F_C = 4, F_V = 8, F_MASK = 15, F_I = 16 };
-    enum { IRQ_TIMER = 7, IRQ_DMA = 12 };
+    enum { IRQ_TIMER = 7, IRQ_LINKDONE = 8, IRQ_LINKPOLL = 10, IRQ_DMA = 12 };
 
     uint8_t rd8(uint32_t a);
     uint16_t rd16(uint32_t a) { return a >= 0xffffe000u ? uint16_t(ioRead(a, 2)) : uint16_t(rd8(a) | (rd8(a + 1) << 8)); }
@@ -92,7 +93,13 @@ private:
         uint8_t eep[0x2000], page[32];
         uint8_t scl, sdaw, sdar, est, bits, shift, devsel;
         int byteaddr, pageOffset, pageWritten;
+        // the link to the controller unit: a timer polls it, 16 bytes come back by DMA
+        uint16_t e270, linkStart, linkEnd, linkLen; int64_t linkLeft;
     } m_s;
+    uint8_t m_pkt[16] = {};
+    float m_ax[2] = { -0.45f, 0.45f }, m_ay[2] = { 0.1f, 0.1f };
+    float m_reach[2] = { 0, 0 };   // a punch toward the camera: the sticker grows over a few frames   // the two glove stickers, -1..1
+    void buildPacket();
     bool m_eepInit = false;
     int m_audioPending = 0;
 };

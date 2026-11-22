@@ -29,6 +29,7 @@ public:
         int i2cPage = 16;
         int sdaBit = 3, sclBit = 4;   // IO1 pins of the EEPROM
         bool lotrIo = false;      // IN1 bits 1-2 read random (MAME xavix_i2c_lotr_state)
+        bool drumSerial = false;   // drum unit: hits arrive as serial bytes on IN1 bit 0 (IO event 0 + timer sampling)
         int camBlobs = 2;
         bool camBar = false;       // the toy is one reflective strip: draw a bar from sticker 0 to sticker 1          // reflective stickers in view: two gloves / hands, or one sword
         bool camera = false;      // Bandai "Taikan" camera: 32x31 infrared image on ADC channel 0, clocked on IN1 bits 1-2;
@@ -168,6 +169,8 @@ private:
     bool m_analogSet = false;
     uint8_t cameraPixel(int row, int col, bool led);
     uint8_t cameraClock();
+    void drumFrame();
+    void drumKick();
     int64_t m_cycle = 0;       // CPU cycles run (for sound sync)
 
     struct State {
@@ -187,6 +190,7 @@ private:
         uint8_t extbus[3];
         uint8_t io0Data, io1Data, io0Dir, io1Dir;
         uint8_t ioeventEnable, ioeventActive;
+        uint8_t serByte, serLine, serQueue[4], serQLen; int8_t serIdx;   // drum unit serial transmitter
         uint8_t timerControl, timerBase, timerFreq, timerCur;
         int64_t timerLeft;          // cycles until the next count (-1 = stopped)
         uint8_t mpr, mpd, mad, sgnMpd, sgnMpr, mult[2];

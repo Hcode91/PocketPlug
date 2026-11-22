@@ -43,6 +43,7 @@ void XavixCore::reset()
     bool had = m_eepromInit;
     if (had) std::memcpy(keep, m_s.i2c.data, sizeof(keep));
     std::memset(&m_s, 0, sizeof(m_s));
+    m_s.serIdx = -1;
     std::memset(m_s.ram, 0xff, sizeof(m_s.ram));
     m_s.soundRegbase = 0x02;
     m_s.timerLeft = -1;
@@ -218,6 +219,7 @@ uint8_t XavixCore::ioRead(int port)
         in = uint8_t((in & ~0x06) | ((m_s.rng >> 16) & 0x06));
     }
     if (port && m_cfg.camera && !m_cfg.camOnEx) in = uint8_t((in & ~0x06) | cameraClock());
+    if (port && m_cfg.drumSerial) in = uint8_t((in & ~0x01) | m_s.serLine);
     if (port && m_cfg.i2cSize) {
         int sda = (m_s.i2c.state == I2C_IDLE) ? m_s.i2c.sdaw : m_s.i2c.sdar;
         in = uint8_t((in & ~(1 << m_cfg.sdaBit)) | (sda << m_cfg.sdaBit));
@@ -398,7 +400,11 @@ void XavixCore::lowWrite(uint16_t a, uint8_t d)
     case 0x7a01: m_s.io1Data = d; io1Lines(); break;
     case 0x7a02: m_s.io0Dir = d; break;
     case 0x7a03: m_s.io1Dir = d; io1Lines(); break;
-    case 0x7a80: m_s.ioeventEnable = d; break;
+    case 0x7a80:
+        m_s.ioeventEnable = d;
+        if (!(d & 0x01) && m_cfg.drumSerial) { m_s.ioeventActive &= ~0x01; if (!(m_s.ioeventActive & 0x0f)) m_s.irqSource &= ~0x08; updateIrqs(); }
+        if (m_cfg.drumSerial && (d & 0x01)) drumKick();
+        break;
     case 0x7a81:
         m_s.ioeventActive &= ~(d & 0x0f);
         if (!(m_s.ioeventActive & 0x0f)) m_s.irqSource &= ~0x08;
@@ -508,6 +514,44 @@ uint8_t XavixCore::cameraPixel(int row, int col, bool led)
     return uint8_t(v > 255 ? 255 : v);
 }
 
+// ---------------------------------------------------------------- drum unit
+
+// The drum unit sends a byte per stick while a hit lasts; the game decodes bits 6-1
+// through a table into a code whose low bit is the stick, and wants each code
+// twice in a row before it counts. Head hits send 0x1x codes, rim hits 0xEx.
+// (Worked out from the game: MAME has no drum unit, so the battles stall there.)
+void XavixCore::drumFrame()
+{
+    // bit 1 of a code marks a real strike (0x10 / 0x11 alone don't count); bit 2 a hard one
+    static uint8_t headByte[2] = { 0x2d, 0x2b };   // codes 0x16 / 0x17
+    static uint8_t rimByte[2]  = { 0x15, 0x13 };   // codes 0xe6 / 0xe7
+#ifdef XAVIX_DEBUG
+    if (const char* e = getenv("XDRUM")) { unsigned a, b; if (sscanf(e, "%x,%x", &a, &b) == 2) { headByte[0] = a; headByte[1] = b; } }
+#endif
+    if (m_s.serQLen == 0 && m_s.serIdx < 0) {
+        // stick 0 = left (head 0x02, rim 0x08), stick 1 = right (head 0x01, rim 0x04)
+        for (int g = 0; g < 2; g++) {
+            bool head = m_inputs & (g == 0 ? 0x02 : 0x01), rim = m_inputs & (g == 0 ? 0x08 : 0x04);
+            if (head) m_s.serQueue[m_s.serQLen++] = headByte[g];
+            else if (rim) m_s.serQueue[m_s.serQLen++] = rimByte[g];
+        }
+    }
+    drumKick();
+}
+
+void XavixCore::drumKick()
+{
+    if (m_s.serIdx >= 0 || m_s.serQLen == 0 || !(m_s.ioeventEnable & 0x01)) return;
+    m_s.serByte = m_s.serQueue[0];
+    for (int i = 1; i < m_s.serQLen; i++) m_s.serQueue[i - 1] = m_s.serQueue[i];
+    m_s.serQLen--;
+    m_s.serIdx = 0;
+    m_s.serLine = 0;                       // the start edge
+    m_s.ioeventActive |= 0x01;
+    m_s.irqSource |= 0x08;
+    updateIrqs();
+}
+
 // ---------------------------------------------------------------- devices
 
 void XavixCore::updateIrqs() { m_cpu.irqLine = m_s.irqSource != 0; }
@@ -601,6 +645,11 @@ void XavixCore::timerDone()
     m_s.timerCur--;
     m_s.timerLeft = -1;
     if (m_s.timerCur == 0xff) {
+        if (m_cfg.drumSerial && m_s.serIdx >= 0) {
+            // the game samples one bit per timer interrupt: start 0, six data bits, stop 1
+            m_s.serLine = (m_s.serByte >> (7 - m_s.serIdx)) & 1;
+            if (++m_s.serIdx >= 8) m_s.serIdx = -1;
+        }
         if (m_s.timerControl & 0x40) {
             m_s.irqSource |= 0x10;
             m_s.timerControl |= 0x80;
@@ -719,6 +768,7 @@ void XavixCore::runFrame()
     double frameCycles = 0;
     double done = 0;
     m_rendered = -1;
+    if (m_cfg.drumSerial) drumFrame();
     // a punch glides out over a few frames: the games track the sticker from
     // frame to frame and throw away any jump of five camera pixels or more
     for (int g = 0; g < 2; g++) {
