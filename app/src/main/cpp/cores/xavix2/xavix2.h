@@ -95,11 +95,16 @@ private:
         int byteaddr, pageOffset, pageWritten;
         // the link to the controller unit: a timer polls it, 16 bytes come back by DMA
         uint16_t e270, linkStart, linkEnd, linkLen; int64_t linkLeft;
+        // sound: 64 voices of signed 8-bit samples, set up in video RAM at $C0010000 + voice * 64
+        struct Voice { uint32_t pos, frac, loop, step; uint8_t on, looping, vol, panL, panR; } voice[64];
+        uint16_t sndVol; uint8_t sndPanL, sndPanR;
     } m_s;
     uint8_t m_pkt[16] = {};
     float m_ax[2] = { -0.45f, 0.45f }, m_ay[2] = { 0.1f, 0.1f };
     float m_reach[2] = { 0, 0 };   // a punch toward the camera: the sticker grows over a few frames   // the two glove stickers, -1..1
     void buildPacket();
     bool m_eepInit = false;
-    int m_audioPending = 0;
+    std::vector<int16_t> m_audio;
+    void soundCommand(uint16_t cmd);
+    void mixAudio(int n);
 };

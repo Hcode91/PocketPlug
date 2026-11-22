@@ -8,6 +8,7 @@
 #include "xavix2.h"
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -70,6 +71,8 @@ void Xavix2Core::reset()
 
 // ---------------------------------------------------------------- memory
 
+static int x2Frame = 0;
+
 uint8_t Xavix2Core::rd8(uint32_t a)
 {
 #ifdef XAVIX_DEBUG
@@ -94,6 +97,9 @@ void Xavix2Core::wr8(uint32_t a, uint8_t d)
     if (wlo >= 0 && a >= uint32_t(wlo) && a <= uint32_t(whi)) { static std::set<uint64_t> seen; if (seen.insert((uint64_t(a) << 32) | m_s.pc).second) fprintf(stderr, "wr %04x = %02x pc %08x\n", a, d, m_s.pc); }
 #endif
     if (a < 0x10000) { m_s.ram[a] = d; return; }
+#ifdef XAVIX_DEBUG
+    if (const char* e = getenv("X2SNDV")) { uint32_t v = atoi(e), b = 0xc0010000 + v * 64; if (a >= b && a < b + 64) fprintf(stderr, "f%d vw +%02x = %02x\n", x2Frame, a - b, d); }
+#endif
     if (a >= 0xc0000800 && a < 0xc0020000) { m_s.vram[a - 0xc0000000] = d; return; }
     if (a >= 0xffffe000) ioWrite(a, d, 1);
 }
@@ -119,7 +125,6 @@ uint32_t Xavix2Core::rgb555(uint16_t c)
     return (r << 16) | (g << 8) | b;
 }
 
-static int x2Frame = 0;
 #ifdef XAVIX_DEBUG
 static uint32_t* x2Pch = nullptr;
 #endif
@@ -176,6 +181,7 @@ uint32_t Xavix2Core::ioRead(uint32_t a, int size)
 void Xavix2Core::ioWrite(uint32_t a, uint32_t d, int size)
 {
 #ifdef XAVIX_DEBUG
+    if (getenv("X2SND") && a >= 0xffffea00 && a < 0xffffec00) fprintf(stderr, "f%d snd W%d %08x = %08x pc %08x\n", x2Frame, size, a, d, m_s.pc);
     if (getenv("X2IO") && x2Frame >= atoi(getenv("X2IO"))) { static std::set<uint64_t> seen; if (seen.insert((uint64_t(a) << 32) | m_s.pc).second) fprintf(stderr, "W%d %08x = %08x pc %08x\n", size, a, d, m_s.pc); }
 #endif
     auto combine32 = [&](uint32_t& reg) {
@@ -196,6 +202,9 @@ void Xavix2Core::ioWrite(uint32_t a, uint32_t d, int size)
     if (a == 0xffffe858) if (const char* e = getenv("X2CAMIRQ")) { static int n = 0; if (n++ < 3) fprintf(stderr, "cam cmd %02x\n", d & 0xff); irqRaise(atoi(e)); }
 #endif
     switch (base) {
+    case 0xffffea0a: if (size >= 2) soundCommand(uint16_t(d)); break;
+    case 0xffffea18: combine16(m_s.sndVol); break;
+    case 0xffffea1c: if (a == 0xffffea1c) m_s.sndPanL = uint8_t(d); else m_s.sndPanR = uint8_t(d); break;   // $EA1D folds into here as a byte write
     case 0xffffe244: combine16(m_s.linkStart); break;
     case 0xffffe246: combine16(m_s.linkEnd); break;
     case 0xffffe248: combine16(m_s.linkLen); break;
@@ -715,7 +724,7 @@ void Xavix2Core::runFrame()
     uint32_t bg = rgb555(m_s.bgColor) | 0xff000000u;
     std::fill(m_sd.begin(), m_sd.end(), bg);
     irqRaise(IRQ_TIMER);
-    m_audioPending = 800;
+    mixAudio(800);
 #ifdef XAVIX_DEBUG
     x2Frame++;
 #ifdef XAVIX_DEBUG
@@ -724,7 +733,7 @@ void Xavix2Core::runFrame()
         if (x2Frame == a) x2Pch = (uint32_t*)calloc(1 << 20, 4);
         if (x2Frame == b && x2Pch) { FILE* f = fopen("/tmp/x2pch.txt", "w"); for (int i = 0; i < (1 << 20); i++) if (x2Pch[i]) fprintf(f, "%06x %u\n", i << 4, x2Pch[i]); fclose(f); free(x2Pch); x2Pch = nullptr; }
     }
-    if (const char* e = getenv("X2DUMP")) if (x2Frame == atoi(e)) { FILE* f = fopen("/tmp/x2ram.bin", "wb"); fwrite(m_s.ram, 1, sizeof(m_s.ram), f); fclose(f); }
+    if (const char* e = getenv("X2DUMP")) if (x2Frame == atoi(e)) { FILE* f = fopen("/tmp/x2ram.bin", "wb"); fwrite(m_s.ram, 1, sizeof(m_s.ram), f); fclose(f); f = fopen("/tmp/x2vram.bin", "wb"); fwrite(m_s.vram, 1, sizeof(m_s.vram), f); fclose(f); }
 #endif
     if (const char* e = getenv("X2IRQ")) { static int fr2 = 0; if ((++fr2 % 4) == 0) irqRaise(atoi(e)); }
 #endif
@@ -736,10 +745,67 @@ void Xavix2Core::runFrame()
 
 size_t Xavix2Core::readAudio(int16_t* out, size_t maxSamples)
 {
-    size_t n = std::min<size_t>(maxSamples, size_t(m_audioPending));
-    std::fill(out, out + n, 0);
-    m_audioPending -= int(n);
+    size_t n = std::min(maxSamples, m_audio.size());
+    std::copy(m_audio.begin(), m_audio.begin() + n, out);
+    m_audio.erase(m_audio.begin(), m_audio.begin() + n);
+    if (m_audio.size() > 24000) m_audio.clear();
     return n;
+}
+
+// ---------------------------------------------------------------- sound
+//
+// Worked out from the game (MAME has no sound for this chip). Each voice is 16
+// registers at $C0010000 + voice * 64, a 16-bit value in the top half of each word:
+//   0/1 start address (high, low)   3/4 loop address   5 volume   7 mode ($72 = 8-bit)
+//   8 pitch (4-bit octave, 12-bit fraction)   12 pan (left byte, right byte)
+// Samples are signed 8-bit, ended by $80. Commands at $EA0A, voice in the low 6 bits:
+//   $40 start   $240 start, looping to the loop address at the end   $80 stop
+//   $C0 set volume / pan from $EA18 / $EA1C / $EA1D
+
+void Xavix2Core::soundCommand(uint16_t cmd)
+{
+    int v = cmd & 0x3f;
+    auto& vc = m_s.voice[v];
+    const uint8_t* r = &m_s.vram[0x10000 + v * 64];
+    auto w = [&](int i) { return uint16_t(r[i * 4 + 2] | (r[i * 4 + 3] << 8)); };
+    switch (cmd & 0x3c0) {
+    case 0x040: case 0x240: {
+        if ((w(7) & 0xff) != 0x72) { vc.on = 0; break; }   // other modes aren't understood yet
+        vc.pos = (uint32_t(w(0)) << 16) | w(1);
+        vc.loop = (uint32_t(w(3)) << 16) | w(4);
+        vc.frac = 0;
+        uint16_t p = w(8);
+        vc.step = uint32_t(std::ldexp(1.0 + (p & 0xfff) / 4096.0, (p >> 12) - 5) * 65536.0);
+        vc.vol = uint8_t(w(5));
+        vc.panL = r[0x32]; vc.panR = r[0x33];
+        vc.looping = (cmd & 0x200) ? 1 : 0;
+        vc.on = 1;
+        break;
+    }
+    case 0x080: vc.on = 0; break;
+    case 0x0c0: vc.vol = uint8_t(m_s.sndVol); vc.panL = m_s.sndPanL; vc.panR = m_s.sndPanR; break;
+    }
+}
+
+void Xavix2Core::mixAudio(int n)
+{
+    for (int i = 0; i < n; i++) {
+        int32_t acc = 0;
+        for (auto& vc : m_s.voice) {
+            if (!vc.on) continue;
+            uint8_t b = vc.pos < m_rom.size() ? m_rom[vc.pos] : 0x80;
+            if (b == 0x80) {
+                if (vc.looping && vc.loop < m_rom.size() && m_rom[vc.loop] != 0x80) { vc.pos = vc.loop; b = m_rom[vc.pos]; }
+                else { vc.on = 0; continue; }
+            }
+            acc += int32_t(int8_t(b)) * vc.vol * (vc.panL + vc.panR) / 2;
+            vc.frac += vc.step;
+            vc.pos += vc.frac >> 16;
+            vc.frac &= 0xffff;
+        }
+        acc >>= 5;
+        m_audio.push_back(int16_t(std::clamp(acc, -32768, 32767)));
+    }
 }
 
 bool Xavix2Core::saveState(std::vector<uint8_t>& out)
