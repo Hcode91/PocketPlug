@@ -31,7 +31,7 @@ public:
         bool lotrIo = false;      // IN1 bits 1-2 read random (MAME xavix_i2c_lotr_state)
         bool drumSerial = false;   // drum unit: hits arrive as serial bytes on IN1 bit 0 (IO event 0 + timer sampling)
         int camBlobs = 2;
-        bool camBar = false;       // the toy is one reflective strip: draw a bar from sticker 0 to sticker 1          // reflective stickers in view: two gloves / hands, or one sword
+        bool camBar = false;       // two hands: one shape (a bar) when held together, two spots apart          // reflective stickers in view: two gloves / hands, or one sword
         bool camera = false;      // Bandai "Taikan" camera: 32x31 infrared image on ADC channel 0, clocked on IN1 bits 1-2;
                                   // IO1 bit 5 lights the LEDs, so reflective stickers show up in the difference
 

@@ -410,7 +410,7 @@ object Machines {
         MachineDef(
             id = "ban_pr2j",
             title = "Issho ni Henshin! (Yes! PreCure 5)",
-            subtitle = "2007 dance-along camera game: the two stickers are the ends of the toy wand and steer the pointer (the camera is mirrored); hold the pointer on a button to pick it. Title, menus and story work (Bandai Yes! PreCure 5: Issho ni Henshin! Metamorphose!; MAME set: ban_pr2j)",
+            subtitle = "2007 action game played with your hands in front of the camera: the two stickers are your hands: together they steer the pointer (hold it on a button to pick), and in battle you strike left, right, up or both ways as the enemies come, then bring them back to the middle. The camera is mirrored (Bandai Yes! PreCure 5: Issho ni Henshin! Metamorphose!; MAME set: ban_pr2j)",
             chip = "SSD 2002 SuperXaviX (6502 core)",
             region = "Japan",
             year = "2007",

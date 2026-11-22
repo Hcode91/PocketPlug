@@ -496,7 +496,8 @@ uint8_t XavixCore::cameraPixel(int row, int col, bool led)
 {
     int v = 0x18 + ((row * 7 + col * 13) & 7);
     if (!led) return uint8_t(v);
-    if (m_cfg.camBar) {
+    // hands held together read as one shape (a short bar between them); apart, two spots
+    if (m_cfg.camBar && std::hypot((m_bx[0] - m_bx[1]) * 14.0f, (m_by[0] - m_by[1]) * 13.0f) < 7.0f) {
         float ax = 15.5f + m_bx[0] * 14.0f, ay = 15.0f + m_by[0] * 13.0f;
         float bx = 15.5f + m_bx[1] * 14.0f, by = 15.0f + m_by[1] * 13.0f;
         float dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;

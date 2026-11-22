@@ -66,7 +66,7 @@ controller.
 | Onmyou Taisenki (Bandai, 2005) | `ban_omt` | SSD 2000: XaviX core plus the extra J/K/L/M and pointer opcodes (zero-page ASR stores its result, unlike MAME's), 24C02 EEPROM, 32×31 ADC camera with sticker tracking | The sword sticker drives the cursor and swings pick directions; story and boss modes start |
 | Punch Battle (Bandai, 2004) | `ban_onep` | SSD 2000 with the glove camera | Plays: the camera follows both gloves and punches land |
 | Ongeki Battle (Bandai, 2005) | `ban_ordj` | SSD 2002 SuperXaviX: double-speed CPU, 512-wide output, bitmap layer and second palette | Plays: the drum unit's serial link is emulated, so strikes land and the specials run |
-| Issho ni Henshin! (Bandai, 2007) | `ban_pr2j` | SuperXaviX with the camera on the extra ports | Title, menus and story work: the wand (a bar between the two stickers) steers the pointer |
+| Issho ni Henshin! (Bandai, 2007) | `ban_pr2j` | SuperXaviX with the camera on the extra ports | Plays: hands together steer the pointer, and strikes in each direction land in battle |
 | Tamagotchi School Senshuken (Bandai, 2006) | `ban_tam2` | Sunplus SPG24x core | Plays |
 | Narikiri Fight (Bandai, 2006) | `ban_ult` | SuperXaviX with the camera, 24C01 EEPROM | Hover a hand over a button to pick it; in battle, follow the on-screen arrows with your hands |
 | Keroro Dotabata Daikessen (Bandai, 2006) | `ban_krrj` | SSD XaviX: own 6502 core with code / data banks and far calls, tilemaps, sprites, HSL palette, 16-voice wavetable sound | Same picture as MAME frame for frame from boot through the menus; the mini-games play with sound |
