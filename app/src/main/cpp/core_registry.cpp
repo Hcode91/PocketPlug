@@ -25,6 +25,8 @@
 #include "cores/chess/arb.h"
 #include "cores/chess/vcc.h"
 #include "cores/chess/bkc.h"
+#include "cores/xavix/xavix.h"
+#include "cores/xavix/xavix.h"
 #include "cores/chess/avrmax.h"
 #include "cores/hh/hh_hmcs40.h"
 #include "cores/hh/hh_ucom4.h"
@@ -237,6 +239,12 @@ Core* createCore(const std::string& id)
         return new VccCore(false);
     if (id == "avcc")         // Fidelity Advanced Voice Chess Challenger
         return new VccCore(true);
+    if (id == "ban_krrj") {   // Keroro (SSD XaviX, 4 MB)
+        XavixCore::Config c;
+        c.romName = "krrj.u2";
+        c.romSize = 0x400000;
+        return new XavixCore(c);
+    }
     if (id == "backgamc")     // Fidelity Backgammon Challenger (Z80)
         return new BkcCore();
     if (id == "arcadege")     // Millennium Arcade Genius (GeneralPlus GPL32600, work in progress)

@@ -37,6 +37,9 @@ import kotlin.math.hypot
  *  - "mattore":  two floor mats side by side, each four coloured panels
  *                (blue, yellow, red, green) and a SELECT button; player 1 in
  *                bits 4-8, player 2 in bits 9-13.
+ *  - "keroro":   a green octagonal floor mat with four round pads in a row:
+ *                X (cancel), red (left), green (right) and O (OK); XaviX IN0
+ *                bits 0-3.
  *
  * No maker's name or logo is drawn.
  */
@@ -60,6 +63,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         const val F_LEFT = 0x10; const val F_RIGHT = 0x20; const val F_B1 = 0x40; const val F_B2 = 0x80
         const val RESET_KEY = 0x40000000      // console RESET (not an input bit)
         const val Y_A = 0x10; const val Y_B = 0x20; const val Y_X = 0x40; const val Y_Y = 0x80; const val Y_PAUSE = 0x100
+        const val K_X = 0x01; const val K_RED = 0x02; const val K_GREEN = 0x04; const val K_O = 0x08
         const val M_BLUE = 0x10; const val M_YELLOW = 0x20; const val M_RED = 0x40; const val M_GREEN = 0x80; const val M_SELECT = 0x100
         const val L_PUNCH = 0x80; const val R_PUNCH = 0x100; const val L_KICK = 0x200; const val R_KICK = 0x400; const val GUARD = 0x800
 
@@ -74,6 +78,13 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_X -> F_B2
                 KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER -> F_START
                 KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_SHIFT_RIGHT -> F_SELECT
+                else -> 0
+            }
+            if (style == "keroro") return when (code) {
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_X -> K_X
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_BUTTON_L1 -> K_RED
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_BUTTON_R1 -> K_GREEN
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_Z -> K_O
                 else -> 0
             }
             if (style == "mattore") return when (code) {
@@ -243,6 +254,13 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 circle(Y_X, "X", cx - d, cy, r); circle(Y_B, "B", cx + d, cy, r)
                 rect(Y_PAUSE, "PAUSE", l + bw * 0.44f, t + bh * 0.3f, l + bw * 0.56f, t + bh * 0.37f)
             }
+            "keroro" -> {
+                val cy = t + bh * 0.55f; val r = bh * 0.17f
+                circle(K_X, "✕", l + bw * 0.2f, cy, r)
+                circle(K_RED, "", l + bw * 0.4f, cy, r)
+                circle(K_GREEN, "", l + bw * 0.6f, cy, r)
+                circle(K_O, "○", l + bw * 0.8f, cy, r)
+            }
             "mattore" -> {
                 for (p in 0..1) {
                     val ox = l + bw * (if (p == 0) 0.02f else 0.52f); val mw = bw * 0.46f
@@ -293,6 +311,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             "flashback" -> drawFlashback(c, held)
             "backyard" -> drawBackyard(c, held)
             "mattore" -> drawMattore(c, held)
+            "keroro" -> drawKeroro(c, held)
         }
     }
 
@@ -620,6 +639,41 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 paint.color = if (d) 0xFF1E2A14.toInt() else 0xFF3A4A2A.toInt()
                 c.drawRoundRect(k.rect, k.rect.height() / 2, k.rect.height() / 2, paint)
                 label(c, k.label, k.rect.centerX(), k.rect.bottom + k.rect.height() * 0.9f, k.rect.height() * 0.7f, 0xFFF5F5E0.toInt())
+            }
+        }
+    }
+
+    private fun drawKeroro(c: Canvas, held: Int) {
+        val bw = body.width(); val bh = body.height()
+        // the octagonal mat, green with a lighter rim
+        val cx = body.centerX(); val cy = body.centerY()
+        val hw = bw * 0.47f; val hh = bh * 0.47f; val k = 0.42f
+        path.reset()
+        path.moveTo(cx - hw * k, cy - hh); path.lineTo(cx + hw * k, cy - hh)
+        path.lineTo(cx + hw, cy - hh * k); path.lineTo(cx + hw, cy + hh * k)
+        path.lineTo(cx + hw * k, cy + hh); path.lineTo(cx - hw * k, cy + hh)
+        path.lineTo(cx - hw, cy + hh * k); path.lineTo(cx - hw, cy - hh * k); path.close()
+        paint.color = 0x55000000; c.save(); c.translate(0f, bh * 0.02f); c.drawPath(path, paint); c.restore()
+        paint.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFF4FB548.toInt(), 0xFF2E8A2C.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(path, paint); paint.shader = null
+        stroke.color = 0xFFB8E68A.toInt(); stroke.strokeWidth = bw * 0.012f; c.drawPath(path, stroke)
+        // a yellow band behind the pads
+        paint.color = 0xFFF4D23C.toInt()
+        val cyPads = ctls.firstOrNull()?.cy ?: cy
+        c.drawRoundRect(body.left + bw * 0.1f, cyPads - bh * 0.24f, body.right - bw * 0.1f, cyPads + bh * 0.24f, bh * 0.24f, bh * 0.24f, paint)
+        for (kk in ctls) {
+            val d = held and kk.bit != 0
+            val (lt, dk) = when (kk.bit) {
+                K_RED -> 0xFFFF5A4A.toInt() to 0xFFA0140E.toInt()
+                K_GREEN -> 0xFF5ED35A.toInt() to 0xFF1F7A1C.toInt()
+                else -> 0xFFF2F2F2.toInt() to 0xFF9A9A9A.toInt()
+            }
+            shade(c, kk.cx, kk.cy, kk.r, lt, dk, d)
+            when (kk.bit) {
+                K_RED -> label(c, "◀", kk.cx, kk.cy, kk.r * 0.7f, 0xFFFFFFFF.toInt())
+                K_GREEN -> label(c, "▶", kk.cx, kk.cy, kk.r * 0.7f, 0xFFFFFFFF.toInt())
+                K_X -> label(c, kk.label, kk.cx, kk.cy, kk.r * 0.9f, 0xFF2D5BD8.toInt())
+                else -> label(c, kk.label, kk.cx, kk.cy, kk.r * 0.9f, 0xFFE0352B.toInt())
             }
         }
     }

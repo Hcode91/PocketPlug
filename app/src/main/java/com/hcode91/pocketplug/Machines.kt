@@ -364,6 +364,19 @@ object Machines {
             badge = "backyard",
         ),
         MachineDef(
+            id = "ban_krrj",
+            title = "Keroro Dotabata Daikessen",
+            subtitle = "2006 Japanese party game on a floor mat: step on the red and green pads to move "
+                + "left and right through the menus, O to pick, X to cancel, then race through the mini-games "
+                + "(Bandai Let's! TV Play Keroro Gunsou Dai Panic! Dotabata Daikessen de Arimasu; MAME set: ban_krrj)",
+            chip = "SSD XaviX (6502 core, own emulation)",
+            region = "Japan",
+            year = "2006",
+            roms = listOf(RomSpec("krrj.u2", 0x400000L, 0x16f0fe78L)),
+            skin = Skin.ABL_TV,
+            badge = "keroro",
+        ),
+        MachineDef(
             id = "ban_krkk",
             title = "Zunou Family Mattore",
             subtitle = "2006 Japanese brain-and-body training mat for one or two players: step on the blue, "
