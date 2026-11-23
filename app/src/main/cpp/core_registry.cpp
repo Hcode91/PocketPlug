@@ -248,9 +248,9 @@ Core* createCore(const std::string& id)
         return new VccCore(false);
     if (id == "avcc")         // Fidelity Advanced Voice Chess Challenger
         return new VccCore(true);
-    if (id == "ban_naru") {   // SSD XaviX 2 + 24C08
+    if (id == "ban_naru" || id == "ban_bldj" || id == "ban_dbz" || id == "ban_db2j") {   // dbz / db2j: run but stay on a black screen so far   // SSD XaviX 2 + 24Cxx
         Xavix2Core::Config c;
-        c.romName = "naruto.bin";
+        c.romName = id == "ban_naru" ? "naruto.bin" : id == "ban_bldj" ? "bldj.u2" : id == "ban_dbz" ? "dbz.u2a" : "db2j.u3";
         return new Xavix2Core(c);
     }
     if (id == "ban_omt" || id == "ban_onep") {   // SSD 2000 + 24C04 EEPROM

@@ -63,6 +63,7 @@ controller.
 | Backyard Baseball & Soccer (2005) | `backybbs` | SunPlus SPG24x + 93LC66 EEPROM on port A | Boots to the title and both games' menus; MAME maps only half the ROM, which garbles the graphics, so all 4 MB is mapped here |
 | Zunou Family Mattore (Bandai, 2006) | `ban_krkk` | SunPlus SPG24x, two 4-panel mats on ports A and C | Boots through the title to the game menu |
 | Naruto Ninja Taikan (Bandai, 2006) | `ban_naru` | SSD XaviX 2: own 32-bit CPU core (with the Z / V flag opcodes corrected from MAME's), sprite GPU into a 2048×1024 surface, I2C EEPROM, the controller unit's serial link, 64-voice 8-bit PCM sound (worked out from the game) | Menus, story and battles play with sound and the glove cursors (hover to pick, punch to attack); the live camera layer is blank |
+| Fire Crisis (Blue Dragon) (Bandai, 2007) | `ban_bldj` | SSD XaviX 2, same unit and link as Naruto; low-64 KB code fetches come from the ROM image (the DBZ sets need this) | Boots to the title; the glove spots show as cursors, starting a game isn't worked out yet |
 | Onmyou Taisenki (Bandai, 2005) | `ban_omt` | SSD 2000: XaviX core plus the extra J/K/L/M and pointer opcodes (zero-page ASR stores its result, unlike MAME's), 24C02 EEPROM, 32×31 ADC camera with sticker tracking | Plays: downward swings strike, the drive raised to the unit opens the battle menu |
 | Punch Battle (Bandai, 2004) | `ban_onep` | SSD 2000 with the glove camera | Plays: the camera follows both gloves and punches land |
 | Ongeki Battle (Bandai, 2005) | `ban_ordj` | SSD 2002 SuperXaviX: double-speed CPU, 512-wide output, bitmap layer and second palette | Plays: the drum unit's serial link is emulated, so strikes land and the specials run |
@@ -164,6 +165,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Backyard Baseball & Soccer | `backybbs` | `backyardbs.bin` | 4 MB | `9c378f27` |
 | Zunou Family Mattore | `ban_krkk` | `quiz.bin` | 4 MB | `6f51180a` |
 | Naruto Ninja Taikan | `ban_naru` | `naruto.bin` | 8 MB | `e3465ad2` |
+| Fire Crisis (Blue Dragon) | `ban_bldj` | `bldj.u2` | 8 MB | `aa865fe3` |
 | Onmyou Taisenki | `ban_omt` | `otmj.bin` | 4 MB | `1c1dc6fb` |
 | Punch Battle | `ban_onep` | `onepiece.bin` | 8 MB | `c5cb5a5f` |
 | Ongeki Battle | `ban_ordj` | `ordj.u2` | 8 MB | `78fbb00f` |

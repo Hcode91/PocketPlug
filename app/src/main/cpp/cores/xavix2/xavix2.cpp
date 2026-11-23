@@ -5,6 +5,7 @@
 // Galibert, David Haywood), BSD-3-Clause; the 24Cxx EEPROM after MAME's i2cmem.
 
 #include <set>
+#include <map>
 #include "xavix2.h"
 #include <algorithm>
 #include <climits>
@@ -50,6 +51,10 @@ bool Xavix2Core::load(const std::vector<RomFile>& roms, std::string& error)
         if (r.name == m_cfg.romName) {
             m_rom.assign(0x1000000, 0);
             std::memcpy(m_rom.data(), r.data.data(), std::min<size_t>(r.data.size(), m_rom.size()));
+            // a smaller chip repeats through the 16 MB window (the Dragon Ball
+            // games jump into the upper half of an 8 MB ROM)
+            if (!r.data.empty() && r.data.size() < m_rom.size() && (m_rom.size() % r.data.size()) == 0)
+                for (size_t o = r.data.size(); o < m_rom.size(); o += r.data.size()) std::memcpy(m_rom.data() + o, r.data.data(), r.data.size());
         }
     if (m_rom.empty()) { error = "Missing " + m_cfg.romName; return false; }
     reset();
@@ -551,13 +556,38 @@ void Xavix2Core::execute(int64_t cycles)
         uint32_t pc = m_s.pc;
 #ifdef XAVIX_DEBUG
         if (x2Pch) x2Pch[(pc & 0xffffff) >> 4]++;
+        { static int wa = -2; static uint8_t last; if (wa == -2) { const char* e = getenv("X2CHG"); wa = e ? int(strtoul(e, 0, 16)) : -1; if (wa >= 0) last = m_s.ram[wa]; }
+          if (wa >= 0 && m_s.ram[wa] != last) { fprintf(stderr, "chg %04x %02x->%02x before pc %08x prev %08x f%d\n", wa, last, m_s.ram[wa], pc, m_prevPc, x2Frame); last = m_s.ram[wa]; } m_prevPc = pc; }
+        { // X2IRQTR=n: print the PCs of the first n instructions after each of the first interrupts
+            static int n = -1, left = 0, shown = 0;
+            if (n < 0) n = getenv("X2IRQTR") ? atoi(getenv("X2IRQTR")) : 0;
+            if (n && pc == 0x40000010 && shown < 3) { left = n; shown++; fprintf(stderr, "\nirq f%d act=%04x:", x2Frame, m_s.intActive); }
+            if (left > 0) { left--; fprintf(stderr, " %x", pc); }
+        }
+        { // X2TRAP: when execution leaves ROM / RAM, print the last PCs before it
+            static int on = -1; static uint32_t ring[256]; static unsigned ri;
+            if (on < 0) on = getenv("X2TRAP") ? 1 : 0;
+            if (on == 1) {
+                ring[ri++ & 255] = pc;
+                bool ok = (pc < 0x00800000 || (pc >= 0x40000000 && pc < 0x40800000)) && !(pc >= 0x10000 && pc < 0x10000 + 0x10 && 0);
+                if (!ok) {
+                    on = 2;
+                    fprintf(stderr, "trap: pc %08x frame %d\n", pc, x2Frame);
+                    for (unsigned k = ri - 64; k != ri; k++) fprintf(stderr, " %08x", ring[k & 255]);
+                    fprintf(stderr, "\n r:"); for (int k = 0; k < 8; k++) fprintf(stderr, " %08x", r[k]); fprintf(stderr, "\n");
+                }
+            }
+        }
         { static int brk = -2; if (brk == -2) { const char* e = getenv("X2BRK"); brk = e ? int(strtoul(e, 0, 16)) : -1; }
-          if (brk >= 0 && (pc & 0xffffff) == uint32_t(brk)) { static std::set<uint32_t> seen; if (seen.insert(r[7]).second) fprintf(stderr, "brk %08x from lnk %08x r0=%08x\n", pc, r[7], r[0]); } }
+          if (brk >= 0 && (pc & 0xffffff) == uint32_t(brk)) { static std::set<uint32_t> seen; if (seen.insert(r[7]).second) fprintf(stderr, "brk %08x from lnk %08x r0=%08x r6=%08x ram1a0=%02x%02x f%d\n", pc, r[7], r[0], r[6], m_s.ram[0x1a1], m_s.ram[0x1a0], x2Frame); } }
 #endif
-        uint32_t op = uint32_t(rd8(pc)) << 24;
+        // code in the low 64 KB is fetched from the ROM image there: the DBZ games point their timer callback at a
+        // routine whose RAM copy their start-up code wipes (and then fills with a table), which only works this way
+        uint32_t fpc = pc < 0x10000 ? pc | 0x40000000 : pc;
+        uint32_t op = uint32_t(rd8(fpc)) << 24;
         uint8_t nb = BPO[op >> 29];
         uint32_t npc = pc + nb;
-        for (uint8_t i = 1; i != nb; i++) op |= uint32_t(rd8(pc + i)) << (24 - 8 * i);
+        for (uint8_t i = 1; i != nb; i++) op |= uint32_t(rd8(fpc + i)) << (24 - 8 * i);
         m_icount -= nb;
         if (m_s.dmaLeft > 0 && (m_s.dmaLeft -= nb) <= 0) { m_s.dmaLeft = 0; irqRaise(IRQ_DMA); }
         switch (op >> 24) {
@@ -566,7 +596,12 @@ void Xavix2Core::execute(int64_t cycles)
         case 0x04: case 0x05: r[r1(op)] = doSub(r[r2(op)], val19s(op)); break;
         case 0x06: case 0x07: r[r1(op)] = val22s(op); break;
         case 0x08: npc = val24u(op) | (pc & 0xff000000); break;
-        case 0x09: r[7] = npc; npc = val24u(op) | (pc & 0xff000000); break;
+        case 0x09: r[7] = npc; npc = val24u(op) | (pc & 0xff000000);
+#ifdef XAVIX_DEBUG
+            if (getenv("X2JSR") && x2Frame >= atoi(getenv("X2JSR"))) { static std::map<uint64_t, int> cnt; static int lf = -1; cnt[(uint64_t(npc) << 32) | pc]++;
+                if (x2Frame != lf && lf >= 0) { for (auto& kv : cnt) fprintf(stderr, "jsr %08x from %08x x%d\n", uint32_t(kv.first >> 32), uint32_t(kv.first), kv.second); cnt.clear(); fprintf(stderr, "---- f%d\n", x2Frame); } lf = x2Frame; }
+#endif
+            break;
         case 0x0a: case 0x0b: r[r1(op)] = snz(r[r2(op)] & val19u(op)); break;
         case 0x0c: case 0x0d: r[r1(op)] = snz(r[r2(op)] | val19u(op)); break;
         case 0x0e: case 0x0f: r[r1(op)] = snz(r[r2(op)] ^ val19u(op)); break;
@@ -723,6 +758,9 @@ void Xavix2Core::runFrame()
         }
     uint32_t bg = rgb555(m_s.bgColor) | 0xff000000u;
     std::fill(m_sd.begin(), m_sd.end(), bg);
+#ifdef XAVIX_DEBUG
+    if (!(getenv("X2NOTIMER") && x2Frame < atoi(getenv("X2NOTIMER"))))
+#endif
     irqRaise(IRQ_TIMER);
     mixAudio(800);
 #ifdef XAVIX_DEBUG

@@ -75,6 +75,7 @@ private:
     std::vector<uint32_t> m_out;         // 640 x 400
     uint32_t m_inputs = 0;
     int64_t m_icount = 0;
+    uint32_t m_prevPc = 0;
 
     struct State {
         uint8_t ram[0x10000];

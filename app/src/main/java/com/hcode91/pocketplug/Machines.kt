@@ -364,6 +364,17 @@ object Machines {
             badge = "backyard",
         ),
         MachineDef(
+            id = "ban_bldj",
+            title = "Fire Crisis (Blue Dragon)",
+            subtitle = "2007 shadow camera game on the same unit as Naruto: drag the two glove spots around the camera window and they show up as cursors over the title. Boots through the warnings to the title screen; how the title wants you to start isn't worked out yet (Bandai Let's! TV Play Kage Hatsudou Taikan! Blue Dragon: Kiwamero! Fire Crisis!; MAME set: ban_bldj)",
+            chip = "SSD XaviX 2 (own 32-bit core)",
+            region = "Japan",
+            year = "2007",
+            roms = listOf(RomSpec("bldj.u2", 0x800000L, 0xaa865fe3L)),
+            skin = Skin.LETS_TV,
+            badge = "ninja",
+        ),
+        MachineDef(
             id = "ban_naru",
             title = "Naruto Ninja Taikan",
             subtitle = "2006 camera game: stand in front of the unit and throw ninja moves with the glove. Hold a glove over a button to pick it, punch in battle. Menus, story and battles work with sound; the live camera picture behind the action is blank (Bandai Let's! TV Play Naruto Ninja Taikan: Dattebayo!; MAME set: ban_naru)",
