@@ -44,8 +44,9 @@ void zout(z80*, uint8_t, uint8_t) {}
 bool dbg() { static int v = getenv("MDDBG") ? 1 : 0; return v; }
 }
 
-FirecoreCore::FirecoreCore() : m_ym(*this)
+FirecoreCore::FirecoreCore(const std::string& set) : m_ym(*this), m_set(set)
 {
+    m_ntsc = set == "banmrid";
     std::memset(m_fb, 0, sizeof(m_fb));
     std::memset(&m_s, 0, sizeof(m_s));
 }
@@ -58,16 +59,24 @@ FirecoreCore::~FirecoreCore()
 bool FirecoreCore::load(const std::vector<RomFile>& roms, std::string& error)
 {
     const RomFile* f = nullptr;
-    for (auto& r : roms) if (r.name == "40bonusgamesin1.bin" && r.data.size() == 0x1000000) f = &r;
-    if (!f) { error = "Missing 40bonusgamesin1.bin"; return false; }
-    // byte-swapped words; the file's halves are swapped (MAME: load at 0x800000, continue at 0)
-    m_rom.resize(0x1000000);
-    for (size_t i = 0; i < 0x800000; i++) {
-        m_rom[0x800000 + i] = f->data[i ^ 1];
-        m_rom[i] = f->data[0x800000 + (i ^ 1)];
+    if (m_set == "banmrid") {
+        for (auto& r : roms) if (r.name == "b75909a.u10" && r.data.size() == 0x400000) f = &r;
+        if (!f) { error = "Missing b75909a.u10"; return false; }
+        m_rom.resize(0x400000);   // byte-swapped words (MAME: ROM_LOAD16_WORD_SWAP)
+        for (size_t i = 0; i < 0x400000; i++) m_rom[i] = f->data[i ^ 1];
+        m_romMask = 0x3fffff;
+    } else {
+        for (auto& r : roms) if (r.name == "40bonusgamesin1.bin" && r.data.size() == 0x1000000) f = &r;
+        if (!f) { error = "Missing 40bonusgamesin1.bin"; return false; }
+        // byte-swapped words; the file's halves are swapped (MAME: load at 0x800000, continue at 0)
+        m_rom.resize(0x1000000);
+        for (size_t i = 0; i < 0x800000; i++) {
+            m_rom[0x800000 + i] = f->data[i ^ 1];
+            m_rom[i] = f->data[0x800000 + (i ^ 1)];
+        }
+        m_romMask = 0xffffff;
     }
-    m_romMask = 0xffffff;
-    m_vdp.pal = true;
+    m_vdp.pal = !m_ntsc;
     m_vdp.busRead16 = [this](uint32_t a) { return read16(a & 0xffffff); };
     m_psg.setSega();
     if (getenv("MDDMA")) m_vdp.traceDma = [this](uint32_t src, uint32_t dst, uint32_t len) {
@@ -161,8 +170,8 @@ uint16_t FirecoreCore::read16(uint32_t a)
         int r = (a & 0x1f) >> 1;
         uint8_t v = 0;
         switch (r) {
-        case 0: v = 0xe0; break;   // overseas, PAL, no expansion
-        case 1: case 2: case 3: v = padRead(r - 1); break;
+        case 0: v = m_ntsc ? 0x20 : 0xe0; break;   // overseas, PAL / domestic (Japan), NTSC; no expansion
+        case 1: case 2: case 3: v = padRead(r - 1); if (getenv("MDPAD")) { static int n = 0; if (n++ % 50 == 0 || m_keys) fprintf(stderr, "pad%d -> %02x pc %06x (data %02x ctrl %02x keys %x)\n", r - 1, v, m68k_get_reg(nullptr, M68K_REG_PPC), m_s.padData[r - 1], m_s.padCtrl[r - 1], m_keys); } break;
         case 4: case 5: case 6: v = m_s.padCtrl[r - 4]; break;
         default: v = 0; break;
         }
@@ -223,6 +232,7 @@ void FirecoreCore::write16(uint32_t a, uint16_t d)
     if (a == 0xa11100) { m_s.busReq = (d >> 8) & 1; return; }
     if (a == 0xa11200) { write8(a, uint8_t(d >> 8)); return; }
     // Firecore banking (MAME's megadriv_firecore.cpp)
+    if (m_ntsc) { if (dbg()) fprintf(stderr, "w16 %06x=%04x\n", a, d); return; }   // plain cartridge: no Firecore banking
     if (a == 0xa10104) { m_s.bank |= 0x800000; if (dbg()) fprintf(stderr, "bank_upper %04x -> %06x\n", d, m_s.bank); return; }
     if (a == 0xb01028) { m_s.bank = (m_s.bank & 0xffff0000) | d; if (dbg()) fprintf(stderr, "bank_low %04x -> %06x\n", d, m_s.bank); return; }
     if (a == 0xb0102a) { m_s.bank = (m_s.bank & 0xff80ffff) | uint32_t(d & 0x7f) << 16; if (dbg()) fprintf(stderr, "bank_high %04x -> %06x\n", d, m_s.bank); return; }
@@ -294,7 +304,8 @@ void FirecoreCore::runFrame()
         if (FILE* f = fopen("/tmp/mdram.bin", "wb")) { fwrite(m_s.ram, sizeof(m_s.ram), 1, f); fclose(f); }
     }
     const int vis = m_vdp.visibleLines();
-    for (int line = 0; line < LINES; line++) {
+    const int nLines = m_ntsc ? 262 : LINES;
+    for (int line = 0; line < nLines; line++) {
         bool vb = m_vdp.beginLine(line);
         if (vb) m_s.zIrqLines = 1;
         updateIrq();

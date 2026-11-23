@@ -28,6 +28,9 @@ import kotlin.math.*
  *  - "parade":     a music staff with notes and confetti: the unit's three
  *                  round keys, blue (IN0 bit 7), yellow (IN1 bit 0) and green
  *                  (IN0 bit 6).
+ *  - "mirror":     broken mirror shards over dark red: the unit's four keys,
+ *                  attack (bit 0), the second key (bit 1), next (bit 2) and OK
+ *                  (bit 3).
  *  - "explorer":   an expedition map: the floor mat's two step pads (left /
  *                  right, bits 2 / 1) and the toy gun's trigger (bit 0).
  *
@@ -64,6 +67,13 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> 1 shl 19
                 KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_A -> PUNCH_L
                 KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_D -> PUNCH_R
+                else -> 0
+            }
+            "mirror" -> when (code) {
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_Z, KeyEvent.KEYCODE_SPACE -> 0x01
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_X -> 0x02
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_X -> 0x04
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_BUTTON_Y -> 0x08
                 else -> 0
             }
             "parade" -> when (code) {
@@ -133,6 +143,13 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 btns += Btn(1 shl 18, "▲", W * 0.8f, H * 0.75f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
                 btns += Btn(1 shl 19, "▼", W * 0.8f, H * 0.91f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
             }
+            "mirror" -> {
+                val r = min(W * 0.1f, H * 0.17f)
+                btns += Btn(0x04, "▶", W * 0.16f, H * 0.5f, r, 0xFF5A6270.toInt(), Color.WHITE)
+                btns += Btn(0x08, "OK", W * 0.37f, H * 0.5f, r, 0xFFC8A030.toInt(), 0xFF2A1A00.toInt())
+                btns += Btn(0x02, "■", W * 0.63f, H * 0.5f, r, 0xFF2A5CB8.toInt(), Color.WHITE)
+                btns += Btn(0x01, "●", W * 0.84f, H * 0.5f, r, 0xFFC0242A.toInt(), Color.WHITE)
+            }
             "parade" -> {
                 val r = min(W * 0.12f, H * 0.2f)
                 btns += Btn(0x80, "", W * 0.22f, H * 0.55f, r, 0xFF2F6FD8.toInt(), 0)
@@ -182,6 +199,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             "ninja" -> drawNinja(c)
             "explorer" -> drawExplorer(c)
             "parade" -> drawParade(c)
+            "mirror" -> drawMirror(c)
         }
         if (hasCamera(theme)) drawCamera(c, held)
         if (theme != "drums") for (b in btns) drawButton(c, b, held and b.bit != 0)
@@ -419,6 +437,34 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
         text.color = 0xFF5A3A1A.toInt(); text.textSize = H * 0.065f
         c.drawText("step ◀ ▶ to aim and choose  ·  trigger to shoot and pick", W * 0.5f, H * 0.94f, text)
         if (trig != null) { text.color = Color.WHITE; text.textSize = trig.r * 0.42f; c.drawText("FIRE", trig.cx, trig.cy + text.textSize * 0.36f, text) }
+    }
+
+    private fun drawMirror(c: Canvas) {
+        val W = width.toFloat(); val H = height.toFloat()
+        paint.shader = RadialGradient(W * 0.5f, H * 0.5f, max(W, H) * 0.7f, 0xFF4A0E12.toInt(), 0xFF120406.toInt(), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, W, H, paint); paint.shader = null
+        // shards of a broken mirror radiating from a point, with silver edges
+        val ox = W * 0.62f; val oy = H * 0.38f
+        stroke.color = 0x88D8E0EA.toInt(); stroke.strokeWidth = 2f
+        for (k in 0 until 14) {
+            val a1 = k * 2 * PI / 14 + 0.2 * sin(k * 1.7); val a2 = (k + 1) * 2 * PI / 14 + 0.2 * sin((k + 1) * 1.7)
+            val r1 = max(W, H) * (0.5f + 0.25f * ((k * 7) % 5) / 5f)
+            path.reset(); path.moveTo(ox, oy)
+            path.lineTo(ox + (cos(a1) * r1).toFloat(), oy + (sin(a1) * r1).toFloat())
+            path.lineTo(ox + (cos(a2) * r1 * 0.9f).toFloat(), oy + (sin(a2) * r1 * 0.9f).toFloat()); path.close()
+            paint.color = if (k % 3 == 0) 0x22B8C4D4 else if (k % 3 == 1) 0x14FFFFFF else 0x0AFF4040
+            c.drawPath(path, paint); c.drawPath(path, stroke)
+        }
+        // the keys sit on a dark metal plate
+        val l = btns.firstOrNull { it.bit == 0x04 }; val r = btns.firstOrNull { it.bit == 0x01 }
+        if (l != null && r != null) {
+            paint.color = 0xEE1C1E24.toInt()
+            c.drawRoundRect(l.cx - l.r * 1.5f, l.cy - l.r * 1.5f, r.cx + r.r * 1.5f, r.cy + r.r * 1.5f, l.r * 0.5f, l.r * 0.5f, paint)
+            stroke.color = 0xFF9AA2AE.toInt(); stroke.strokeWidth = 4f
+            c.drawRoundRect(l.cx - l.r * 1.5f, l.cy - l.r * 1.5f, r.cx + r.r * 1.5f, r.cy + r.r * 1.5f, l.r * 0.5f, l.r * 0.5f, stroke)
+        }
+        text.color = 0xFFE8D8C8.toInt(); text.textSize = H * 0.06f
+        c.drawText("▶ next  ·  OK picks  ·  ● attacks in battle", W * 0.5f, H * 0.92f, text)
     }
 
     private fun drawParade(c: Canvas) {

@@ -408,6 +408,17 @@ object Machines {
             badge = "hero",
         ),
         MachineDef(
+            id = "banmrid",
+            title = "Survival Fight (Ryuki)",
+            subtitle = "2002 first-person fighting TV game on a Mega Drive chip: ▶ moves through the menus and fighters, OK picks, ● attacks in battle (the second key is the other move). Story fights play (Bandai Kamen Rider Ryuki: Survival Fight; MAME set: banmrid)",
+            chip = "Mega Drive on a chip (68000 + Z80 + VDP + YM2612)",
+            region = "Japan",
+            year = "2002",
+            roms = listOf(RomSpec("b75909a.u10", 0x400000L, 0xb439e06eL)),
+            skin = Skin.LETS_TV,
+            badge = "mirror",
+        ),
+        MachineDef(
             id = "ban_naru",
             title = "Naruto Ninja Taikan",
             subtitle = "2006 camera game: stand in front of the unit and throw ninja moves with the glove. Hold a glove over a button to pick it, punch in battle. Menus, story and battles work with sound; the live camera picture behind the action is blank (Bandai Let's! TV Play Naruto Ninja Taikan: Dattebayo!; MAME set: ban_naru)",

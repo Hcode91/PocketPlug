@@ -319,6 +319,8 @@ Core* createCore(const std::string& id)
         return new GplCore();
     if (id == "atgame40")     // AtGames 40 Bonus Games in 1 (Firecore Mega Drive clone)
         return new FirecoreCore();
+    if (id == "banmrid")      // Bandai Kamen Rider Ryuki TV game: a Mega Drive on a chip running one 4 MB game (NTSC Japan)
+        return new FirecoreCore("banmrid");
     if (id == "atgsms")       // AtGames SMS / Game Gear plug & play
         return new AtgSmsCore();
     if (id == "astrocde")     // Bally Professional Arcade (Z80 + Astrocade custom chips)
@@ -378,6 +380,13 @@ Core* createCore(const std::string& id)
         std::copy(scr, scr + 6, c.scramble8000);
         std::copy(order, order + 6, c.order2012);
         c.twoPads = true;
+        return new Vt369Core(c);
+    }
+    if (id == "bandgpad" || id == "bancook") {   // Bandai SH6578 sets (NTSC, 1 MB)
+        Vt369Config c;
+        c.romName = id == "bandgpad" ? "gamepad.bin" : "mx27c8000.ic2";
+        c.romSize = 0x100000;
+        c.soc = 3;
         return new Vt369Core(c);
     }
     if (id == "ablwikid") {   // ABL Wikid Joystick 14-in-1 (SH6578 PAL, 2 MB in two 1 MB halves)

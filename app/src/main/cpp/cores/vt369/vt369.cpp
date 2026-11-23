@@ -1,3 +1,6 @@
+#include <set>
+#include <cstdio>
+#include <cstdlib>
 // PocketPlug - VT369 "NES-on-a-chip"
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
@@ -1389,6 +1392,9 @@ uint8_t Vt369Core::ppuRead(int offset)
         m_s.dataLatch = m_s.regs[PPU_STATUS] | (m_s.dataLatch & 0x1f);
         m_s.toggle = 0;
         if (m_s.dataLatch & PPU_STATUS_VBLANK) m_s.regs[PPU_STATUS] &= 0x60;
+#ifdef XAVIX_DEBUG
+        if (getenv("VTST")) { static int n = 0, v = 0; n++; if (m_s.dataLatch & 0x80) v++; if (n % 200000 == 0) fprintf(stderr, "2002 reads %d vbl %d line %d\n", n, v, m_s.scanline); }
+#endif
         break;
     case PPU_SPRITE_DATA:
         m_s.dataLatch = m_s.spriteram[m_s.regs[PPU_SPRITE_ADDRESS]];
@@ -2381,6 +2387,9 @@ void Vt369Core::fireEvent()
 
 void Vt369Core::runFrame()
 {
+#ifdef XAVIX_DEBUG
+    if (getenv("VTPC")) { static int f = 0; if (++f % atoi(getenv("VTPC")) == 0) fprintf(stderr, "f%d pc %04x banks %02x %02x %02x %02x %02x %02x %02x %02x ctl %02x %02x\n", f, m_cpu.pc, m_sh.bank[0], m_sh.bank[1], m_sh.bank[2], m_sh.bank[3], m_sh.bank[4], m_sh.bank[5], m_sh.bank[6], m_sh.bank[7], m_s.regs[0], m_s.regs[1]); }
+#endif
 #ifdef VT_DEBUG
     g_vtFrame++;
 #endif
@@ -2473,6 +2482,9 @@ bool Vt369Core::loadState(const std::vector<uint8_t>& in)
 
 uint8_t Vt369Core::shCpuRead(uint16_t a)
 {
+#ifdef XAVIX_DEBUG
+    if (getenv("VTIO") && a >= 0x4000 && a < 0x5000) { static std::set<uint32_t> seen; if (seen.insert(uint32_t(a) << 16 | m_cpu.pc).second) fprintf(stderr, "R %04x pc %04x\n", a, m_cpu.pc); }
+#endif
     if (a < 0x2000) return m_sh.ram[a];
     if (a < 0x2008) { apuSync(); return ppuRead(a & 7); }
     if (a == 0x2008) return m_sh.colsel;
@@ -2494,6 +2506,9 @@ uint8_t Vt369Core::shCpuRead(uint16_t a)
 
 void Vt369Core::shCpuWrite(uint16_t a, uint8_t d)
 {
+#ifdef XAVIX_DEBUG
+    if (getenv("VTIO") && a >= 0x4016 && a < 0x5000) { static std::set<uint32_t> seen; if (seen.insert(uint32_t(a) << 16 | d << 8 | (m_cpu.pc & 0xff)).second) fprintf(stderr, "W %04x = %02x pc %04x\n", a, d, m_cpu.pc); }
+#endif
     if (a < 0x2000) { m_sh.ram[a] = d; return; }
     if (a < 0x2008) { apuSync(); ppuWrite(a & 7, d); return; }
     if (a == 0x2008) { m_sh.colsel = d; return; }

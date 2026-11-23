@@ -16,10 +16,12 @@
 #include "../../common/sn76489.h"
 #include "../../common/ymfm/ymfm_opn.h"
 #include <vector>
+#include <string>
 
 class FirecoreCore : public Core, public ymfm::ymfm_interface {
 public:
-    FirecoreCore();
+    // "atgame40" (the Firecore flash, PAL) or "banmrid" (a plain 4 MB Mega Drive game in a TV-game unit, NTSC Japan)
+    explicit FirecoreCore(const std::string& set = "atgame40");
     ~FirecoreCore() override;
     bool load(const std::vector<RomFile>& roms, std::string& error) override;
     void reset() override;
@@ -27,7 +29,7 @@ public:
     const uint32_t* frameBuffer() const override { return m_fb; }
     int frameWidth() const override { return MdVdp::W; }
     int frameHeight() const override { return 224; }
-    double refreshRate() const override { return 53203424.0 / (3420.0 * 313.0); }
+    double refreshRate() const override { return m_ntsc ? 53693175.0 / (3420.0 * 262.0) : 53203424.0 / (3420.0 * 313.0); }
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     void setInputs(uint32_t pressed) override { m_keys = pressed; }
@@ -52,6 +54,8 @@ private:
 
     std::vector<uint8_t> m_rom;      // big-endian bytes, 16 MB
     uint32_t m_romMask = 0;
+    std::string m_set;
+    bool m_ntsc = false;
     uint32_t m_fb[MdVdp::W * MdVdp::H];
     z80 m_z80;
     MdVdp m_vdp;
