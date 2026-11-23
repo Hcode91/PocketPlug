@@ -160,13 +160,14 @@ void GplSpu::ctrlWrite(int bank, int reg, uint16_t v)
 void GplSpu::startChannel(int ch)
 {
     static const bool log = getenv("GPLSPU") != nullptr;
-    if (log) fprintf(stderr, "SPU start ch%d mode %04x addr %06x loop %06x rate %.0f vol %04x env %04x/%04x/%04x envmode %d\n", ch, m_attr[ch][MODE],
+    if (log) fprintf(stderr, "SPU start ch%d sel %04x mode %04x addr %06x loop %06x rate %.0f vol %04x env %04x/%04x/%04x envmode %d\n", ch, m_attr[ch][ADPCM_SEL], m_attr[ch][MODE],
         m_wordAddr[ch], m_loopAddr[ch], m_rate[ch], m_attr[ch][PAN_VOL], m_attr[ch][ENVELOPE0], m_attr[ch][ENVELOPE_DATA], m_attr[ch][ENVELOPE1],
         (ctrl(ch, ENV_MODE) >> (ch & 15)) & 1);
     ctrl(ch, CHANNEL_STATUS) |= uint16_t(1u << (ch & 15));
     m_envAddr[ch] = (uint32_t(m_attr[ch][ENVELOPE_ADDR_HIGH] & 0x3f) << 16) | m_attr[ch][ENVELOPE_ADDR];
     m_attr[ch][ENVELOPE_DATA] = uint16_t(edd(ch) | ((m_attr[ch][ENVELOPE1] & 0xff) << 8));
     m_ima[ch] = Ima();
+    m_a36[ch] = Adpcm36();
     m_shift[ch] = 0;
     m_envFrame[ch] = 0;
 }
@@ -186,7 +187,13 @@ bool GplSpu::fetchSample(int ch)
     a[WAVE_DATA_PREV] = a[WAVE_DATA];
     uint16_t mode = a[MODE];
     int tone = (mode >> 12) & 3;
-    bool adpcm = mode & 0x8000, pcm16 = mode & 0x4000;
+    bool a36 = adpcm36(ch);
+    bool adpcm = (mode & 0x8000) || a36, pcm16 = mode & 0x4000;
+    if (a36 && tone && m_a36[ch].remaining == 0) {
+        m_a36[ch].header = readWord ? readWord(m_wordAddr[ch]) : 0xffff;
+        m_a36[ch].remaining = 8;
+        m_wordAddr[ch]++;
+    }
     uint16_t raw = tone ? (readWord ? readWord(m_wordAddr[ch]) : 0xffff) : a[WAVE_DATA];
     auto endOfSample = [&]() -> bool {
         if (tone == 1) {                             // one-shot: stop
@@ -204,7 +211,17 @@ bool GplSpu::fetchSample(int ch)
             a[MODE] &= ~0x8000u;
         } else {
             uint8_t nibble = uint8_t((raw >> m_shift[ch]) & 15);
-            a[WAVE_DATA] = uint16_t(m_ima[ch].clock(nibble)) ^ 0x8000;
+            if (a36) {
+                Adpcm36& st = m_a36[ch];
+                int shift = st.header & 15;
+                int f0 = (st.header >> 4) & 0x3f;
+                if (f0 & 0x20) f0 -= 0x40;
+                int16_t sd = int16_t(uint16_t(nibble) << 12);
+                sd = int16_t((sd >> shift) + ((st.prev * f0 + 32) >> 12));
+                st.prev = sd;
+                a[WAVE_DATA] = uint16_t(sd) ^ 0x8000;
+            } else
+                a[WAVE_DATA] = uint16_t(m_ima[ch].clock(nibble)) ^ 0x8000;
         }
     } else if (pcm16) {
         if (tone && raw == 0xffff) { if (!endOfSample()) return false; }
@@ -227,9 +244,12 @@ bool GplSpu::advance(int ch, double outRate)
     for (uint32_t s = 0; s < steps; s++) {
         if (!fetchSample(ch)) return false;
         mode = m_attr[ch][MODE];
-        if (mode & 0x8000) {
+        if ((mode & 0x8000) || adpcm36(ch)) {
             m_shift[ch] += 4;
-            if (m_shift[ch] >= 16) { m_shift[ch] = 0; m_wordAddr[ch]++; }
+            if (m_shift[ch] >= 16) {
+                m_shift[ch] = 0; m_wordAddr[ch]++;
+                if (adpcm36(ch) && m_a36[ch].remaining) m_a36[ch].remaining--;
+            }
         } else if (mode & 0x4000) {
             m_wordAddr[ch]++;
         } else {
@@ -341,7 +361,7 @@ void GplSpu::render(int16_t* out, int samples, int rate)
         int volSel = (m_ctrl[0][CONTROL] >> 6) & 3;
         int shift = volSel == 0 ? 4 : 2;
         int32_t mix = ((left + right) / 2) >> shift;
-        mix = (mix * int32_t(m_ctrl[0][MAIN_VOLUME])) >> 7;
+        mix = (mix * int32_t(m_ctrl[0][MAIN_VOLUME]) * mainVolumeScale) >> 7;
         out[i] = int16_t(std::max(-32768, std::min(32767, mix * 2)));
     }
 }

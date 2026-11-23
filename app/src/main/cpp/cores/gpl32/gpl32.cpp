@@ -69,6 +69,7 @@ void GplCore::reset()
     m_regs.clear();
     std::fill(m_ppuRam.begin(), m_ppuRam.end(), 0u);
     m_spu.reset();
+    m_spu.mainVolumeScale = m_spi.empty() ? 1 : 8;
     m_spu.readWord = [this](uint32_t w) -> uint16_t {
         uint32_t a = w * 2;
         if (a + 2 > RAM_SIZE) return 0xffff;
@@ -127,8 +128,15 @@ uint8_t* GplCore::page_ptr(uint32_t pa)
     return nullptr;
 }
 
+static bool rwatch(uint32_t pa)
+{
+    static const uint32_t a = getenv("GPLRWATCH") ? uint32_t(strtoul(getenv("GPLRWATCH"), nullptr, 16)) : 0xffffffffu;
+    return pa - a < 0x100u;
+}
+
 uint32_t GplCore::read32(uint32_t pa)
 {
+    if (rwatch(pa)) fprintf(stderr, "RWATCH %08x pc %08x lr %08x\n", pa, m_cpu->r[15] - 8, m_cpu->r[14]);
     if (pa < RAM_SIZE) { uint32_t v; std::memcpy(&v, &m_ram[pa & ~3u], 4); return v; }
     if ((pa & 0xfff00000u) == 0xf8000000u) { uint32_t v; std::memcpy(&v, &m_sram[pa & 0xffffcu], 4); return v; }
     return ioRead(pa & ~3u);
@@ -855,13 +863,15 @@ void GplCore::runFrame()
 size_t GplCore::readAudio(int16_t* out, size_t maxSamples)
 {
     size_t n = std::min<size_t>(maxSamples, m_audioPending);
-    if (!m_spi.empty()) {
-        for (size_t i = 0; i < n; i++) out[i] = i < m_dacOut.size() ? m_dacOut[i] : (m_dacOut.empty() ? 0 : m_dacOut.back());
-        m_dacOut.erase(m_dacOut.begin(), m_dacOut.begin() + long(std::min(n, m_dacOut.size())));
-        m_audioPending -= n;
-        return n;
-    }
     m_spu.render(out, int(n), 44100);
+    if (!m_spi.empty()) {
+        // the SPI laptops have both the sound unit and the DAC FIFO: mix them
+        for (size_t i = 0; i < n; i++) {
+            int d = i < m_dacOut.size() ? m_dacOut[i] : (m_dacOut.empty() ? 0 : m_dacOut.back());
+            out[i] = int16_t(std::clamp(int(out[i]) + d, -32768, 32767));
+        }
+        m_dacOut.erase(m_dacOut.begin(), m_dacOut.begin() + long(std::min(n, m_dacOut.size())));
+    }
     m_audioPending -= n;
     return n;
 }

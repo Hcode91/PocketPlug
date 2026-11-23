@@ -14,6 +14,8 @@
 class GplSpu {
 public:
     std::function<uint16_t(uint32_t wordAddr)> readWord;
+    /** the GPL32612's main volume runs 0-15 rather than 0-127 */
+    int mainVolumeScale = 1;
 
     void reset();
     // offset = address - 0xd0400000
@@ -50,6 +52,10 @@ private:
     uint32_t m_envAddr[32] = {};
     uint32_t m_envFrame[32] = {}, m_rampFrame[32] = {};
     Ima m_ima[32];
+    // ADPCM36 (ADPCM_SEL bit 15): a header word before each 8 data words sets shift and filter
+    struct Adpcm36 { uint16_t remaining = 0, header = 0; int16_t prev = 0; };
+    Adpcm36 m_a36[32];
+    bool adpcm36(int ch) const { return m_attr[ch][ADPCM_SEL] & 0x8000; }
 
     uint16_t& ctrl(int ch, int reg) { return m_ctrl[ch >> 4][reg]; }
     bool status(int ch) { return ctrl(ch, CHANNEL_STATUS) & (1u << (ch & 15)); }
