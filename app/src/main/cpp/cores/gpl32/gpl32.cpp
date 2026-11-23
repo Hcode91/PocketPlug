@@ -317,7 +317,7 @@ void GplCore::ioWrite(uint32_t pa, uint32_t v, uint32_t mask)
     if (pa == 0xc00a0014) { m_regs[pa] &= ~(v & mask); return; }       // SD status: write 1 to clear
     if (pa == 0xc00a0008 && (v & mask & 0x80)) {                        // SD command start: no card, so
         m_regs[pa] = (m_regs[pa] & ~mask) | (v & mask);                 // it completes with a timeout
-        m_regs[0xc00a0014] = (m_regs[0xc00a0014] & ~1u) | 0x40 | 0x10;
+        m_regs[0xc00a0014] = (m_regs[0xc00a0014] & ~1u) | 0x40 | 0x10 | (m_spi.empty() ? 0u : 0x100u);  // 0x100: command done
         return;
     }
     if ((pa & 0xffffff1fu) == 0xc0020000u && pa < 0xc00200e0u) {      // timer control: bit 15 write-1-to-clear
@@ -613,12 +613,18 @@ void GplCore::tickPeripherals(uint64_t cycles)
         }
     }
     m_tmAcc += cycles * TIMER;
-    uint64_t ticks = m_tmAcc / CPU;
+    uint64_t slowTicks = m_tmAcc / CPU;
     m_tmAcc %= CPU;
-    for (int t = 0; t < 7 && ticks; t++) {
+    // On the SPI laptops (96 MHz system clock) control bit 0 picks sysclk/256 (375 kHz);
+    // with it clear the timer runs at sysclk/2 (48 MHz), used for the 1 ms tick.
+    uint64_t fastTicks = 0;
+    if (!m_spi.empty()) { m_tmAccFast += cycles * 48000000ull; fastTicks = m_tmAccFast / CPU; m_tmAccFast %= CPU; }
+    for (int t = 0; t < 7; t++) {
         uint32_t base = 0xc0020000u + uint32_t(t) * 0x20;
         uint32_t& ctrl = m_regs[base];
         if (!(ctrl & 0x2000)) continue;
+        uint64_t ticks = (!m_spi.empty() && !(ctrl & 1)) ? fastTicks : slowTicks;
+        if (!ticks) continue;
         uint32_t& cnt = m_regs[base + 0x10];
         uint64_t c = cnt + ticks;
         while (c > 0xffff) {

@@ -79,7 +79,7 @@ private:
     void tickPeripherals(uint64_t cycles);
     uint32_t m_irqRaw = 0;
     bool m_irqOut = false;
-    uint64_t m_tbAcc = 0, m_tmAcc = 0, m_rtcAcc = 0;
+    uint64_t m_tbAcc = 0, m_tmAcc = 0, m_rtcAcc = 0, m_tmAccFast = 0;
     void nandDma();
     void dmaRun(int ch);
     void ppuIrq();
