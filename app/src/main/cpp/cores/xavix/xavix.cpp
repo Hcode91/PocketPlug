@@ -229,6 +229,9 @@ uint8_t XavixCore::ioRead(int port)
     return uint8_t((in & ~dir) | (data & dir));
 }
 
+#ifdef XAVIX_DEBUG
+static int xFrameNo = 0;
+#endif
 uint8_t XavixCore::lowRead(uint16_t a)
 {
     a &= 0x7fff;
@@ -253,6 +256,10 @@ uint8_t XavixCore::lowRead(uint16_t a)
         if (a >= 0x7a30 && a <= 0x7a32) {
             int i = a - 0x7a30;
             uint8_t in = uint8_t(m_cfg.exDefault[i] | (i == 0 ? (m_inputs >> 16) : 0));
+#ifdef XAVIX_DEBUG
+            { static const char* ex[3] = { getenv("XEX0"), getenv("XEX1"), getenv("XEX2") }; static int from = getenv("XEXF") ? atoi(getenv("XEXF")) : 0;
+              if (ex[i] && xFrameNo >= from && xFrameNo < from + 15) in ^= uint8_t(strtoul(ex[i], 0, 16)); }
+#endif
             if (i == 1 && m_cfg.camera && m_cfg.camOnEx) in = uint8_t((in & ~0x04) | (cameraClock() & 0x04));
             return uint8_t((in & ~m_s.sxDir[i]) | (m_s.sxOut[i] & m_s.sxDir[i]));
         }
@@ -774,6 +781,9 @@ size_t XavixCore::readAudio(int16_t* out, size_t maxSamples)
 
 void XavixCore::runFrame()
 {
+#ifdef XAVIX_DEBUG
+    xFrameNo++;
+#endif
     double frameCycles = 0;
     double done = 0;
     m_rendered = -1;

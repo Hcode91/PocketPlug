@@ -278,6 +278,25 @@ Core* createCore(const std::string& id)
         if (id == "ban_ult") c.exDefault[2] = 0x80;   // MAME's default for EX2 bit 7: skips the camera calibration   // MAME's default: skips the drumstick calibration
         return new XavixCore(c);
     }
+    if (id == "ban_dn1j" || id == "ban_gkrj" || id == "ban_kksj" || id == "ban_um2j" || id == "ban_utmj") {   // more SSD 2002 (SuperXaviX) sets
+        XavixCore::Config c;
+        c.romName = id == "ban_dn1j" ? "dn1j.u2" : id == "ban_gkrj" ? "gkrj.u2" : id == "ban_kksj" ? "kksj.u1" : id == "ban_um2j" ? "um2j.u1" : "utmj.u7";
+        c.romSize = id == "ban_gkrj" ? 0x400000 : 0x800000;
+        c.cpu = 1;
+        c.superXavix = true;
+        bool c02 = id == "ban_gkrj" || id == "ban_kksj" || id == "ban_utmj";
+        c.i2cSize = c02 ? 0x100 : 0x200;
+        c.i2cPage = c02 ? 8 : 16;
+        if (id == "ban_gkrj" || id == "ban_um2j") c.exDefault[2] = 0x80;   // MAME's "demo mode" default: skips the calibration
+        if (id == "ban_gkrj" || id == "ban_um2j") { c.camera = true; c.camOnEx = true; }   // two hands in front of the camera; clock on EX1 bit 2
+        // ban_dn1j: IN0 bit 7 blue, IN1 bit 0 yellow, IN0 bit 6 green. ban_kksj / ban_utmj: their sensor (an ADC routine
+        // run from the I/O event / timer interrupts, set up over EX0) isn't emulated yet, so they stop at the title / set-up screen
+#ifdef XAVIX_DEBUG
+        if (getenv("XKEX2")) c.exDefault[2] = uint8_t(strtoul(getenv("XKEX2"), 0, 16));
+        if (getenv("XKCAM")) { c.camera = true; c.camBlobs = atoi(getenv("XKCAM")); if (getenv("XKCAMEX")) c.camOnEx = true; if (getenv("XKCAMBAR")) c.camBar = true; }
+#endif
+        return new XavixCore(c);
+    }
     if (id == "ban_bkgj") {   // Boukenger: SSD 2002 (SuperXaviX), 4 MB, S-24CS04A; no camera
         XavixCore::Config c;
         c.romName = "bkgj.u2";

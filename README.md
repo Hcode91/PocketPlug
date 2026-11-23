@@ -70,6 +70,9 @@ controller.
 | Issho ni Henshin! (Bandai, 2007) | `ban_pr2j` | SuperXaviX with the camera on the extra ports | Plays: hands together steer the pointer, and strikes in each direction land in battle |
 | Tamagotchi School Senshuken (Bandai, 2006) | `ban_tam2` | Sunplus SPG24x core | Plays |
 | Narikiri Fight (Bandai, 2006) | `ban_ult` | SuperXaviX with the camera, 24C01 EEPROM | Hover a hand over a button to pick it; in battle, follow the on-screen arrows with your hands |
+| Miracle Parade (Bandai, 2007) | `ban_dn1j` | SuperXaviX, 24C04 EEPROM; the unit's three keys | Plays: menus, name entry and the parade songs |
+| Gekiwaza Shuutoku (Bandai, 2007) | `ban_gkrj` | SuperXaviX with the camera on the extra ports, 4 MB, 24C02 | Hands over Start begin the game; the moves follow your hands |
+| Daikaijuu Battle (Bandai, 2007) | `ban_um2j` | SuperXaviX with the camera on the extra ports, 24C04 | Hands over Start begin the game; battles follow your hands |
 | Mission Start (Boukenger) (Bandai, 2006) | `ban_bkgj` | SSD 2002 SuperXaviX, 4 MB, 24C04 EEPROM; the toy gun's trigger and the floor mat's two pads | Plays: story missions and free play; step left / right to aim and choose, the trigger shoots and picks (MAME's driver doesn't map the controls) |
 | Keroro Dotabata Daikessen (Bandai, 2006) | `ban_krrj` | SSD XaviX: own 6502 core with code / data banks and far calls, tilemaps, sprites, HSL palette, 16-voice wavetable sound | Same picture as MAME frame for frame from boot through the menus; the mini-games play with sound |
 | Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
@@ -172,6 +175,9 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Issho ni Henshin! | `ban_pr2j` | `pr2j.u2` | 8 MB | `e46bf811` |
 | Tamagotchi School Senshuken | `ban_tam2` | `tvgametamagotchi2.bin` | 8 MB | `cc4322fa` |
 | Narikiri Fight | `ban_ult` | `ultraman.u1` | 8 MB | `bc2a94fb` |
+| Miracle Parade | `ban_dn1j` | `dn1j.u2` | 8 MB | `0a0cef0f` |
+| Gekiwaza Shuutoku | `ban_gkrj` | `gkrj.u2` | 4 MB | `d9ffe41a` |
+| Daikaijuu Battle | `ban_um2j` | `um2j.u1` | 8 MB | `88ea8e50` |
 | Mission Start (Boukenger) | `ban_bkgj` | `bkgj.u2` | 4 MB | `a59ce23c` |
 | Keroro Dotabata Daikessen | `ban_krrj` | `krrj.u2` | 4 MB | `16f0fe78` |
 | Kick Boxing | `ablkickb` | `ablkickboxing.bin` | 8 MB (8,388,608 bytes) | `61394c45` |

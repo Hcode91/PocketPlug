@@ -25,6 +25,9 @@ import kotlin.math.*
  *  - "hero":       silver with red stripes over a night city skyline.
  *  - "ninja":      the blue unit itself: X and O keys, the camera window and
  *                  an orange label, plus up / down; orange swirl behind it.
+ *  - "parade":     a music staff with notes and confetti: the unit's three
+ *                  round keys, blue (IN0 bit 7), yellow (IN1 bit 0) and green
+ *                  (IN0 bit 6).
  *  - "explorer":   an expedition map: the floor mat's two step pads (left /
  *                  right, bits 2 / 1) and the toy gun's trigger (bit 0).
  *
@@ -61,6 +64,12 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> 1 shl 19
                 KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_A -> PUNCH_L
                 KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_D -> PUNCH_R
+                else -> 0
+            }
+            "parade" -> when (code) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_L1 -> 0x80
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_R1 -> 0x40
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_Z, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_CENTER -> 0x100
                 else -> 0
             }
             "explorer" -> when (code) {
@@ -124,6 +133,12 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 btns += Btn(1 shl 18, "▲", W * 0.8f, H * 0.75f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
                 btns += Btn(1 shl 19, "▼", W * 0.8f, H * 0.91f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
             }
+            "parade" -> {
+                val r = min(W * 0.12f, H * 0.2f)
+                btns += Btn(0x80, "", W * 0.22f, H * 0.55f, r, 0xFF2F6FD8.toInt(), 0)
+                btns += Btn(0x100, "", W * 0.5f, H * 0.55f, r, 0xFFF2C230.toInt(), 0)
+                btns += Btn(0x40, "", W * 0.78f, H * 0.55f, r, 0xFF2FA84F.toInt(), 0)
+            }
             "explorer" -> {
                 // the mat's two pads on the left, the trigger on the right
                 btns += Btn(0x04, "◀", W * 0.17f, H * 0.52f, min(W * 0.13f, H * 0.2f), 0xFF2F7D4A.toInt(), 0xFFF5ECD2.toInt())
@@ -166,6 +181,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             "hero" -> drawHero(c)
             "ninja" -> drawNinja(c)
             "explorer" -> drawExplorer(c)
+            "parade" -> drawParade(c)
         }
         if (hasCamera(theme)) drawCamera(c, held)
         if (theme != "drums") for (b in btns) drawButton(c, b, held and b.bit != 0)
@@ -403,6 +419,38 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
         text.color = 0xFF5A3A1A.toInt(); text.textSize = H * 0.065f
         c.drawText("step ◀ ▶ to aim and choose  ·  trigger to shoot and pick", W * 0.5f, H * 0.94f, text)
         if (trig != null) { text.color = Color.WHITE; text.textSize = trig.r * 0.42f; c.drawText("FIRE", trig.cx, trig.cy + text.textSize * 0.36f, text) }
+    }
+
+    private fun drawParade(c: Canvas) {
+        val W = width.toFloat(); val H = height.toFloat()
+        // a light stage: a five-line staff with notes drifting along it, and confetti
+        paint.shader = LinearGradient(0f, 0f, 0f, H, 0xFFFFF4D6.toInt(), 0xFFF7C6D9.toInt(), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, W, H, paint); paint.shader = null
+        stroke.color = 0x55803060; stroke.strokeWidth = 2.5f
+        val top = H * 0.08f; val gap = H * 0.035f
+        for (i in 0 until 5) c.drawLine(W * 0.04f, top + i * gap, W * 0.96f, top + i * gap, stroke)
+        paint.color = 0xAA803060.toInt()
+        for ((k, nx) in listOf(0.12f, 0.27f, 0.41f, 0.58f, 0.72f, 0.87f).withIndex()) {
+            val ny = top + gap * (k % 4 + 0.5f); val x = W * nx
+            c.drawOval(x - gap * 0.7f, ny - gap * 0.5f, x + gap * 0.7f, ny + gap * 0.5f, paint)
+            c.drawRect(x + gap * 0.55f, ny - gap * 3f, x + gap * 0.7f, ny, paint)
+        }
+        val conf = intArrayOf(0xFF2F6FD8.toInt(), 0xFFF2C230.toInt(), 0xFF2FA84F.toInt(), 0xFFE04A6A.toInt())
+        for (i in 0 until 26) {
+            paint.color = conf[i % 4]
+            val x = W * ((i * 37 % 100) / 100f); val y = H * (0.28f + (i * 53 % 60) / 100f)
+            c.save(); c.rotate((i * 41 % 90).toFloat(), x, y); c.drawRect(x, y, x + H * 0.02f, y + H * 0.008f, paint); c.restore()
+        }
+        // the unit: a rounded white tray under the three keys
+        val l = btns.firstOrNull { it.bit == 0x80 }; val rr = btns.firstOrNull { it.bit == 0x40 }
+        if (l != null && rr != null) {
+            paint.color = 0xFFFDFDFD.toInt()
+            c.drawRoundRect(l.cx - l.r * 1.45f, l.cy - l.r * 1.4f, rr.cx + rr.r * 1.45f, rr.cy + rr.r * 1.4f, l.r * 0.7f, l.r * 0.7f, paint)
+            stroke.color = 0xFFE04A6A.toInt(); stroke.strokeWidth = 5f
+            c.drawRoundRect(l.cx - l.r * 1.45f, l.cy - l.r * 1.4f, rr.cx + rr.r * 1.45f, rr.cy + rr.r * 1.4f, l.r * 0.7f, l.r * 0.7f, stroke)
+        }
+        text.color = 0xFF803060.toInt(); text.textSize = H * 0.065f
+        c.drawText("blue / green pick  ·  yellow decides  ·  tap in time with the notes", W * 0.5f, H * 0.93f, text)
     }
 
     private fun drawCamera(c: Canvas, held: Int) {
