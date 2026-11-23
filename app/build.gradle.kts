@@ -12,8 +12,8 @@ android {
         applicationId = "com.hcode91.pocketplug"
         minSdk = 26
         targetSdk = 34
-        versionCode = 71
-        versionName = "0.51.0"
+        versionCode = 72
+        versionName = "0.52.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_static" } }
     }

@@ -40,6 +40,8 @@ data class MachineDef(
     val builtInGame: String = "",
     /** Software-list zips holding several chip dumps are one cartridge: join the files in name order. */
     val cartJoin: Boolean = false,
+    /** A game is a whole .zip (a folder of files): keep the archive as one cartridge, unopened. */
+    val cartWholeZip: Boolean = false,
     /** Getting-started steps, shown in a bubble over the machine (empty: none needed). */
     val setup: List<String> = emptyList(),
 )
@@ -749,8 +751,8 @@ object Machines {
             title = "Gizmondo",
             subtitle = "2005 handheld running Windows CE. For now the emulator boots the real bootloader to its start-up "
                 + "screen: the Windows CE system in the official update package is encrypted, so it stops at \"Unit "
-                + "Initialization Failure\". Games need a raw flash dump from a console (Tiger Telematics; MAME set: "
-                + "gizmondo, which doesn't run in MAME)",
+                + "Initialization Failure\". A raw flash dump from a console would be needed to go further; to play games, "
+                + "use Gizmondo games instead (Tiger Telematics; MAME set: gizmondo, which doesn't run in MAME)",
             chip = "Samsung S3C2440 (ARM920T @ 400 MHz) + NVIDIA GoForce 4500, 64 MB DiskOnChip G3",
             region = "Europe",
             year = "2005",
@@ -763,6 +765,22 @@ object Machines {
                 "fboot.bin comes from MAME's gizmondo set",
                 "install.bin is the official Gizmondo firmware update (version 1.2.0015 / 1.3.0018)",
             ),
+        ),
+        MachineDef(
+            id = "gizgame",
+            title = "Gizmondo games",
+            subtitle = "Plays Gizmondo games straight from their files, without the console's system software: "
+                + "the emulator answers the game's Windows CE and OpenGL ES calls itself. Add a game as a .zip of "
+                + "its SD card files (the .exe and its data folder). Play is the Play button, Stop backs out; "
+                + "saving isn't supported yet (Tiger Telematics)",
+            chip = "ARM9 + Windows CE 4.2 calls and OpenGL ES 1.1 handled by the emulator",
+            region = "Europe",
+            year = "2005",
+            roms = emptyList(),
+            skin = Skin.GIZMONDO,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 1L shl 30,
+            cartWholeZip = true,
         ),
         MachineDef(
             id = "arcadege",

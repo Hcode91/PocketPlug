@@ -24,6 +24,8 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/gpl32/gpl32_spu.*` | GPL-2.0-or-later | Channel playback, envelopes and ramp-down after MAME's spg2xx_audio.cpp (Ryan Holtz, Jonathan Gevaryahu, BSD-3), as in PocketPlug's SPG2xx core |
 | `app/src/main/cpp/cores/gizmondo/gizmondo.*` | GPL-3.0-or-later | PocketPlug (S3C2440 peripherals after Samsung's manual; board wiring and the GoForce 4500 framebuffer after MAME's gizmondo.cpp / gf4500.cpp, Tim Schuerewegen, BSD-3) |
 | `app/src/main/cpp/cores/gizmondo/docg3.*` | BSD-3-Clause | Port of MAME's DiskOnChip G3 device (Tim Schuerewegen) |
+| `app/src/main/cpp/cores/gizmondo/gizgame*`, `wce_hle.h`, `wce_coredll.inc` | GPL-3.0-or-later | PocketPlug (Windows CE call layer; COREDLL ordinals from the public Windows Mobile export list) |
+| `app/src/main/cpp/cores/gizmondo/wce_gles*` | GPL-3.0-or-later | PocketSprout's software OpenGL ES 1.1 renderer, with S3TC (DXT1-5) decoding added |
 | `app/src/main/cpp/common/smsvdp.h`, `app/src/main/cpp/cores/sms/*` | BSD-3-Clause / GPL-2.0-or-later | PocketPlug (SMS / Game Gear VDP written from the documented hardware behaviour; the AtGames chip's registers worked out from its menu code) |
 | `app/src/main/cpp/cores/astrocde/*` | GPL-2.0-or-later | Port of MAME's bally/astrohome.cpp and astrocde_v.cpp (Nicola Salmoria, Mike Coates, Frank Palazzolo, Aaron Giles) and sound/astrocde.cpp (Aaron Giles, Frank Palazzolo), BSD-3 |
 | `app/src/main/cpp/cores/apf/*` | BSD-3-Clause | MAME `src/mame/apf/apf.cpp` (Robbbert) and `src/devices/bus/apf` (Fabio Priuli) |

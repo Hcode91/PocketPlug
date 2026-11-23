@@ -605,6 +605,7 @@ class MainActivity : Activity() {
         })
         c.addView(TextView(this).apply {
             text = if (carts.isEmpty() && m.builtInGame.isNotEmpty()) "○ Add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip) for more games"
+                   else if (carts.isEmpty() && m.cartWholeZip) "○ No games yet - add a game as a .zip of its files (its .exe and data folder)"
                    else if (carts.isEmpty()) "○ No games yet - add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip)"
                    else "● ${carts.size} game${if (carts.size == 1) "" else "s"} · tap to play, hold to remove"
             textSize = 13f

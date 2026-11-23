@@ -142,7 +142,8 @@ object RomStore {
 
     fun listCarts(ctx: Context, m: MachineDef): List<Cart> =
         (cartDir(ctx, m).listFiles() ?: emptyArray()).filter { it.isFile }.map { f ->
-            val crc = crc32(f)
+            // whole-game zips are big: tell them apart by size instead of reading them through
+            val crc = if (m.cartWholeZip) f.length() else crc32(f)
             val title = m.knownCarts[crc]
             Cart(f, title ?: f.nameWithoutExtension, crc, title != null)
         }.sortedBy { it.title.lowercase() }
@@ -208,6 +209,23 @@ object RomStore {
             val magic = ByteArray(6)
             tmp.inputStream().use { it.read(magic) }
             when {
+                m.cartWholeZip -> {
+                    // the archive is the game: keep it as it is (it can be far bigger than memory allows to read)
+                    val crc = tmp.length()
+                    when {
+                        !isZip(magic) || tmp.length() > m.cartMaxSize -> rejected++
+                        crc in have -> dup++
+                        else -> {
+                            var base = (queryName(ctx, uri) ?: "game").substringBeforeLast('.')
+                                .replace(Regex("[^A-Za-z0-9 _().-]"), "_").ifBlank { "game" }
+                            var f = File(dir, "$base.zip")
+                            var n = 2
+                            while (f.exists()) { f = File(dir, "$base ($n).zip"); n++ }
+                            if (!tmp.renameTo(f)) { tmp.copyTo(f); tmp.delete() }
+                            added += m.knownCarts[crc] ?: base
+                        }
+                    }
+                }
                 isZip(magic) -> ZipInputStream(tmp.inputStream().buffered()).use { zip ->
                     var e = zip.nextEntry
                     while (e != null) {
