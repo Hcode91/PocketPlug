@@ -15,9 +15,10 @@ import kotlin.math.min
  * keyboard in the usual JIS order, the round cursor pad and a one-button mouse on a lead.
  *
  * The screen is the mouse pad: drag to move the pointer, tap to click. The mouse button can be
- * held to drag. Keys report matrix codes (row * 32 + column, see gpl32.h), worked out on the
- * orange Anpanman set's name entry. Keys whose code isn't known yet (OK, ★, small kana, shift,
- * space, volume, rock/paper/scissors) are drawn for the look but do nothing.
+ * held to drag. Keys report matrix codes (row * 32 + column, see gpl32.h): the orange Anpanman PC
+ * has its own wiring, the later models share one (worked out from the firmwares' kana tables and
+ * by pressing keys on the menus). Keys whose code isn't known yet (OK, ★, small kana, shift,
+ * and on the orange model space, volume and rock/paper/scissors) are drawn but do nothing.
  *
  * caseStyle: "orange" (white base, orange lid), "yellow", "red", "pink" or "blue".
  */
@@ -62,25 +63,33 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
         var down = false
     }
 
-    private fun kana(s: String, code: Int) = Key(s, code)
-    private fun fn(s: String, code: Int, units: Float = 1f) = Key(s, code, units, 1)
+    /** The orange Anpanman PC has its own keyboard wiring; the later models share one (JIS layout). */
+    private val jis = caseStyle != "orange"
+    private fun k(s: String, orange: Int, later: Int) = Key(s, if (jis) later else orange)
+    private fun f(s: String, orange: Int, later: Int, units: Float = 1f, kind: Int = 1) = Key(s, if (jis) later else orange, units, kind)
 
-    // the menu keys run left to right from matrix column 15 down to 7
-    private val menuRow = listOf("パソコン", "こくご", "えいご", "さんすう", "おんがく", "ちえ", "たいけん", "おえかき", "ゲーム")
-        .mapIndexed { i, s -> Key(if (look.menuLabels) s else "", 32 + 15 - i, 1f, 2) }
+    // the menu keys, left to right
+    private val menuRow: List<Key> = if (jis)
+        listOf(7, 39, 71, 103, 135, 167, 199, 231, 232).mapIndexed { i, c ->
+            Key(if (look.menuLabels) listOf("パソコン", "こくご", "えいご", "さんすう", "おんがく", "ちえ", "せいかつ", "おえかき", "ゲーム")[i] else "", c, 1f, 2) }
+    else
+        listOf("こくご" to 46, "えいご" to 45, "さんすう" to 44, "ちえ" to 42, "せいかつ" to 41, "おんがく" to 43, "ゲーム" to 39, "おえかき" to 40, "パソコン" to 47)
+            .map { (s, c) -> Key(s, c, 1f, 2) }
     private val rows: List<List<Key>> = listOf(
         menuRow,
-        listOf(kana("ぬ", 170), kana("ふ", 171), kana("あ", 71), kana("う", 135), kana("え", 167), kana("お", 199),
-            kana("や", 76), kana("ゆ", 141), kana("よ", 173), kana("わ", 78), kana("ほ", 235), kana("へ", 203), fn("けす", 13, 1.3f)),
-        listOf(kana("た", 74), kana("て", 201), kana("い", 103), kana("す", 137), kana("か", 72), kana("ん", 174),
-            kana("な", 75), kana("に", 138), kana("ら", 77), kana("せ", 200), fn("★゛゜", -1), Key("OK", -1, 1.3f, 3)),
-        listOf(fn("シフト", -1, 1.2f), kana("ち", 106), kana("と", 233), kana("し", 105), kana("は", 107), kana("き", 104),
-            kana("く", 136), kana("ま", 108), kana("の", 234), kana("り", 109), kana("れ", 205), kana("け", 168), kana("む", 172)),
-        listOf(fn("かな/ローマじ", 14, 1.2f), kana("つ", 169), kana("さ", 73), kana("そ", 232), kana("ひ", 139), kana("こ", 231),
-            kana("み", 140), kana("も", 236), kana("ね", 202), kana("る", 142), kana("め", 204), kana("ろ", 237), fn("ちいさい", -1)),
-        listOf(fn("🔈", -1), fn("🔊", -1), Key("スペース", -1, 5f, 1), kana("を", 110), fn("✊", -1), fn("✌", -1), fn("✋", -1)),
+        listOf(k("ぬ", 170, 9), k("ふ", 171, 8), k("あ", 71, 40), k("う", 135, 72), k("え", 167, 73), k("お", 199, 105),
+            k("や", 76, 104), k("ゆ", 141, 136), k("よ", 173, 168), k("わ", 78, 200), k("ほ", 235, 201), k("へ", 203, 233), f("けす", 13, 234, 1.3f)),
+        listOf(k("た", 74, 10), k("て", 201, 41), k("い", 103, 42), k("す", 137, 74), k("か", 72, 75), k("ん", 174, 106),
+            k("な", 75, 138), k("に", 138, 137), k("ら", 77, 169), k("せ", 200, 202), f("★゛゜", -1, -1), f("OK", -1, 235, 1.3f, 3)),
+        listOf(f("シフト", -1, -1, 1.2f), k("ち", 106, 11), k("と", 233, 43), k("し", 105, 44), k("は", 107, 76), k("き", 104, 107),
+            k("く", 136, 108), k("ま", 108, 140), k("の", 234, 139), k("り", 109, 171), k("れ", 205, 170), k("け", 168, 204), k("む", 172, 236)),
+        listOf(f("かな/ローマじ", 14, -1, 1.2f), k("つ", 169, 13), k("さ", 73, 45), k("そ", 232, 77), k("ひ", 139, 78), k("こ", 231, 110),
+            k("み", 140, 109), k("も", 236, 141), k("ね", 202, 142), k("る", 142, 172), k("め", 204, 173), k("ろ", 237, 205), f("ちいさい", -1, -1)),
+        listOf(f("🔈", -1, 14), f("🔊", -1, 46), f("スペース", -1, 111, 5f), k("を", 110, -1), f("✊", -1, 174), f("✌", -1, 206), f("✋", -1, 238)),
     )
-    private val arrows = listOf(Key("", 10), Key("", 9), Key("", 8), Key("", 7))   // up, left, right, down
+    // the cursor keys: up, left, right, down
+    private val arrows = if (jis) listOf(Key("", 79), Key("", 47), Key("", 143), Key("", 175))
+        else listOf(Key("", 10), Key("", 9), Key("", 8), Key("", 7))
     private val keys = rows.flatten() + arrows
 
     private val frame = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
@@ -251,7 +260,7 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
         text.color = when {
             key.kind == 2 -> look.menuInk
             key.kind == 3 -> if (look.ok == look.key) 0xFF33302A.toInt() else 0xFFFFFFFF.toInt()
-            key.code < 0 -> 0xFF9A968E.toInt()
+            key.code < 0 -> 0xFFB4AFA6.toInt()
             else -> 0xFF33302A.toInt()
         }
         val n = key.label.codePointCount(0, key.label.length)

@@ -423,7 +423,7 @@ object Machines {
         MachineDef(
             id = "bananlap",
             title = "Bread Hero Laptop",
-            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music, maths, English and Japanese lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Anpanman PC, orange; MAME set: bananlap)",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music, maths, English and Japanese lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. (Bandai Anpanman PC, orange; MAME set: bananlap)",
             chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
             region = "Japan",
             year = "2018",
@@ -434,7 +434,7 @@ object Machines {
         MachineDef(
             id = "bananlapa",
             title = "Bread Hero Colour Laptop Smart",
-            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music, maths and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Anpanman Color PC Smart; MAME set: bananlapa)",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music, maths and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. (Bandai Anpanman Color PC Smart; MAME set: bananlapa)",
             chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
             region = "Japan",
             year = "2018",
@@ -445,7 +445,7 @@ object Machines {
         MachineDef(
             id = "bandslap",
             title = "Wonderful Dream Laptop",
-            subtitle = "Children's learning laptop with a kana keyboard and mouse, with film characters: games, drawing, music, maths, English and Japanese. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Disney Wonderful Dream PC; MAME set: bandslap)",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse, with film characters: games, drawing, music, maths, English and Japanese. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. (Bandai Disney Wonderful Dream PC; MAME set: bandslap)",
             chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
             region = "Japan",
             year = "2010s",
@@ -456,7 +456,7 @@ object Machines {
         MachineDef(
             id = "bandplap",
             title = "Wonderful Sweet Laptop",
-            subtitle = "Children's learning laptop with a kana keyboard and mouse, with princess characters: games, drawing, music and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Disney Wonderful Sweet PC; MAME set: bandplap)",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse, with princess characters: games, drawing, music and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. (Bandai Disney Wonderful Sweet PC; MAME set: bandplap)",
             chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
             region = "Japan",
             year = "2010s",
@@ -467,7 +467,7 @@ object Machines {
         MachineDef(
             id = "bandolap",
             title = "Robot Cat Learning Laptop",
-            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Doraemon learning PC; MAME set: bandolap)",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. (Bandai Doraemon learning PC; MAME set: bandolap)",
             chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
             region = "Japan",
             year = "2010s",

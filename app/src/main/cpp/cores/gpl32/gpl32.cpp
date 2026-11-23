@@ -28,6 +28,10 @@ bool GplCore::load(const std::vector<RomFile>& roms, std::string& error)
         size_t n = std::min(m_spi.size() - 0x80, size_t(sectors) * 512);
         m_app.assign(m_spi.begin() + 0x80, m_spi.begin() + long(0x80 + n));
         if (dbg()) fprintf(stderr, "SPI image: %zu bytes\n", m_app.size());
+        {   // the quadrature mouse driver keeps its pin table { 0x55, 0x2a, 0x58, 0x59 }
+            static const uint8_t pins[16] = { 0x55, 0, 0, 0, 0x2a, 0, 0, 0, 0x58, 0, 0, 0, 0x59, 0, 0, 0 };
+            m_quad = std::search(m_app.begin(), m_app.end(), pins, pins + 16) != m_app.end();
+        }
         W = 480; H = 272;
         m_adc[4] = getenv("GPLBATT") ? uint32_t(strtoul(getenv("GPLBATT"), 0, 16)) : 0xb000;   // channel 4: battery (16-bit; 0x8ff7 and below is "low")
         m_fb.assign(size_t(W) * H, 0xff000000u);
@@ -488,7 +492,16 @@ uint32_t GplCore::gpioRead(int port)
     uint32_t ext = (~low & m_gpioPull[port]) | keypadLines(port);
     if (!m_spi.empty() && port == 5) {
         ext = (ext & ~0x108u) | (m_mouse.sdo ? 0x100u : 0u);
+        if (m_quad) {
+            static const uint8_t seq[4] = { 0, 1, 3, 2 };   // bit 0 = B, bit 1 = A; counting up
+            uint8_t x = seq[m_quadPhase[0] & 3], y = seq[m_quadPhase[1] & 3];
+            ext = (ext & ~0x320u) | ((x & 2) ? 0x20u : 0u) | ((y & 2) ? 0x100u : 0u) | ((y & 1) ? 0x200u : 0u);
+        }
         if (!(m_keys & 1)) ext |= 0x8;              // the mouse button (input bit 0), low while pressed
+    }
+    if (m_quad && port == 2) {
+        static const uint8_t seq[4] = { 0, 1, 3, 2 };
+        ext = (ext & ~0x400u) | ((seq[m_quadPhase[0] & 3] & 1) ? 0x400u : 0u);
     }
     if (!m_spi.empty() && port == 1 && getenv("GPLKLOW")) ext = 0xffff & ~keypadLines(port);
     if (const char* e = getenv("GPLPOKE")) {   // debugging: "port:mask:from:to" flips those input lines for a while
@@ -618,6 +631,14 @@ void GplCore::tickPeripherals(uint64_t cycles)
             dacTick();
             m_dacOutAcc += 44100;
             while (m_dacOutAcc >= rate) { m_dacOutAcc -= rate; if (m_dacOut.size() < 44100) m_dacOut.push_back(int16_t(std::clamp(int(m_dacCur[0]) + int(m_dacCur[1]), -32768, 32767))); }
+        }
+    }
+    if (m_quad) {   // at most 3000 quadrature steps a second per axis, so the sampler sees each one
+        m_quadAcc += cycles * 3000;
+        while (m_quadAcc >= CPU) {
+            m_quadAcc -= CPU;
+            if (m_mouseAccX >= 1.0f) { m_quadPhase[0]++; m_mouseAccX -= 1.0f; } else if (m_mouseAccX <= -1.0f) { m_quadPhase[0]--; m_mouseAccX += 1.0f; }
+            if (m_mouseAccY >= 1.0f) { m_quadPhase[1]++; m_mouseAccY -= 1.0f; } else if (m_mouseAccY <= -1.0f) { m_quadPhase[1]--; m_mouseAccY += 1.0f; }
         }
     }
     m_tmAcc += cycles * TIMER;

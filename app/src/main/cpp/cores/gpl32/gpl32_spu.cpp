@@ -361,7 +361,9 @@ void GplSpu::render(int16_t* out, int samples, int rate)
         int volSel = (m_ctrl[0][CONTROL] >> 6) & 3;
         int shift = volSel == 0 ? 4 : 2;
         int32_t mix = ((left + right) / 2) >> shift;
-        mix = (mix * int32_t(m_ctrl[0][MAIN_VOLUME]) * mainVolumeScale) >> 7;
+        int32_t mainVol = m_ctrl[0][MAIN_VOLUME] & 0x7f;
+        if (mainVolumeScale > 1 && mainVol <= 15) mainVol *= mainVolumeScale;   // firmwares that use 0-15
+        mix = (mix * mainVol) >> 7;
         out[i] = int16_t(std::max(-32768, std::min(32767, mix * 2)));
     }
 }

@@ -14,7 +14,7 @@
 class GplSpu {
 public:
     std::function<uint16_t(uint32_t wordAddr)> readWord;
-    /** the GPL32612's main volume runs 0-15 rather than 0-127 */
+    /** some GPL32612 firmwares set the main volume 0-15 rather than 0-127: scale those up */
     int mainVolumeScale = 1;
 
     void reset();

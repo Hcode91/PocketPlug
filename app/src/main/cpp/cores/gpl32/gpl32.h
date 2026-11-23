@@ -38,7 +38,10 @@ public:
     void setInputs(uint32_t pressed) override { m_keys = pressed; }
     void setAnalog(int stick, float x, float y) override {
         if (stick == 0) { m_mouseVx = x; m_mouseVy = y; }
-        else if (stick == 9) { m_mouseAccX -= x * 3.0f; m_mouseAccY += y * 4.5f; }   // relative moves in screen pixels (the sensor's X runs right to left)
+        else if (stick == 9) {
+            if (m_quad) { m_mouseAccX += x * 1.0f; m_mouseAccY += y * 1.0f; }   // quadrature counts
+            else { m_mouseAccX -= x * 3.0f; m_mouseAccY += y * 4.5f; }
+        }   // relative moves in screen pixels (the sensor's X runs right to left)
     }
     // the SPI laptops' keyboard matrix: code = row * 32 + column (row 0-7, column = port 1 bit)
     void keyEvent(int code, bool down) override {
@@ -122,6 +125,10 @@ private:
     void dacIrq();
     // the laptops' optical mouse sensor (PixArt PAN3101-style): SCLK on pin 0x59, SDIO on pin 0x58
     // (port 5 bits 9 / 8); register 0 is the product id 0x30, 2 motion, 3 / 4 the X / Y deltas
+    // later laptops: a quadrature mouse (X on pins 0x55/0x2a, Y on 0x58/0x59) sampled by a timer
+    bool m_quad = false;
+    int m_quadPhase[2] = { 0, 0 };
+    uint64_t m_quadAcc = 0;
     struct Mouse { uint8_t sclk = 0, shift = 0, nbits = 0, addr = 0, reply = 0, phase = 0, sdo = 1; } m_mouse;
     int8_t m_dx = 0, m_dy = 0;
     float m_mouseVx = 0, m_mouseVy = 0, m_mouseAccX = 0, m_mouseAccY = 0;
