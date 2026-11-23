@@ -63,6 +63,7 @@ class EmulatorActivity : Activity() {
     private var workstation: DesktopSkin? = null
     private var atari: AtariXlView? = null
     private var acorn: AcornView? = null
+    private var laptop: KidsLaptopView? = null
     private var atariStick = 0
     /** Atari models without BASIC inside: the menu plugs a BASIC cartridge in */
     private val atariNoBasic = setOf("1200xl", "400", "800")
@@ -191,6 +192,17 @@ class EmulatorActivity : Activity() {
                 // the core starts with 4 MB; "as sold" goes back to the original memory
                 if (machine.id in archiAsSold && !prefs.getBoolean("mem4_${machine.id}", true))
                     Native.setOption(handle, 2, 0)
+            }
+            Skin.KIDS_LAPTOP -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = KidsLaptopView(this, machine.badge).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onMouseMove = { dx, dy -> synchronized(mouseLock) { mouseDx += dx; mouseDy += dy } }
+                    onMouseButtons = { setTouch(0, it) }
+                }
+                laptop = v
+                setContentView(v)
             }
             Skin.DESKTOP_3B1 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -1353,7 +1365,7 @@ class EmulatorActivity : Activity() {
                     val ev = keyQueue.poll() ?: break
                     Native.keyEvent(handle, ev and 0xff, ev and 0x100 != 0)
                 }
-                if (machine.skin == Skin.DESKTOP_3B1 || machine.skin == Skin.ACORN) {
+                if (machine.skin == Skin.DESKTOP_3B1 || machine.skin == Skin.ACORN || machine.skin == Skin.KIDS_LAPTOP) {
                     val (dx, dy) = synchronized(mouseLock) { (mouseDx to mouseDy).also { mouseDx = 0f; mouseDy = 0f } }
                     if (dx != 0f || dy != 0f) Native.setAnalog(handle, 9, dx, dy)
                 }
@@ -1367,6 +1379,7 @@ class EmulatorActivity : Activity() {
             if (workstation != null) workstation?.updateFrame(pixels)
             else if (atari != null) atari?.updateFrame(pixels)
             else if (acorn != null) acorn?.updateFrame(pixels)
+            else if (laptop != null) laptop?.updateFrame(pixels)
             else if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
@@ -1405,11 +1418,11 @@ class EmulatorActivity : Activity() {
         val stateFile = cartFile?.let { RomStore.cartStateFile(this, machine, it) } ?: RomStore.stateFile(this, machine)
         val items = ArrayList<Pair<String, () -> Unit>>()
         items += "Resume" to {}
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN) items += "Save state" to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP) items += "Save state" to {
             val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
             Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
         }
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
             if (stateFile.exists()) {
                 val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
                 Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()

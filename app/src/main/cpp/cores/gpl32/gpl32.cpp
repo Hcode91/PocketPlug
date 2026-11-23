@@ -480,7 +480,7 @@ uint32_t GplCore::gpioRead(int port)
     uint32_t ext = (~low & m_gpioPull[port]) | keypadLines(port);
     if (!m_spi.empty() && port == 5) {
         ext = (ext & ~0x108u) | (m_mouse.sdo ? 0x100u : 0u);
-        if (m_keys & 1) ext |= 0x8;                 // the mouse button (input bit 0)
+        if (!(m_keys & 1)) ext |= 0x8;              // the mouse button (input bit 0), low while pressed
     }
     if (!m_spi.empty() && port == 1 && getenv("GPLKLOW")) ext = 0xffff & ~keypadLines(port);
     if (const char* e = getenv("GPLPOKE")) {   // debugging: "port:mask:from:to" flips those input lines for a while
@@ -826,7 +826,8 @@ bool GplCore::inWaitLoop(uint32_t pc)
 
 void GplCore::runFrame()
 {
-    static const bool sample = getenv("GPLSAMPLE") != nullptr;
+    static const long sampleFrom = getenv("GPLSAMPLE") ? atol(getenv("GPLSAMPLE")) : -1;
+    const bool sample = sampleFrom >= 0 && long(m_frame) >= sampleFrom;
     const int SLICES = sample ? 5000 : 100;
     const int sliceCycles = 200000000 / 60 / SLICES;   // ~200 MHz
     m_mouseAccX += m_mouseVx * 6.0f; m_mouseAccY += m_mouseVy * 6.0f;   // the stick moves the mouse

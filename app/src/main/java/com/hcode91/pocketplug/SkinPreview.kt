@@ -101,6 +101,7 @@ object SkinPreview {
             else -> AtariXlView.MODEL_1200XL
         })
         Skin.ACORN -> AcornView(ctx, m.badge)
+        Skin.KIDS_LAPTOP -> KidsLaptopView(ctx, m.badge)
     }
 
     /** Draws, crops and caches the picture. Call on the main thread; null if the skin can't be drawn. */

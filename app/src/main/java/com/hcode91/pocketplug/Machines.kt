@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -417,6 +417,61 @@ object Machines {
             roms = listOf(RomSpec("b75909a.u10", 0x400000L, 0xb439e06eL)),
             skin = Skin.LETS_TV,
             badge = "mirror",
+        ),
+        MachineDef(
+            id = "bananlap",
+            title = "Bread Hero Laptop",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music, maths, English and Japanese lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Anpanman PC, orange; MAME set: bananlap)",
+            chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
+            region = "Japan",
+            year = "2018",
+            roms = listOf(RomSpec("orange_gpr25l64.u3", 0x800000L, 0x46441cd5L)),
+            skin = Skin.KIDS_LAPTOP,
+            badge = "orange",
+        ),
+        MachineDef(
+            id = "bananlapa",
+            title = "Bread Hero Colour Laptop Smart",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music, maths and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Anpanman Color PC Smart; MAME set: bananlapa)",
+            chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
+            region = "Japan",
+            year = "2018",
+            roms = listOf(RomSpec("yellow_mx25l6406e.u1", 0x800000L, 0x2bc14be1L)),
+            skin = Skin.KIDS_LAPTOP,
+            badge = "yellow",
+        ),
+        MachineDef(
+            id = "bandslap",
+            title = "Wonderful Dream Laptop",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse, with film characters: games, drawing, music, maths, English and Japanese. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Disney Wonderful Dream PC; MAME set: bandslap)",
+            chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
+            region = "Japan",
+            year = "2010s",
+            roms = listOf(RomSpec("gpr25l64.u3", 0x800000L, 0x659f1b0fL)),
+            skin = Skin.KIDS_LAPTOP,
+            badge = "blue",
+        ),
+        MachineDef(
+            id = "bandplap",
+            title = "Wonderful Sweet Laptop",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse, with princess characters: games, drawing, music and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Disney Wonderful Sweet PC; MAME set: bandplap)",
+            chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
+            region = "Japan",
+            year = "2010s",
+            roms = listOf(RomSpec("gpr25l64.u3", 0x800000L, 0xf85c388dL)),
+            skin = Skin.KIDS_LAPTOP,
+            badge = "pink",
+        ),
+        MachineDef(
+            id = "bandolap",
+            title = "Robot Cat Learning Laptop",
+            subtitle = "Children's learning laptop with a kana keyboard and mouse: games, drawing, music and lessons. Drag on the screen to move the pointer and tap it to click (or hold the mouse button); the coloured keys open the menus, the kana keys type, けす deletes and the cursor keys move the pointer. No sound yet (Bandai Doraemon learning PC; MAME set: bandolap)",
+            chip = "GeneralPlus GPL32612 (ARM926 + 2D PPU), 8 MB SPI flash",
+            region = "Japan",
+            year = "2010s",
+            roms = listOf(RomSpec("gpr25l64.u3", 0x800000L, 0xd9b1cb41L)),
+            skin = Skin.KIDS_LAPTOP,
+            badge = "white",
         ),
         MachineDef(
             id = "ban_naru",

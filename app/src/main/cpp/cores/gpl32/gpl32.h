@@ -36,7 +36,10 @@ public:
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     void setInputs(uint32_t pressed) override { m_keys = pressed; }
-    void setAnalog(int stick, float x, float y) override { if (stick == 0) { m_mouseVx = x; m_mouseVy = y; } }
+    void setAnalog(int stick, float x, float y) override {
+        if (stick == 0) { m_mouseVx = x; m_mouseVy = y; }
+        else if (stick == 9) { m_mouseAccX -= x * 3.0f; m_mouseAccY += y * 4.5f; }   // relative moves in screen pixels (the sensor's X runs right to left)
+    }
     // the SPI laptops' keyboard matrix: code = row * 32 + column (row 0-7, column = port 1 bit)
     void keyEvent(int code, bool down) override {
         if (code < 0 || code >= 256) return;
