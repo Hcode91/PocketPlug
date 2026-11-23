@@ -25,6 +25,8 @@ import kotlin.math.*
  *  - "hero":       silver with red stripes over a night city skyline.
  *  - "ninja":      the blue unit itself: X and O keys, the camera window and
  *                  an orange label, plus up / down; orange swirl behind it.
+ *  - "explorer":   an expedition map: the floor mat's two step pads (left /
+ *                  right, bits 2 / 1) and the toy gun's trigger (bit 0).
  *
  * The camera games ("onmyou", "punch", "rainbow", "hero") have a camera
  * window: drag the two reflective stickers (gloves, sword, hands) around it,
@@ -59,6 +61,12 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> 1 shl 19
                 KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_A -> PUNCH_L
                 KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_D -> PUNCH_R
+                else -> 0
+            }
+            "explorer" -> when (code) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_BUTTON_L1 -> 0x04
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_BUTTON_R1 -> 0x02
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_Z, KeyEvent.KEYCODE_SPACE -> 0x01
                 else -> 0
             }
             "drums" -> when (code) {
@@ -116,6 +124,12 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
                 btns += Btn(1 shl 18, "▲", W * 0.8f, H * 0.75f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
                 btns += Btn(1 shl 19, "▼", W * 0.8f, H * 0.91f, H * 0.055f, 0xFFF08A1C.toInt(), Color.WHITE)
             }
+            "explorer" -> {
+                // the mat's two pads on the left, the trigger on the right
+                btns += Btn(0x04, "◀", W * 0.17f, H * 0.52f, min(W * 0.13f, H * 0.2f), 0xFF2F7D4A.toInt(), 0xFFF5ECD2.toInt())
+                btns += Btn(0x02, "▶", W * 0.45f, H * 0.52f, min(W * 0.13f, H * 0.2f), 0xFF2F7D4A.toInt(), 0xFFF5ECD2.toInt())
+                btns += Btn(0x01, "", W * 0.8f, H * 0.52f, min(W * 0.15f, H * 0.24f), 0xFFD0242A.toInt(), 0)
+            }
             "drums" -> {
                 btns += Btn(0x02, "", W * 0.27f, H * 0.5f, min(W * 0.2f, H * 0.32f), 0xFFE9DCC0.toInt(), 0)
                 btns += Btn(0x01, "", W * 0.73f, H * 0.5f, min(W * 0.2f, H * 0.32f), 0xFFE9DCC0.toInt(), 0)
@@ -151,6 +165,7 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
             "rainbow" -> drawRainbow(c)
             "hero" -> drawHero(c)
             "ninja" -> drawNinja(c)
+            "explorer" -> drawExplorer(c)
         }
         if (hasCamera(theme)) drawCamera(c, held)
         if (theme != "drums") for (b in btns) drawButton(c, b, held and b.bit != 0)
@@ -341,6 +356,53 @@ class LetsTvView(ctx: Context, private val theme: String) : View(ctx) {
         paint.color = 0xFF0C1426.toInt(); c.drawRoundRect(lx - lr, ly - lr, lx + lr, ly + lr, lr * 0.3f, lr * 0.3f, paint)
         paint.color = 0xFF3A4A6A.toInt(); c.drawCircle(lx, ly, lr * 0.55f, paint)
         paint.color = 0x88FFFFFF.toInt(); c.drawCircle(lx - lr * 0.2f, ly - lr * 0.2f, lr * 0.14f, paint)
+    }
+
+    private fun drawExplorer(c: Canvas) {
+        val W = width.toFloat(); val H = height.toFloat()
+        // an old map: parchment, a dotted route, mountains and a compass rose
+        paint.shader = RadialGradient(W * 0.5f, H * 0.45f, max(W, H) * 0.75f, 0xFFF1E2B8.toInt(), 0xFFC9A66B.toInt(), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, W, H, paint); paint.shader = null
+        stroke.color = 0x88A0522D.toInt(); stroke.strokeWidth = H * 0.012f
+        stroke.pathEffect = DashPathEffect(floatArrayOf(H * 0.03f, H * 0.025f), 0f)
+        path.reset(); path.moveTo(W * 0.04f, H * 0.9f)
+        path.cubicTo(W * 0.3f, H * 0.7f, W * 0.55f, H * 0.98f, W * 0.96f, H * 0.82f)
+        c.drawPath(path, stroke); stroke.pathEffect = null
+        paint.color = 0x66805A30
+        for ((mx, ms) in listOf(W * 0.62f to H * 0.1f, W * 0.7f to H * 0.07f, W * 0.08f to H * 0.08f)) {
+            path.reset(); path.moveTo(mx - ms, H * 0.2f); path.lineTo(mx, H * 0.2f - ms * 1.4f); path.lineTo(mx + ms, H * 0.2f); path.close()
+            c.drawPath(path, paint)
+        }
+        // compass rose, top right
+        val cx = W * 0.9f; val cy = H * 0.16f; val r = H * 0.1f
+        stroke.color = 0xFF7A4A22.toInt(); stroke.strokeWidth = 3f
+        c.drawCircle(cx, cy, r, stroke)
+        paint.color = 0xFF7A4A22.toInt()
+        for (k in 0 until 4) {
+            val a = k * PI / 2
+            path.reset()
+            path.moveTo(cx + (cos(a) * r * 1.25f).toFloat(), cy + (sin(a) * r * 1.25f).toFloat())
+            path.lineTo(cx + (cos(a + PI / 2) * r * 0.18f).toFloat(), cy + (sin(a + PI / 2) * r * 0.18f).toFloat())
+            path.lineTo(cx + (cos(a - PI / 2) * r * 0.18f).toFloat(), cy + (sin(a - PI / 2) * r * 0.18f).toFloat())
+            path.close(); c.drawPath(path, paint)
+        }
+        // the mat under the two pads, and the trigger's guard
+        val padL = btns.firstOrNull { it.bit == 0x04 }; val padR = btns.firstOrNull { it.bit == 0x02 }; val trig = btns.firstOrNull { it.bit == 0x01 }
+        if (padL != null && padR != null) {
+            paint.color = 0xFF1E3B2A.toInt()
+            c.drawRoundRect(padL.cx - padL.r * 1.4f, padL.cy - padL.r * 1.5f, padR.cx + padR.r * 1.4f, padR.cy + padR.r * 1.5f, padL.r * 0.4f, padL.r * 0.4f, paint)
+            stroke.color = 0xFFE0B040.toInt(); stroke.strokeWidth = 4f
+            c.drawRoundRect(padL.cx - padL.r * 1.3f, padL.cy - padL.r * 1.4f, padR.cx + padR.r * 1.3f, padR.cy + padR.r * 1.4f, padL.r * 0.35f, padL.r * 0.35f, stroke)
+        }
+        if (trig != null) {
+            paint.color = 0xFF3A3A40.toInt()
+            c.drawCircle(trig.cx, trig.cy, trig.r * 1.22f, paint)
+            stroke.color = 0xFFB8BCC4.toInt(); stroke.strokeWidth = 5f
+            c.drawCircle(trig.cx, trig.cy, trig.r * 1.22f, stroke)
+        }
+        text.color = 0xFF5A3A1A.toInt(); text.textSize = H * 0.065f
+        c.drawText("step ◀ ▶ to aim and choose  ·  trigger to shoot and pick", W * 0.5f, H * 0.94f, text)
+        if (trig != null) { text.color = Color.WHITE; text.textSize = trig.r * 0.42f; c.drawText("FIRE", trig.cx, trig.cy + text.textSize * 0.36f, text) }
     }
 
     private fun drawCamera(c: Canvas, held: Int) {

@@ -441,6 +441,17 @@ object Machines {
             badge = "hero",
         ),
         MachineDef(
+            id = "ban_bkgj",
+            title = "Mission Start (Boukenger)",
+            subtitle = "2006 run-and-shoot adventure: step on the floor mat's left and right pads to aim and to choose, and pull the toy gun's trigger to shoot and to pick. Story missions and free play (Bandai Let's! TV Play Narikiri Taikan Boukenger: Hashire! Ute! Mission Start!!; MAME set: ban_bkgj)",
+            chip = "SSD 2002 SuperXaviX (6502 core)",
+            region = "Japan",
+            year = "2006",
+            roms = listOf(RomSpec("bkgj.u2", 0x400000L, 0xa59ce23cL)),
+            skin = Skin.LETS_TV,
+            badge = "explorer",
+        ),
+        MachineDef(
             id = "ban_krrj",
             title = "Keroro Dotabata Daikessen",
             subtitle = "2006 Japanese party game on a floor mat: step on the red and green pads to move "

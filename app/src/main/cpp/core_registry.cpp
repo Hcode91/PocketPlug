@@ -278,6 +278,16 @@ Core* createCore(const std::string& id)
         if (id == "ban_ult") c.exDefault[2] = 0x80;   // MAME's default for EX2 bit 7: skips the camera calibration   // MAME's default: skips the drumstick calibration
         return new XavixCore(c);
     }
+    if (id == "ban_bkgj") {   // Boukenger: SSD 2002 (SuperXaviX), 4 MB, S-24CS04A; no camera
+        XavixCore::Config c;
+        c.romName = "bkgj.u2";
+        c.romSize = 0x400000;
+        c.cpu = 1;
+        c.superXavix = true;
+        c.i2cSize = 0x200;
+        c.i2cPage = 16;   // controls: IN0 bit 0 the gun's trigger, bits 1 / 2 the mat's right / left panels
+        return new XavixCore(c);
+    }
     if (id == "ban_krrj") {   // Keroro (SSD XaviX, 4 MB)
         XavixCore::Config c;
         c.romName = "krrj.u2";
