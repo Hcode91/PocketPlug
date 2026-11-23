@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string>
 // PocketPlug - GeneralPlus GPL32600 games (work in progress). See gpl32.h.
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -20,6 +21,21 @@ GplCore::~GplCore()
 
 bool GplCore::load(const std::vector<RomFile>& roms, std::string& error)
 {
+    for (auto& r : roms) if (r.data.size() >= 0x100 && !std::memcmp(r.data.data(), "PGpssiipps", 10)) m_spi = r.data;
+    if (!m_spi.empty()) {
+        // SPI boot: the boot ROM copies (header +0x10) 512-byte sectors from flash offset 0x80 to SDRAM 0
+        uint32_t sectors = uint32_t(m_spi[0x10] | m_spi[0x11] << 8);
+        size_t n = std::min(m_spi.size() - 0x80, size_t(sectors) * 512);
+        m_app.assign(m_spi.begin() + 0x80, m_spi.begin() + long(0x80 + n));
+        if (dbg()) fprintf(stderr, "SPI image: %zu bytes\n", m_app.size());
+        W = 480; H = 272;
+        m_adc[4] = getenv("GPLBATT") ? uint32_t(strtoul(getenv("GPLBATT"), 0, 16)) : 0xb000;   // channel 4: battery (16-bit; 0x8ff7 and below is "low")
+        m_fb.assign(size_t(W) * H, 0xff000000u);
+        delete m_cpu;
+        m_cpu = new didj::ARM926(this);
+        reset();
+        return true;
+    }
     for (auto& r : roms) if (r.data.size() == 0x8400000) m_nand = r.data;
     if (m_nand.empty()) { error = "Missing tc58nvg0s3eta00.u3 (the 132 MB NAND dump)"; return false; }
     // find the APP header: the second block starting with "GPNandTag2"; the image follows in the next block
@@ -127,6 +143,7 @@ void GplCore::write32(uint32_t pa, uint32_t v)
 }
 void GplCore::write16(uint32_t pa, uint16_t v)
 {
+    if ((pa & ~3u) == (watchAddr() & ~3u)) fprintf(stderr, "WATCH w16 %08x = %04x pc %08x lr %08x\n", pa, v, m_cpu->r[15] - 8, m_cpu->r[14]);
     if (pa < RAM_SIZE) { std::memcpy(&m_ram[pa & ~1u], &v, 2); return; }
     if ((pa & 0xfff00000u) == 0xf8000000u) { std::memcpy(&m_sram[pa & 0xffffeu], &v, 2); return; }
     int sh = (pa & 2) * 8;
@@ -134,6 +151,7 @@ void GplCore::write16(uint32_t pa, uint16_t v)
 }
 void GplCore::write8(uint32_t pa, uint8_t v)
 {
+    if ((pa & ~3u) == (watchAddr() & ~3u)) fprintf(stderr, "WATCH w8 %08x = %02x pc %08x lr %08x\n", pa, v, m_cpu->r[15] - 8, m_cpu->r[14]);
     if (pa < RAM_SIZE) { m_ram[pa] = v; return; }
     if ((pa & 0xfff00000u) == 0xf8000000u) { m_sram[pa & 0xfffffu] = v; return; }
     int sh = (pa & 3) * 8;
@@ -177,6 +195,13 @@ uint32_t GplCore::ioRead(uint32_t pa)
     }
     case 0xd0900160: return 0;          // ECC: no errors
     case 0xd0100028: return pendingVector();
+    case 0xc00d0008: case 0xc00d0028:
+        if (!m_spi.empty()) return ((m_regs.count(pa) ? m_regs[pa] : 0) & ~0x8000u) | (m_dacFifo[pa == 0xc00d0028].size() >= 16 ? 0x8000u : 0u);
+        break;
+    case 0xc00c000c: if (!m_spi.empty()) return ((m_regs.count(pa) ? m_regs[pa] : 0) & ~0xfu) | (adcAuto() ? 8u : 0u); break;
+    case 0xc00c0010: if (!m_spi.empty()) return adcAuto() ? 0x200u : 0u; break;
+    case 0xc008000c: if (!m_spi.empty()) return ((m_regs.count(pa) ? m_regs[pa] : 0) & ~7u) | uint32_t(std::min<size_t>(m_spiRx.size(), 7)); break;
+    case 0xc0080010: if (!m_spi.empty()) { if (m_spiRx.empty()) return 0xff; uint8_t b = m_spiRx.front(); m_spiRx.erase(m_spiRx.begin()); return b; } break;
     case 0xd010002c: return 0;          // no FIQ
     default: break;
     }
@@ -243,14 +268,28 @@ void GplCore::ioWrite(uint32_t pa, uint32_t v, uint32_t mask)
         ppuIrq();
         return;
     }
+    if (!m_spi.empty() && pa == 0xc00c000c) {                          // ADC sample FIFO: bit 15 flag (w1c), 14 its IRQ
+        uint32_t& r = m_regs[pa];
+        uint32_t clr = v & mask & 0x8000;
+        r = ((r & ~mask) | (v & mask & ~0x8000u)) | (r & 0x8000);
+        r &= ~clr;
+        adcFifoIrq();
+        return;
+    }
     if (pa == 0xc00c0004) {                                             // SAR ADC manual conversion
         uint32_t& r = m_regs[pa];
+        if (!m_spi.empty()) {                                           // GPL32612: bit 15 (done) is write-1-to-clear
+            uint32_t clr = v & mask & 0x8000;
+            r = ((r & ~mask) | (v & mask & ~0x8000u)) | (r & 0x8000);
+            r &= ~clr;
+            if (clr) setIrq(29, false);
+        } else
         r = (r & ~mask) | (v & mask);
         if ((v & mask & 0x40) && (r & 0x4000)) {
             int ch = int(r & 7);
             m_regs[0xc00c0008] = m_adc[ch];
             r = (r & ~0x70u) | 0x8000 | 0x80;
-            setIrq(29, (m_regs[0xc00c0000] & 0x4000) != 0);
+            setIrq(29, (m_regs[0xc00c0000] & (m_spi.empty() ? 0x4000u : 0x4400u)) != 0);   // the GPL32612 enables it with bit 10
             if (getenv("GPLADC")) fprintf(stderr, "ADC ch%d -> %03x\n", ch, m_adc[ch]);
         }
         return;
@@ -259,7 +298,7 @@ void GplCore::ioWrite(uint32_t pa, uint32_t v, uint32_t mask)
         uint32_t& r = m_regs[pa];
         r = (r & ~mask) | (v & mask);
         if (v & mask & 0x8000) { m_regs[0xc00c0004] &= ~0x8000u; r &= ~0x8000u; }
-        setIrq(29, (r & 0x4000) && (m_regs[0xc00c0004] & 0x8000));
+        setIrq(29, (r & (m_spi.empty() ? 0x4000u : 0x4400u)) && (m_regs[0xc00c0004] & 0x8000));
         return;
     }
     if (pa == 0xc00a0014) { m_regs[pa] &= ~(v & mask); return; }       // SD status: write 1 to clear
@@ -276,8 +315,28 @@ void GplCore::ioWrite(uint32_t pa, uint32_t v, uint32_t mask)
         updateTimerIrqs();
         return;
     }
+    if (!m_spi.empty() && (pa == 0xc00d0004 || pa == 0xc00d0024)) {
+        auto& f = m_dacFifo[pa == 0xc00d0024];
+        if (f.size() < 16) f.push_back(int16_t(v & 0xffff));
+        dacIrq();
+        return;
+    }
+    if (!m_spi.empty() && (pa == 0xc00d0000 || pa == 0xc00d0020)) {
+        uint32_t& r = m_regs[pa];
+        uint32_t clr = v & mask & 0x8000;
+        r = ((r & ~mask) | (v & mask & ~0x8000u)) | (r & 0x8000);
+        r &= ~clr;
+        dacIrq();
+        return;
+    }
+    if (!m_spi.empty() && pa == 0xc0080008) { m_spiRx.push_back(spiXfer(uint8_t(v & mask))); if (m_spiRx.size() > 64) m_spiRx.erase(m_spiRx.begin()); return; }
     uint32_t& r = m_regs[pa];
     r = (r & ~mask) | (v & mask);
+    if (!m_spi.empty() && (pa == 0xc00000a4 || pa == 0xc00000a8)) mouseGpio(m_regs[0xc00000a4], m_regs[0xc00000a8]);
+    if (!m_spi.empty() && pa == 0xc00000a4) {        // flash chip select
+        bool cs = !(r & 2);
+        if (cs != m_spiCs) { m_spiCs = cs; m_spiCmd.clear(); }
+    }
     if (pa == 0xd0100030 || pa == 0xd0100038) updateIrq();
     switch (pa) {
     case 0xd0900000: if (r & 1) nandDma(); break;
@@ -286,6 +345,29 @@ void GplCore::ioWrite(uint32_t pa, uint32_t v, uint32_t mask)
     case 0xd090014c: m_nrow = r; break;
     default: break;
     }
+}
+
+// A SPI NOR flash: 9f id, 05 status (never busy), 03 read, 0b fast read; writes are ignored.
+uint8_t GplCore::spiXfer(uint8_t tx)
+{
+    static const bool log = getenv("GPLSPI") != nullptr;
+    if (m_spiCmd.size() < 8) m_spiCmd.push_back(tx);
+    const uint8_t cmd = m_spiCmd[0];
+    const size_t n = m_spiCmd.size();
+    uint8_t rx = 0xff;
+    switch (cmd) {
+    case 0x9f: { static const uint8_t id[3] = { 0xc2, 0x20, 0x17 }; rx = n >= 2 && n <= 4 ? id[n - 2] : 0xff; break; }
+    case 0x05: rx = 0x00; break;
+    case 0x03: case 0x0b: {
+        const size_t hdr = cmd == 0x03 ? 4 : 5;
+        if (n == 4) { m_spiAddr = uint32_t(m_spiCmd[1]) << 16 | uint32_t(m_spiCmd[2]) << 8 | m_spiCmd[3]; if (log) fprintf(stderr, "SPI read %06x f%llu lr %08x\n", m_spiAddr, (unsigned long long)m_frame, m_cpu->r[14]); }
+        if (n >= hdr + 1 || (n == 8)) { rx = m_spiAddr < m_spi.size() ? m_spi[m_spiAddr] : 0xff; m_spiAddr++; }
+        break;
+    }
+    default: break;
+    }
+    if (log && n == 1) fprintf(stderr, "SPI cmd %02x pc %08x\n", tx, m_cpu->r[15] - 8);
+    return rx;
 }
 
 // The controller has a command latch (0x144), column/row address latches (0x148/0x14c),
@@ -332,6 +414,21 @@ void GplCore::nandCommand(uint8_t cmd)
 // 7 = A, 8 = L, higher codes = pairs). MENU, VOL+ and VOL- have their own pins, active low.
 uint32_t GplCore::keypadLines(int port) const
 {
+    if (!m_spi.empty()) {
+        // keyboard matrix: the scan selects one row pin at a time (its direction bit set, output 1;
+        // pins are numbered 16 to a port) and reads the columns on port 1
+        static const uint8_t rowPin[8] = { 0x79, 0x56, 0x7b, 0x7c, 0x7d, 0x14, 0x65, 0x66 };
+        if (port != 1) return 0;
+        uint32_t cols = 0;
+        if (getenv("GPLKBD")) { static int n = 0; if (n++ < 40) { fprintf(stderr, "kbd read:"); for (int r = 0; r < 8; r++) { int p = rowPin[r] >> 4; uint32_t base = 0xc0000000u + uint32_t(p) * 0x20; auto d = m_regs.find(base + 8); auto o = m_regs.find(base + 4); auto c = m_regs.find(base + 0xc); fprintf(stderr, " r%d d%d o%d c%d", r, d != m_regs.end() ? int(d->second >> (rowPin[r] & 15) & 1) : -1, o != m_regs.end() ? int(o->second >> (rowPin[r] & 15) & 1) : -1, c != m_regs.end() ? int(c->second >> (rowPin[r] & 15) & 1) : -1); } fprintf(stderr, " pc %08x\n", m_cpu->r[15]); } }
+        for (int r = 0; r < 8; r++) {
+            int p = rowPin[r] >> 4; uint32_t bit = 1u << (rowPin[r] & 15);
+            uint32_t base = 0xc0000000u + uint32_t(p) * 0x20;
+            auto d = m_regs.find(base + 8);
+            if (d != m_regs.end() && (d->second & bit)) cols |= m_kbd[r];
+        }
+        return cols;
+    }
     // application key bits for each PocketPlug input bit (see the MachineDef)
     static const uint32_t keyBit[8] = { 0x001, 0x020, 0x002, 0x040, 0x400, 0x200, 0x800, 0x080 };
     static const uint16_t codeTable[53] = {
@@ -368,6 +465,12 @@ uint32_t GplCore::gpioRead(int port)
     if (port == 4 && (m_keys & 0x200)) low |= 1u << 2;     // VOL+
     if (port == 4 && (m_keys & 0x400)) low |= 1u << 3;     // VOL-
     uint32_t ext = (~low & m_gpioPull[port]) | keypadLines(port);
+    if (!m_spi.empty() && port == 5) ext = (ext & ~0x100u) | (m_mouse.sdo ? 0x100u : 0u);
+    if (!m_spi.empty() && port == 1 && getenv("GPLKLOW")) ext = 0xffff & ~keypadLines(port);
+    if (const char* e = getenv("GPLPOKE")) {   // debugging: "port:mask:from:to" flips those input lines for a while
+        unsigned pp, mk, f0, f1;
+        if (sscanf(e, "%u:%x:%u:%u", &pp, &mk, &f0, &f1) == 4 && int(pp) == port && m_frame >= f0 && m_frame < f1) ext ^= mk;
+    }
     return (out & dir) | (ext & ~dir);
 }
 
@@ -382,7 +485,33 @@ void GplCore::dmaRun(int ch)
     uint32_t ctrl = m_regs[base], src = m_regs[base + 4], dst = m_regs[base + 8], cnt = m_regs[base + 0xc];
     int unit = (ctrl & 0x100) ? 4 : (ctrl & 0x200) ? 2 : 1;
     bool srcFixed = ctrl & 0x80, dstFixed = ctrl & 0x40;
-    if (getenv("GPLDBG")) fprintf(stderr, "DMA%d ctrl %08x %08x -> %08x x%u\n", ch, ctrl, src, dst, cnt);
+    if (getenv("GPLDBG")) { fprintf(stderr, "DMA%d ctrl %08x %08x -> %08x x%u:", ch, ctrl, src, dst, cnt); for (int i = 0; i < 12 && src < RAM_SIZE; i++) fprintf(stderr, " %08x", read32(src + uint32_t(i) * 4)); fprintf(stderr, "\n"); }
+    if (!m_spi.empty() && src == 0xc0080010u && srcFixed) {   // SPI receive: runs alongside the transmit
+        m_spiRxDma = ch;
+        return;
+    }
+    if (!m_spi.empty() && dst == 0xc0080008u && dstFixed) {   // SPI transmit (with the receive channel, if any)
+        static const int bytesPerWord = getenv("GPLSPIW") ? atoi(getenv("GPLSPIW")) : 1;
+        static const bool spiBytes = true;   // the SPI FIFO moves bytes whatever the width bits say
+        if (spiBytes) unit = 1;
+        uint32_t rb = 0, rctrl = 0, rdst = 0; int runit = 1;
+        if (m_spiRxDma >= 0) { rb = 0xd0300000u + uint32_t(m_spiRxDma) * 0x40; rctrl = m_regs[rb]; rdst = m_regs[rb + 8]; runit = spiBytes ? 1 : (rctrl & 0x100) ? 4 : (rctrl & 0x200) ? 2 : 1; }
+        for (uint32_t i = 0; i < cnt; i++) {
+            uint32_t val = unit == 4 ? read32(src) : unit == 2 ? read16(src) : read8(src);
+            uint32_t got = 0;
+            for (int k = 0; k < (unit == 1 ? 1 : bytesPerWord); k++) got |= uint32_t(spiXfer(uint8_t(val >> (8 * k)))) << (8 * k);
+            if (m_spiRxDma >= 0) {
+                if (runit == 4) write32(rdst, got); else if (runit == 2) write16(rdst, uint16_t(got)); else write8(rdst, uint8_t(got));
+                if (!(rctrl & 0x40)) rdst += uint32_t(runit);
+            }
+            if (!srcFixed) src += uint32_t(unit);
+        }
+        m_regs[base] &= ~1u;
+        m_regs[0xd03001fc] |= 1u << ch;
+        if (m_spiRxDma >= 0) { m_regs[rb] &= ~1u; m_regs[0xd03001fc] |= 1u << m_spiRxDma; m_spiRxDma = -1; }
+        setIrq(24, true);
+        return;
+    }
     for (uint32_t i = 0; i < cnt; i++) {
         uint32_t val = unit == 4 ? read32(src) : unit == 2 ? read16(src) : read8(src);
         if (unit == 4) write32(dst, val); else if (unit == 2) write16(dst, uint16_t(val)); else write8(dst, uint8_t(val));
@@ -430,13 +559,14 @@ uint32_t GplCore::pendingVector()
     if (!p) return 0;
     int b = 31;
     while (!(p & (1u << b))) b--;
+    if (getenv("GPLVEC")) { static uint32_t cnt[33]; static uint64_t lf = 0; cnt[32 - b]++; if (m_frame / 300 != lf) { lf = m_frame / 300; fprintf(stderr, "f%llu vectors:", (unsigned long long)m_frame); for (int i = 0; i < 33; i++) if (cnt[i]) fprintf(stderr, " %d:%u", i, cnt[i]); fprintf(stderr, "\n"); } }
     return uint32_t(32 - b);
 }
 
-// Timer 0 is the OS tick on vector 25; timer 3's interrupt is vector 9.
+// Timer interrupts: timer 0 on vector 25 (the OS tick), 1 on 17, 2 on 10, 3 on 9.
 void GplCore::updateTimerIrqs()
 {
-    static const int vec[7] = { 25, 0, 0, 9, 0, 0, 0 };
+    static const int vec[7] = { 25, 17, 10, 9, 0, 0, 0 };
     for (int t = 0; t < 7; t++) {
         if (!vec[t]) continue;
         uint32_t c = m_regs[0xc0020000u + uint32_t(t) * 0x20];
@@ -456,6 +586,16 @@ void GplCore::updateIrq()
 void GplCore::tickPeripherals(uint64_t cycles)
 {
     static constexpr uint64_t CPU = 200000000, TIMER = 375000, TB = 100;
+    if (!m_spi.empty()) {
+        static const uint64_t rate = getenv("GPLDACHZ") ? uint64_t(atoi(getenv("GPLDACHZ"))) : 16000;
+        m_dacAcc += cycles * rate;
+        while (m_dacAcc >= CPU) {
+            m_dacAcc -= CPU;
+            dacTick();
+            m_dacOutAcc += 44100;
+            while (m_dacOutAcc >= rate) { m_dacOutAcc -= rate; if (m_dacOut.size() < 44100) m_dacOut.push_back(int16_t(std::clamp(int(m_dacCur[0]) + int(m_dacCur[1]), -32768, 32767))); }
+        }
+    }
     m_tmAcc += cycles * TIMER;
     uint64_t ticks = m_tmAcc / CPU;
     m_tmAcc %= CPU;
@@ -498,6 +638,84 @@ void GplCore::tickPeripherals(uint64_t cycles)
         }
         if (any) setIrq(2, true);
     }
+}
+
+// The SPI laptops sample ADC channel 4 continuously into a FIFO (the microphone / sound level, read once a
+// frame); here the FIFO is never empty while sampling is on, at mid-scale.
+bool GplCore::adcAuto() const
+{
+    auto it = m_regs.find(0xc00c0004);
+    return it != m_regs.end() && (it->second & 0x4020) == 0x4020;
+}
+
+void GplCore::adcFifoIrq()
+{
+    uint32_t& r = m_regs[0xc00c000c];
+    if (adcAuto()) r |= 0x8000;
+    setIrq(28, (r & 0xc000) == 0xc000);
+}
+
+uint8_t GplCore::mouseReg(uint8_t r)
+{
+    switch (r) {
+    case 0x00: return 0x30;                     // product id
+    case 0x01: return 0x50;
+    case 0x02: {                                // motion status: latch the deltas
+        int dx = int(m_mouseAccX), dy = int(m_mouseAccY);
+        dx = std::clamp(dx, -127, 127); dy = std::clamp(dy, -127, 127);
+        m_mouseAccX -= float(dx); m_mouseAccY -= float(dy);
+        m_mouse.addr = 0x80;                    // (reused as the latched-delta flag)
+        m_dx = int8_t(dx); m_dy = int8_t(dy);
+        return (dx || dy) ? 0x80 : 0x00;
+    }
+    case 0x03: return uint8_t(m_dx);
+    case 0x04: return uint8_t(m_dy);
+    default: return 0;
+    }
+}
+
+// The host sets each bit with SCLK high and drops SCLK (the sensor samples on that falling edge);
+// for a read it releases SDIO, raises SCLK and reads the bit the sensor put out on that rising edge.
+void GplCore::mouseGpio(uint32_t out, uint32_t dir)
+{
+    uint8_t clk = (out >> 9) & 1;
+    bool hostDrives = (dir >> 8) & 1;
+    if (clk == m_mouse.sclk) return;
+    m_mouse.sclk = clk;
+    if (m_mouse.phase == 2) {                       // reply: a bit out on each rising edge
+        if (clk) { m_mouse.sdo = (m_mouse.reply >> 7) & 1; m_mouse.reply <<= 1; }
+        else if (++m_mouse.nbits == 8) { m_mouse.phase = 0; m_mouse.nbits = 0; }
+        return;
+    }
+    if (clk || !hostDrives) return;                 // falling edge with the host driving: take a bit
+    m_mouse.shift = uint8_t(m_mouse.shift << 1 | ((out >> 8) & 1));
+    if (++m_mouse.nbits < 8) return;
+    m_mouse.nbits = 0;
+    if (m_mouse.phase == 0) {
+        uint8_t a = m_mouse.shift;
+        if (a & 0x80) { m_mouse.phase = 1; if (getenv("GPLMOUSE")) fprintf(stderr, "mouse wr %02x\n", a); }   // write: data byte follows
+        else { m_mouse.phase = 2; m_mouse.reply = mouseReg(a); if (getenv("GPLMOUSE")) fprintf(stderr, "mouse rd %02x -> %02x f%llu\n", a, m_mouse.reply, (unsigned long long)m_frame); }
+    } else m_mouse.phase = 0;                       // write data: ignored
+}
+
+void GplCore::dacIrq()
+{
+    for (int ch = 0; ch < 2; ch++) {
+        uint32_t& r = m_regs[0xc00d0000u + uint32_t(ch) * 0x20];
+        if (m_dacFifo[ch].size() < 8) r |= 0x8000;
+        setIrq(ch ? 30 : 31, (r & 0xc000) == 0xc000);
+    }
+}
+
+// one output sample per DAC tick; the result goes out resampled to 44.1 kHz
+void GplCore::dacTick()
+{
+    for (int ch = 0; ch < 2; ch++) {
+        auto& f = m_dacFifo[ch];
+        if (!f.empty()) { m_dacCur[ch] = f.front(); f.erase(f.begin()); }
+        else m_dacCur[ch] = 0;
+    }
+    dacIrq();
 }
 
 void GplCore::syncPeripherals()
@@ -589,6 +807,7 @@ void GplCore::runFrame()
     static const bool sample = getenv("GPLSAMPLE") != nullptr;
     const int SLICES = sample ? 5000 : 100;
     const int sliceCycles = 200000000 / 60 / SLICES;   // ~200 MHz
+    m_mouseAccX += m_mouseVx * 6.0f; m_mouseAccY += m_mouseVy * 6.0f;   // the stick moves the mouse
     for (int i = 0; i < SLICES; i++) {
         // The RTOS idle task spins on "b ."; while it does and no interrupt is due, skip the
         // CPU and only advance the peripherals.
@@ -604,7 +823,7 @@ void GplCore::runFrame()
         if (sample && m_cpu->r[15] != 0xd1fd0) fprintf(stderr, "S %llu %08x %08x\n", (unsigned long long)m_frame, m_cpu->r[15], m_cpu->r[14]);
     }
     m_frame++;
-    m_regs[0xd050018c] |= 0x0801;                 // vertical blank
+    m_regs[0xd050018c] |= m_spi.empty() ? 0x0801 : 0x2801;   // vertical blank (+ the LCD frame end on the SPI laptops)
     ppuIrq();
     m_audioPending = 735;
     if (getenv("GPLDUMP") && m_frame == (uint64_t)atoi(getenv("GPLDUMP"))) debugDump();
@@ -613,6 +832,12 @@ void GplCore::runFrame()
 size_t GplCore::readAudio(int16_t* out, size_t maxSamples)
 {
     size_t n = std::min<size_t>(maxSamples, m_audioPending);
+    if (!m_spi.empty()) {
+        for (size_t i = 0; i < n; i++) out[i] = i < m_dacOut.size() ? m_dacOut[i] : (m_dacOut.empty() ? 0 : m_dacOut.back());
+        m_dacOut.erase(m_dacOut.begin(), m_dacOut.begin() + long(std::min(n, m_dacOut.size())));
+        m_audioPending -= n;
+        return n;
+    }
     m_spu.render(out, int(n), 44100);
     m_audioPending -= n;
     return n;

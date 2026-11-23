@@ -317,6 +317,8 @@ Core* createCore(const std::string& id)
         return new BkcCore();
     if (id == "arcadege")     // Millennium Arcade Genius (GeneralPlus GPL32600, work in progress)
         return new GplCore();
+    if (id == "bananlap" || id == "bananlapa" || id == "bandolap" || id == "bandplap" || id == "bandslap")
+        return new GplCore();     // Bandai kids' laptops: GeneralPlus GPL32612, booting from SPI flash
     if (id == "atgame40")     // AtGames 40 Bonus Games in 1 (Firecore Mega Drive clone)
         return new FirecoreCore();
     if (id == "banmrid")      // Bandai Kamen Rider Ryuki TV game: a Mega Drive on a chip running one 4 MB game (NTSC Japan)

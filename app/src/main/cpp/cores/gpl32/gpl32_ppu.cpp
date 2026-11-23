@@ -21,6 +21,8 @@
 // on the 320x240 panel.
 #include "gpl32.h"
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
 
 namespace {
 inline void blendArgb(uint32_t& dst, const uint8_t* p)
@@ -171,6 +173,13 @@ void GplCore::ppuDrawSprites(int depth)
 
 void GplCore::ppuRender()
 {
+    static bool sprDone = false;
+    if (const char* e = getenv("GPLSPR")) if (!sprDone && m_frame >= uint64_t(atoi(e))) { sprDone = true;
+        fprintf(stderr, "regs: 108=%08x 1fc=%08x 120=%x 124=%x\n", m_regs[0xd0500108], m_regs[0xd05001fc], m_regs[0xd0500120], m_regs[0xd0500124]);
+        for (int l = 0; l < 4; l++) { static const uint32_t ao[4] = { 0x48, 0x60, 0x10, 0x30 }, xy[4] = { 0x40, 0x58, 0x00, 0x20 }, bo[4] = { 0x80, 0x84, 0x8c, 0x90 };
+            fprintf(stderr, "layer %d xy %x %x attr %08x ctrl %08x map %08x amap %08x base %08x\n", l, m_regs[0xd0500000u + xy[l]], m_regs[0xd0500004u + xy[l]], m_regs[0xd0500000u + ao[l]], m_regs[0xd0500004u + ao[l]], m_regs[0xd0500008u + ao[l]], m_regs[0xd050000cu + ao[l]], m_regs[0xd0500000u + bo[l]]); }
+        for (int i = 0; i < 256; i++) { const uint32_t* q = &m_ppuRam[(0x2000 >> 2) + size_t(i) * 8]; if ((q[0] | q[4]) & 0xffff) fprintf(stderr, "spr %d: %04x %04x %04x %04x %04x %04x %04x %04x\n", i, q[0] & 0xffff, q[1] & 0xffff, q[2] & 0xffff, q[3] & 0xffff, q[4] & 0xffff, q[5] & 0xffff, q[6] & 0xffff, q[7] & 0xffff); }
+    }
     std::fill(m_fb.begin(), m_fb.end(), 0xff000000u);
     bool spritesOn = (m_regs[0xd0500108] & 1) != 0;
     static const uint32_t attrOff[4] = { 0x48, 0x60, 0x10, 0x30 };

@@ -36,6 +36,13 @@ public:
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
     void setInputs(uint32_t pressed) override { m_keys = pressed; }
+    void setAnalog(int stick, float x, float y) override { if (stick == 0) { m_mouseVx = x; m_mouseVy = y; } }
+    // the SPI laptops' keyboard matrix: code = row * 32 + column (row 0-7, column = port 1 bit)
+    void keyEvent(int code, bool down) override {
+        if (code < 0 || code >= 256) return;
+        uint32_t b = 1u << (code & 31);
+        m_kbd[code >> 5] = down ? (m_kbd[code >> 5] | b) : (m_kbd[code >> 5] & ~b);
+    }
     bool saveState(std::vector<uint8_t>&) override { return false; }
     bool loadState(const std::vector<uint8_t>&) override { return false; }
 
@@ -48,7 +55,7 @@ public:
     void write16(uint32_t pa, uint16_t v) override;
     void write8(uint32_t pa, uint8_t v) override;
 
-    static constexpr int W = 320, H = 240;
+    int W = 320, H = 240;                // the LCD: 320 x 240 (Arcade Genius), 480 x 272 (the SPI laptops)
     static constexpr uint32_t RAM_SIZE = 0x4000000;
 
     // debugging (headless)
@@ -93,6 +100,33 @@ private:
     void ppuIndexed(uint32_t& dst, uint32_t index);
     const uint8_t* ramPtr(uint32_t addr, uint32_t len) const;
     std::vector<uint8_t> m_nand;
+    std::vector<uint8_t> m_spi;          // GPL32612 SPI-boot units: the serial flash ("GPspispi" header)
+    // SPI master at 0xc0080000 (+8 TX, +0x10 RX, +0xc status: RX count in bits 0-2) talking to the
+    // flash, whose chip select is GPIO port 5 bit 1 (low = selected)
+    std::vector<uint8_t> m_spiCmd;
+    std::vector<uint8_t> m_spiRx;
+    uint32_t m_spiAddr = 0;
+    bool m_spiCs = false;
+    int m_spiRxDma = -1;
+    // the SPI laptops' audio: two DAC channels at 0xc00d0000 / 0xc00d0020 fed sample by sample from a FIFO
+    // (+0 control: bit 15 half-empty flag, write 1 to clear; bit 14 its interrupt (vectors 31 / 30);
+    //  +4 sample in; +8 bit 15 FIFO full)
+    std::vector<int16_t> m_dacFifo[2];
+    int16_t m_dacCur[2] = {};
+    uint64_t m_dacAcc = 0, m_dacOutAcc = 0;
+    std::vector<int16_t> m_dacOut;
+    void dacTick();
+    void dacIrq();
+    // the laptops' optical mouse sensor (PixArt PAN3101-style): SCLK on pin 0x59, SDIO on pin 0x58
+    // (port 5 bits 9 / 8); register 0 is the product id 0x30, 2 motion, 3 / 4 the X / Y deltas
+    struct Mouse { uint8_t sclk = 0, shift = 0, nbits = 0, addr = 0, reply = 0, phase = 0, sdo = 1; } m_mouse;
+    int8_t m_dx = 0, m_dy = 0;
+    float m_mouseVx = 0, m_mouseVy = 0, m_mouseAccX = 0, m_mouseAccY = 0;
+    void mouseGpio(uint32_t out, uint32_t dir);
+    uint8_t mouseReg(uint8_t r);
+    bool adcAuto() const;
+    void adcFifoIrq();                 // a DMA channel waiting to receive from the SPI FIFO
+    uint8_t spiXfer(uint8_t tx);
     // NAND controller (0xd0900000)
     std::vector<uint8_t> m_nbuf = std::vector<uint8_t>(2112, 0xff);
     std::vector<uint8_t> m_nid;
@@ -106,6 +140,7 @@ private:
     std::map<uint32_t, uint32_t> m_regs;
     didj::ARM926* m_cpu = nullptr;
     uint32_t m_keys = 0;
+    uint32_t m_kbd[8] = {};
     uint64_t m_frame = 0;
     size_t m_audioPending = 0;
 };
