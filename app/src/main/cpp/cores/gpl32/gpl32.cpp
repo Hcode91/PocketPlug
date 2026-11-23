@@ -195,6 +195,19 @@ uint32_t GplCore::ioRead(uint32_t pa)
     }
     case 0xd0900160: return 0;          // ECC: no errors
     case 0xd0100028: return pendingVector();
+    case 0xd0500320: case 0xd0500324: case 0xd0500328: case 0xd050032c: case 0xd0500330:
+        if (!m_spi.empty()) {
+            // sprite geometry helper: four corners (centre origin, Y up) at 0x300-0x31c give the
+            // sprite's centre (slots 1 / 2) and its transform words (slots 5-7; identity here)
+            int xs[4], ys[4];
+            for (int i = 0; i < 4; i++) { xs[i] = int32_t(m_regs[0xd0500300u + uint32_t(i) * 8]); ys[i] = int32_t(m_regs[0xd0500304u + uint32_t(i) * 8]); }
+            int xmin = std::min({ xs[0], xs[1], xs[2], xs[3] }), xmax = std::max({ xs[0], xs[1], xs[2], xs[3] });
+            int ymin = std::min({ ys[0], ys[1], ys[2], ys[3] }), ymax = std::max({ ys[0], ys[1], ys[2], ys[3] });
+            if (pa == 0xd0500320) return uint32_t((xmin + xmax + 1) >> 1) & 0x3ff;
+            if (pa == 0xd0500324) return uint32_t((ymin + ymax + 1) >> 1) & 0x3ff;
+            return 0;
+        }
+        break;
     case 0xc00d0008: case 0xc00d0028:
         if (!m_spi.empty()) return ((m_regs.count(pa) ? m_regs[pa] : 0) & ~0x8000u) | (m_dacFifo[pa == 0xc00d0028].size() >= 16 ? 0x8000u : 0u);
         break;
@@ -465,7 +478,10 @@ uint32_t GplCore::gpioRead(int port)
     if (port == 4 && (m_keys & 0x200)) low |= 1u << 2;     // VOL+
     if (port == 4 && (m_keys & 0x400)) low |= 1u << 3;     // VOL-
     uint32_t ext = (~low & m_gpioPull[port]) | keypadLines(port);
-    if (!m_spi.empty() && port == 5) ext = (ext & ~0x100u) | (m_mouse.sdo ? 0x100u : 0u);
+    if (!m_spi.empty() && port == 5) {
+        ext = (ext & ~0x108u) | (m_mouse.sdo ? 0x100u : 0u);
+        if (m_keys & 1) ext |= 0x8;                 // the mouse button (input bit 0)
+    }
     if (!m_spi.empty() && port == 1 && getenv("GPLKLOW")) ext = 0xffff & ~keypadLines(port);
     if (const char* e = getenv("GPLPOKE")) {   // debugging: "port:mask:from:to" flips those input lines for a while
         unsigned pp, mk, f0, f1;

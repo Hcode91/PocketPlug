@@ -103,13 +103,16 @@ void GplCore::ppuDrawLayer(int layer)
         return;
     }
     int tw = 8 << ((attr >> 4) & 3), th = 8 << ((attr >> 6) & 3);
-    int mapW = 512 / tw;
+    // the playfield: 512 x 256; on the GPL32612 attribute bit 15 doubles the width, bit 14 the height
+    const bool sz = !m_spi.empty();
+    const int fieldW = sz && (attr & 0x8000) ? 1024 : 512, fieldH = sz && (attr & 0x4000) ? 512 : 256;
+    int mapW = fieldW / tw;
     for (int y = 0; y < H; y++) {
-        int vy = (y + sy) & 255;
+        int vy = (y + sy) & (fieldH - 1);
         int row = vy / th, ty = vy % th;
         uint32_t* out = &m_fb[size_t(y) * W];
         for (int x = 0; x < W; x++) {
-            int vx = (x + sx) & 511;
+            int vx = (x + sx) & (fieldW - 1);
             int col = vx / tw, tx = vx % tw;
             uint32_t idx = uint32_t(row * mapW + col);
             if (trueColour) {
@@ -145,15 +148,27 @@ void GplCore::ppuDrawSprites(int depth)
         const uint32_t* e = &m_ppuRam[(0x2000 >> 2) + size_t(i) * 8];
         uint32_t attr = e[3] & 0xffff;
         if (int((attr >> 12) & 3) != depth) continue;
-        uint32_t addr = (((e[4] & 0xffff) << 16) | (e[0] & 0xffff)) * 2;
+        if (const char* hm = getenv("GPLSPRHIDE")) { uint32_t m = uint32_t(strtoul(hm, 0, 16)); if ((attr & m) || ((e[4] << 16) & m)) continue; }
+        uint32_t addr = (((e[4] & (m_spi.empty() ? 0xffffu : 0x7fu)) << 16) | (e[0] & 0xffff)) * 2;   // GPL32612: bit 7 of the high part is a flag
         if (!addr) continue;
         int x0 = int(int16_t(e[1])), y0 = int(int16_t(e[2]));
         int sw = 8 << ((attr >> 4) & 3), sh = 8 << ((attr >> 6) & 3);
+        if (!m_spi.empty()) {   // GPL32612: 10-bit signed centre coordinates, Y upwards
+            const int yo = 128;
+            int cx = int(e[1] & 0x3ff); if (cx & 0x200) cx -= 0x400;
+            int cy = int(e[2] & 0x3ff); if (cy & 0x200) cy -= 0x400;
+            const int unit = (m_ppuRam[(0x6000 >> 2) + size_t(i) * 2 + 1] & 4) ? 32 : 8;   // extra table at 0x6000, bit 2: sizes x4
+            sw = unit << ((attr >> 4) & 3); sh = unit << ((attr >> 6) & 3);
+            x0 = W / 2 + cx - sw / 2;
+            y0 = yo - cy - sh / 2;
+        }
         bool hflip = attr & 4, vflip = attr & 8;
         int bpp = trueColour ? 32 : int((attr & 3) + 1) * 2;
+        if (!m_spi.empty() && (attr & 3) == 3) bpp = 16;   // GPL32612: colour mode 3 is 16-bit ARGB4444
         const uint8_t* gfx = ramPtr(addr, uint32_t(sw * sh * bpp / 8) + 1);
         if (!gfx) continue;
         uint32_t pal = ((attr >> 8) & 15) << 4;
+        if (!m_spi.empty() && (e[4] & 0x80)) pal += 0x100;   // GPL32612: high-part bit 7 picks the second palette bank
         for (int yy = 0; yy < sh; yy++) {
             int y = y0 + yy;
             if (y < 0 || y >= H) continue;
@@ -165,6 +180,11 @@ void GplCore::ppuDrawSprites(int depth)
                 if (x < 0 || x >= W) continue;
                 int srcX = hflip ? sw - 1 - xx : xx;
                 if (trueColour) blendArgb(out[x], row + size_t(srcX) * 4);
+                else if (bpp == 16) {
+                    uint16_t v; std::memcpy(&v, row + size_t(srcX) * 2, 2);
+                    uint8_t p4[4] = { uint8_t((v >> 12) * 17), uint8_t(((v >> 8) & 15) * 17), uint8_t(((v >> 4) & 15) * 17), uint8_t((v & 15) * 17) };
+                    blendArgb(out[x], p4);
+                }
                 else ppuIndexed(out[x], pal + packedPixel(row, srcX, bpp));
             }
         }
@@ -174,14 +194,16 @@ void GplCore::ppuDrawSprites(int depth)
 void GplCore::ppuRender()
 {
     static bool sprDone = false;
-    if (const char* e = getenv("GPLSPR")) if (!sprDone && m_frame >= uint64_t(atoi(e))) { sprDone = true;
+    (void)sprDone;
+    if (const char* e = getenv("GPLSPR")) if (m_frame >= uint64_t(atoi(e)) && m_frame < uint64_t(atoi(e)) + 40) {
+        fprintf(stderr, "--- f%llu\n", (unsigned long long)m_frame);
         fprintf(stderr, "regs: 108=%08x 1fc=%08x 120=%x 124=%x\n", m_regs[0xd0500108], m_regs[0xd05001fc], m_regs[0xd0500120], m_regs[0xd0500124]);
         for (int l = 0; l < 4; l++) { static const uint32_t ao[4] = { 0x48, 0x60, 0x10, 0x30 }, xy[4] = { 0x40, 0x58, 0x00, 0x20 }, bo[4] = { 0x80, 0x84, 0x8c, 0x90 };
             fprintf(stderr, "layer %d xy %x %x attr %08x ctrl %08x map %08x amap %08x base %08x\n", l, m_regs[0xd0500000u + xy[l]], m_regs[0xd0500004u + xy[l]], m_regs[0xd0500000u + ao[l]], m_regs[0xd0500004u + ao[l]], m_regs[0xd0500008u + ao[l]], m_regs[0xd050000cu + ao[l]], m_regs[0xd0500000u + bo[l]]); }
-        for (int i = 0; i < 256; i++) { const uint32_t* q = &m_ppuRam[(0x2000 >> 2) + size_t(i) * 8]; if ((q[0] | q[4]) & 0xffff) fprintf(stderr, "spr %d: %04x %04x %04x %04x %04x %04x %04x %04x\n", i, q[0] & 0xffff, q[1] & 0xffff, q[2] & 0xffff, q[3] & 0xffff, q[4] & 0xffff, q[5] & 0xffff, q[6] & 0xffff, q[7] & 0xffff); }
+        for (int i = 0; i < 256; i++) { const uint32_t* q = &m_ppuRam[(0x2000 >> 2) + size_t(i) * 8]; if ((q[0] | q[4]) & 0xffff) fprintf(stderr, "spr %d: ext %04x %04x | %04x %04x %04x %04x %04x %04x %04x %04x\n", i, m_ppuRam[(0x6000 >> 2) + size_t(i) * 2] & 0xffff, m_ppuRam[(0x6000 >> 2) + size_t(i) * 2 + 1] & 0xffff, q[0] & 0xffff, q[1] & 0xffff, q[2] & 0xffff, q[3] & 0xffff, q[4] & 0xffff, q[5] & 0xffff, q[6] & 0xffff, q[7] & 0xffff); }
     }
     std::fill(m_fb.begin(), m_fb.end(), 0xff000000u);
-    bool spritesOn = (m_regs[0xd0500108] & 1) != 0;
+    bool spritesOn = (m_regs[0xd0500108] & 1) != 0 && !getenv("GPLNOSPR");
     static const uint32_t attrOff[4] = { 0x48, 0x60, 0x10, 0x30 };
     for (int depth = 0; depth < 4; depth++) {
         for (int layer = 0; layer < 4; layer++)
