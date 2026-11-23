@@ -449,7 +449,7 @@ object Machines {
             year = "2010s",
             roms = listOf(RomSpec("gpr25l64.u3", 0x800000L, 0x659f1b0fL)),
             skin = Skin.KIDS_LAPTOP,
-            badge = "blue",
+            badge = "red",
         ),
         MachineDef(
             id = "bandplap",
@@ -471,7 +471,7 @@ object Machines {
             year = "2010s",
             roms = listOf(RomSpec("gpr25l64.u3", 0x800000L, 0xd9b1cb41L)),
             skin = Skin.KIDS_LAPTOP,
-            badge = "white",
+            badge = "blue",
         ),
         MachineDef(
             id = "ban_naru",
