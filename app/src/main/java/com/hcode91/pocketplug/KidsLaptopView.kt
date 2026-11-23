@@ -17,8 +17,9 @@ import kotlin.math.min
  * The screen is the mouse pad: drag to move the pointer, tap to click. The mouse button can be
  * held to drag. Keys report matrix codes (row * 32 + column, see gpl32.h): the orange Anpanman PC
  * has its own wiring, the later models share one (worked out from the firmwares' kana tables and
- * by pressing keys on the menus). Keys whose code isn't known yet (OK, ★, small kana, shift,
- * and on the orange model space, volume and rock/paper/scissors) are drawn but do nothing.
+ * by pressing keys on the menus and the name entry). Shift and small kana latch until the next key.
+ * Keys whose code isn't known yet (on the orange model space and rock/paper/scissors) are drawn but
+ * do nothing.
  *
  * caseStyle: "orange" (white base, orange lid), "yellow", "red", "pink" or "blue".
  */
@@ -58,7 +59,9 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
     }
 
     /** code < 0: drawn only. kind: 0 kana, 1 function, 2 menu, 3 OK */
-    private class Key(val label: String, val code: Int, val units: Float = 1f, val kind: Int = 0) {
+    /** latch: a modifier that stays down until the next key; mod: a second key sent with this one */
+    private class Key(val label: String, val code: Int, val units: Float = 1f, val kind: Int = 0,
+                      val latch: Boolean = false, val mod: Int = -1) {
         val rect = RectF()
         var down = false
     }
@@ -67,6 +70,7 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
     private val jis = caseStyle != "orange"
     private fun k(s: String, orange: Int, later: Int) = Key(s, if (jis) later else orange)
     private fun f(s: String, orange: Int, later: Int, units: Float = 1f, kind: Int = 1) = Key(s, if (jis) later else orange, units, kind)
+    private fun latch(s: String, orange: Int, later: Int, units: Float = 1f) = Key(s, if (jis) later else orange, units, 1, latch = true)
 
     // the menu keys, left to right
     private val menuRow: List<Key> = if (jis)
@@ -80,12 +84,12 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
         listOf(k("ぬ", 170, 9), k("ふ", 171, 8), k("あ", 71, 40), k("う", 135, 72), k("え", 167, 73), k("お", 199, 105),
             k("や", 76, 104), k("ゆ", 141, 136), k("よ", 173, 168), k("わ", 78, 200), k("ほ", 235, 201), k("へ", 203, 233), f("けす", 13, 234, 1.3f)),
         listOf(k("た", 74, 10), k("て", 201, 41), k("い", 103, 42), k("す", 137, 74), k("か", 72, 75), k("ん", 174, 106),
-            k("な", 75, 138), k("に", 138, 137), k("ら", 77, 169), k("せ", 200, 202), f("★゛゜", -1, -1), f("OK", -1, 235, 1.3f, 3)),
-        listOf(f("シフト", -1, -1, 1.2f), k("ち", 106, 11), k("と", 233, 43), k("し", 105, 44), k("は", 107, 76), k("き", 104, 107),
+            k("な", 75, 138), k("に", 138, 137), k("ら", 77, 169), k("せ", 200, 202), f("★゛゜", 12, 203), f("OK", 175, 235, 1.3f, 3)),
+        listOf(latch("シフト", 15, 237, 1.2f), k("ち", 106, 11), k("と", 233, 43), k("し", 105, 44), k("は", 107, 76), k("き", 104, 107),
             k("く", 136, 108), k("ま", 108, 140), k("の", 234, 139), k("り", 109, 171), k("れ", 205, 170), k("け", 168, 204), k("む", 172, 236)),
-        listOf(f("かな/ローマじ", 14, -1, 1.2f), k("つ", 169, 13), k("さ", 73, 45), k("そ", 232, 77), k("ひ", 139, 78), k("こ", 231, 110),
-            k("み", 140, 109), k("も", 236, 141), k("ね", 202, 142), k("る", 142, 172), k("め", 204, 173), k("ろ", 237, 205), f("ちいさい", -1, -1)),
-        listOf(f("🔈", -1, 14), f("🔊", -1, 46), f("スペース", -1, 111, 5f), k("を", 110, -1), f("✊", -1, 174), f("✌", -1, 206), f("✋", -1, 238)),
+        listOf(f("かな/ローマじ", 14, 12, 1.2f), k("つ", 169, 13), k("さ", 73, 45), k("そ", 232, 77), k("ひ", 139, 78), k("こ", 231, 110),
+            k("み", 140, 109), k("も", 236, 141), k("ね", 202, 142), k("る", 142, 172), k("め", 204, 173), k("ろ", 237, 205), latch("ちいさい", 11, 15)),
+        listOf(f("🔈", 239, 14), f("🔊", 207, 46), f("スペース", -1, 111, 5f), if (jis) Key("を", 200, mod = 237) else k("を", 110, -1), f("✊", -1, 174), f("✌", -1, 206), f("✋", -1, 238)),
     )
     // the cursor keys: up, left, right, down
     private val arrows = if (jis) listOf(Key("", 79), Key("", 47), Key("", 143), Key("", 175))
@@ -298,6 +302,14 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
         return null
     }
 
+    private fun release(key: Key) {
+        key.down = false
+        onKey?.invoke(key.code, false)
+        if (key.mod >= 0) onKey?.invoke(key.mod, false)
+        // a held modifier lets go once the key it was for is released
+        for (m in keys) if (m.latch && m.down) { m.down = false; onKey?.invoke(m.code, false) }
+    }
+
     private fun setButtons(v: Int) {
         if (v != buttons) { buttons = v; onMouseButtons?.invoke(v); invalidate() }
     }
@@ -324,8 +336,16 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
                 }
                 val key = keyAt(x, y) ?: return true
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                if (key.latch) {
+                    // a modifier: tap to hold it for the next key, tap again to let go
+                    key.down = !key.down
+                    onKey?.invoke(key.code, key.down)
+                    invalidate()
+                    return true
+                }
                 pointers[id] = key
                 key.down = true
+                if (key.mod >= 0) onKey?.invoke(key.mod, true)
                 onKey?.invoke(key.code, true)
             }
             MotionEvent.ACTION_MOVE -> {
@@ -354,10 +374,10 @@ class KidsLaptopView(ctx: Context, caseStyle: String) : View(ctx) {
                     }
                     return true
                 }
-                pointers.remove(id)?.let { it.down = false; onKey?.invoke(it.code, false) }
+                pointers.remove(id)?.let { release(it) }
             }
             MotionEvent.ACTION_CANCEL -> {
-                for (key in pointers.values) { key.down = false; onKey?.invoke(key.code, false) }
+                for (key in pointers.values.toList()) release(key)
                 pointers.clear(); padId = -1; buttonId = -1
                 setButtons(0)
             }
