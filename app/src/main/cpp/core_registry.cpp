@@ -16,6 +16,7 @@
 #include "cores/sms/atgsms.h"
 #include "cores/md/firecore.h"
 #include "cores/gpl32/gpl32.h"
+#include "cores/gizmondo/gizmondo.h"
 #include "cores/st2302/bbl380.h"
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
@@ -315,6 +316,8 @@ Core* createCore(const std::string& id)
     }
     if (id == "backgamc")     // Fidelity Backgammon Challenger (Z80)
         return new BkcCore();
+    if (id == "gizmondo")     // Tiger Telematics Gizmondo (S3C2440 + DiskOnChip G3 + GoForce 4500)
+        return new GizmondoCore();
     if (id == "arcadege")     // Millennium Arcade Genius (GeneralPlus GPL32600, work in progress)
         return new GplCore();
     if (id == "bananlap" || id == "bananlapa" || id == "bandolap" || id == "bandplap" || id == "bandslap")

@@ -32,6 +32,7 @@ controller.
 | Wonderful Sweet Laptop (Bandai) | `bandplap` | The same GPL32612 laptop | Boots to the menu. No sound yet |
 | Robot Cat Learning Laptop (Bandai) | `bandolap` | The same GPL32612 laptop | Boots to the menu; some graphics glitches in the intro. No sound yet |
 | Arcade Genius (Millennium 2000 camera handheld, GeneralPlus GPL32600) | `arcadege` | ARM926 interpreter (from DidjDroid) running the NAND's application; NAND controller, interrupt controller, timers, RTC, DMA, GPIO keypad and the 2D PPU (true-colour and indexed layers, sprites) worked out from the application; 32-channel SPG-style SPU | Boots to the menu and the games play with sound effects (MAME doesn't run it); no camera or saving yet |
+| Gizmondo (Tiger Telematics 2005 handheld) | `gizmondo` | Full hardware emulation on DidjDroid's ARM926 interpreter: S3C2440 interrupt controller, PWM timers, UARTs, GPIO keypad matrix, RTC and ADC; M-Systems DiskOnChip G3 and the GoForce 4500's 2D framebuffer after MAME's drivers. The DiskOnChip is built from fboot plus the bootloader in the official update package | The real bootloader runs (its serial log and start-up screen) and stops at "Unit Initialization Failure": the Windows CE system in the update package is encrypted, so there is no OS yet. No sound, I2C chips (synth, DAC, camera) or SD card |
 | 20 SEGA Master System & Game Gear Classics (AtGames plug & play) | `atgsms` | Z80 + SMS / Game Gear VDP (own), Sega PSG, the chip's flash base registers worked out from the menu's launch code | Menu and all 20 games boot (MAME has no driver for it); Game Gear games are scaled to fill the TV picture |
 | Bally Professional Arcade / Home Library Computer / Computer System (Astrocade) | `astrocde`, `astrocdl`, `astrocdw` | Z80 + Astrocade data chip (bitmap, function generator, scanline interrupts) and I/O chip (sound, keypad, controllers) | Menu and Gunfight identical to MAME pixel for pixel; the sound follows MAME's; cartridges up to 8 KB |
 | Alien Attack tabletop (Coleco, 1981) | `alnattck` | Hitachi HD38800 (HMCS44, own core), VFD drawn from MAME's SVG | Same screen as MAME frame for frame (title, attract); skill / off switch |
@@ -140,6 +141,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Robot Cat Learning Laptop | `bandolap` | `gpr25l64.u3` | 8 MB | `d9b1cb41` |
 | AtGames SMS / GG plug & play | `atgsms` | `atgames_sms.u5` | 4 MB | `bf23cd7d` |
 | Arcade Genius | `arcadege` | `tc58nvg0s3eta00.u3` | 132 MB | `9b4db25e` |
+| Gizmondo | `gizmondo` | `fboot.bin` (MAME set), `install.bin` (official firmware update 1.2.0015 / 1.3.0018) | 2 KB / 39,626,346 bytes | `28887c29`, `25ceecd1` |
 | Bally Astrocade BIOS | `astrocde` / `astrocdl` / `astrocdw` | `astro.bin` / `ballyhlc.bin` / `bioswhit.bin` | 8 KB | `ebc77f3a` / `d7c517ba` / `6eb53e79` |
 | Alien Attack | `alnattck` | `hd38800a25`, `alnattck.svg` | 4,352 / 564,266 bytes | `18b50869`, `386bf327` |
 | Basketball | `bambball` | `hd38750a08`, `bambball.svg` | 2,176 / 281,982 bytes | `907fef18`, `df113d8a` |
