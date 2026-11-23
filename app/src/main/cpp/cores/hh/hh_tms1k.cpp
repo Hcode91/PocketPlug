@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace {
-enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL };
+enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT };
 // the guessed output PLA (O0 = bit 0 of the index)
 const uint16_t kAlphieOpla[0x20] = { 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1 };
 }
@@ -32,6 +32,8 @@ const Tms1kGame kGames[] = {
     // Milton Bradley Electronic Arcade Mania (1983): TMS1100, 9 LEDs
     // A-One LSI Arrange Ball (1980): TMS1000, 2 digits + 22 LEDs (7 x 7 matrix)
     { "arrball", ARRBALL, TMS1K::TMS1000, 325000, "mp0166", "tms1000_common2_micro.pla", "tms1000_arrball_output.pla", nullptr, "", 7, 7 },
+    // Parker Brothers Bank Shot (1980): TMS1400, 70 LEDs on a pool table (R2-R10 x O0-O7)
+    { "bankshot", BANKSHOT, TMS1K::TMS1400, 475000, "mp7313", "tms1100_common1_micro.pla", "tms1400_bankshot_output.pla", nullptr, "", 11, 8 },
     { "arcmania", ARCMANIA, TMS1K::TMS1100, 250000, "m34078a", "tms1100_common1_micro.pla", "tms1100_arcmania_output.pla", nullptr, "", 1, 9 },
 };
 const Tms1kGame* find(const std::string& id)
@@ -143,6 +145,13 @@ uint8_t HhTms1kCore::readK()
     case ARRBALL:
         // R8: Shot, Stop, -, Speed (option 0: 1 = fast)
         return (m_s.inpMux & 1) ? uint8_t(in(0) | in(1) << 1 | (m_opt[0] ? 8 : 0)) : 0;
+    case BANKSHOT: {
+        // R2: Angle, Aim, Cue Up / Shoot (bits 0-2); R3: Select / Score, Ball Up, Ball Over (bits 3-5)
+        uint8_t k = 0;
+        if (m_s.inpMux & 1) k |= uint8_t(in(0) | in(1) << 1 | in(2) << 2);
+        if (m_s.inpMux & 2) k |= uint8_t(in(3) | in(4) << 1 | in(5) << 2);
+        return k;
+    }
     case ARCMANIA: {
         // O3: Alien Raiders (6), yellow 2 (7), Rattler (8); O4: Run Amuk (3), yellow 1 (4), Sneak Attack (5);
         // O6: orange 1-3 (0-2)
@@ -163,6 +172,7 @@ void HhTms1kCore::writeO(uint16_t o)
     case ALPHIE: speaker(o & 1); break;
     case AMAZTRON: m_disp.matrix(now(), m_s.r, o & 0x7f); break;
     case ARRBALL: m_disp.matrix(now(), m_s.r & 0x7f, o & 0x7f); break;
+    case BANKSHOT: m_disp.matrix(now(), m_s.r & 0x7fc, o & 0xff); break;
     case ARCMANIA:
         speakerLevel(__builtin_popcount(unsigned(o & 7)) / 3.0);
         m_s.inpMux = uint16_t((o >> 3 & 3) | (o >> 4 & 4));
@@ -194,6 +204,12 @@ void HhTms1kCore::writeR(uint32_t r)
         m_disp.matrix(now(), r & 0x7f, m_s.o & 0x7f);
         break;
     }
+    case BANKSHOT:
+        speaker(r & 1);
+        m_s.inpMux = uint16_t(r >> 2 & 3);
+        m_s.r = r;
+        m_disp.matrix(now(), r & 0x7fc, m_s.o & 0xff);
+        break;
     case ARCMANIA:
         m_disp.matrix(now(), 1, r >> 1);
         m_s.r = r;

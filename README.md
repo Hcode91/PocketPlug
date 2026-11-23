@@ -36,6 +36,7 @@ controller.
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
 | Arcade Mania (Milton Bradley, 1983) | `arcmania` | TI TMS1100 (own core) | LEDs and sound match MAME with the same presses |
 | Arrange Ball (Tandy, 1980) | `arrball` | TI TMS1000 (own core) | Lamps, digits and sound match MAME with the same presses |
+| Bank Shot (Parker Brothers, 1980) | `bankshot` | TI TMS1400 (the TMS1000 core with 4 chapters, a 3-level call stack and TPC) | The pool table's 70 lamps and sound run; drawn table with the six keys |
 | Astro Command tabletop (Epoch, 1982) | `astrocmd` | NEC uPD553C (uCOM-43, own core), VFD from MAME's SVG | Screen follows MAME closely through the attract mode and play |
 | Ataka asteroidov (Elektronika IM-53, 1992) | `atakaast` | Kvazar KB1013VK1-2 (Sharp SM5A, own core), LCD from MAME's SVG | Every LCD element matches MAME frame for frame with the same presses |
 | Autoslalom (Elektronika IM-23, 1991) | `auslalom` | Kvazar KB1013VK1-2 (Sharp SM5A, own core), LCD from MAME's SVG | Every LCD element matches MAME frame for frame with the same presses |
@@ -137,6 +138,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |
 | Arcade Mania | `arcmania` | `m34078a`, `tms1100_common1_micro.pla`, `tms1100_arcmania_output.pla` | 2,048 / 867 / 365 bytes | `90ea0087`, `62445fc9`, `a1517b15` |
 | Arrange Ball | `arrball` | `mp0166`, `tms1000_common2_micro.pla`, `tms1000_arrball_output.pla` | 1,024 / 867 / 365 bytes | `a78694db`, `d33da3cf`, `ffc206fb` |
+| Bank Shot | `bankshot` | `mp7313`, `tms1100_common1_micro.pla`, `tms1400_bankshot_output.pla` | 4,096 / 867 / 557 bytes | `7a5016a9`, `62445fc9`, `7539283b` |
 | Astro Command | `astrocmd` | `d553c_202.s01`, `astrocmd.svg` | 2,048 / 335,380 bytes | `b4b34883`, `950af2c4` |
 | Ataka asteroidov | `atakaast` | `im-53.bin` (= `mc-25` from the `gnw_mmouse` zip), `atakaast.svg` | 1,856 / 105,570 bytes | `cb820c32`, `3d79aacc` |
 | Autoslalom | `auslalom` | `im-23.bin`, `auslalom.svg` | 1,856 / 117,520 bytes | `3b6e726f`, `2f90fd4c` |

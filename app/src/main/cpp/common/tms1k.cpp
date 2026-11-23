@@ -53,12 +53,13 @@ void TMS1K::configure(Type t, Io* io)
 {
     m_type = t;
     m_io = io ? io : &m_null;
-    m_1100 = (t == TMS1100 || t == TMS1300 || t == TMS1170 || t == TMS1370);
+    m_1400 = t == TMS1400;
+    m_1100 = (t == TMS1100 || t == TMS1300 || t == TMS1170 || t == TMS1370 || m_1400);
     m_oPins = (t == TMS1070 || t == TMS1270) ? (t == TMS1270 ? 10 : 8) : 8;
     m_rPins = (t == TMS1200 || t == TMS1270) ? 13 : (t == TMS1300 || t == TMS1370) ? 16 : 11;
     m_pcBits = 6;
     m_xBits = m_1100 ? 3 : 2;
-    m_romMask = m_1100 ? 0x7ff : 0x3ff;
+    m_romMask = m_1400 ? 0xfff : m_1100 ? 0x7ff : 0x3ff;
     m_ramMask = m_1100 ? 0x7f : 0x3f;
     m_oMask = (1u << m_oPins) - 1;
     m_rMask = (1u << m_rPins) - 1;
@@ -102,13 +103,14 @@ bool TMS1K::setRom(const std::vector<uint8_t>& rom, const std::string& microPla,
         for (int i = 0x28; i < 0x30; i++) m_fixedDecode[i] = F_LDX;
         for (int i = 0x3c; i < 0x40; i++) m_fixedDecode[i] = 0;
     }
+    if (m_1400) m_fixedDecode[0x0b] = F_TPC;
     return true;
 }
 
 void TMS1K::reset()
 {
     s.pa = 0xf; s.pb = 0xf; s.pc = 0;
-    s.ca = s.cb = s.cs = 0;
+    s.ca = s.cb = s.cs = 0; s.ps = 0; s.sr3 = 0;
     s.eac = s.bl = s.add = s.status = s.clatch = 0;
     s.opcode = 0; s.micro = 0; s.fixed = 0; s.subcycle = 0;
     s.r = 0;
@@ -169,6 +171,28 @@ void TMS1K::execOne(int sub)
 {
     switch (sub) {
     case 0: {
+        if (m_1400) {   // MAME op_brn / op_calln / op_retnn: a 3-level stack
+            if ((s.fixed & F_BR) && s.status) { s.pa = s.pb; s.ca = s.cb; s.pc = s.opcode & m_pcMask; }
+            if (s.fixed & F_CALL) {
+                if (s.status) {
+                    s.clatch = uint8_t((s.clatch << 1 | 1) & 7);
+                    s.sr3 = (s.sr3 << m_pcBits | s.pc) & 0x3ffff; s.pc = s.opcode & m_pcMask;
+                    s.ps = uint16_t((s.ps << 4 | s.pa) & 0xfff); s.pa = s.pb;
+                    s.cs = uint16_t((s.cs << 2 | s.ca) & 0x3f); s.ca = s.cb;
+                } else { s.pb = s.pa; s.cb = s.ca; }
+            }
+            if ((s.fixed & F_RETN) && (s.clatch & 1)) {
+                s.clatch >>= 1;
+                s.pc = uint16_t(s.sr3 & m_pcMask); s.sr3 >>= m_pcBits;
+                s.pa = s.pb = s.ps & 0xf; s.ps >>= 4;
+                s.ca = s.cb = s.cs & 3; s.cs >>= 2;
+            }
+            setCki();
+            s.ramIn = s.ram[s.ramAddress & m_ramMask] & 0xf;
+            s.damIn = s.ram[(s.ramAddress | (0x10 << (m_xBits - 1))) & m_ramMask] & 0xf;
+            s.p = 0; s.n = 0; s.carryIn = 0;
+            break;
+        }
         // branch / call / return (one stack level)
         if (s.fixed & F_BR) {
             if (s.status) { if (s.clatch == 0) s.pa = s.pb; s.ca = s.cb; s.pc = s.opcode & m_pcMask; }

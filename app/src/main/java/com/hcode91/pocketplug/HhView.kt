@@ -396,6 +396,7 @@ class HhSkin(
             "amaztron" -> amazeATron()
             "arcmania" -> arcadeMania()
             "arrball" -> arrangeBall()
+            "bankshot" -> bankShot()
             "astrocmd" -> astroCommand()
             "atakaast" -> atakaAsteroidov()
             "auslalom" -> autoslalom()
@@ -407,6 +408,121 @@ class HhSkin(
          *  the red panel with the 2-digit LED, the 4 x 4 numbered lamps joined by lines, the arc of
          *  lamps up to START and the L1-L4 tabs; underneath the speaker slots, the ON / OFF and
          *  SLOW / FAST slides and the STOP and SHOT push buttons. */
+        private fun bankShot(): HhSkin {
+            // the table: MAME layout units (17 x 11) -> design space
+            fun tx(x: Float) = 75f + x * 50f
+            fun ty(y: Float) = 430f + y * 50f
+            val spots = listOf(
+                9 to 7 to (8f to 0f),
+                10 to 7 to (1f to 1f),
+                10 to 6 to (3f to 1f),
+                10 to 5 to (5f to 1f),
+                10 to 4 to (7f to 1f),
+                10 to 3 to (9f to 1f),
+                10 to 2 to (11f to 1f),
+                10 to 1 to (13f to 1f),
+                10 to 0 to (15f to 1f),
+                9 to 6 to (2f to 2f),
+                9 to 5 to (4f to 2f),
+                9 to 4 to (6f to 2f),
+                9 to 3 to (8f to 2f),
+                9 to 2 to (10f to 2f),
+                9 to 1 to (12f to 2f),
+                9 to 0 to (14f to 2f),
+                8 to 7 to (1f to 3f),
+                8 to 6 to (3f to 3f),
+                8 to 5 to (5f to 3f),
+                8 to 4 to (7f to 3f),
+                8 to 3 to (9f to 3f),
+                8 to 2 to (11f to 3f),
+                8 to 1 to (13f to 3f),
+                8 to 0 to (15f to 3f),
+                7 to 6 to (2f to 4f),
+                7 to 5 to (4f to 4f),
+                7 to 4 to (6f to 4f),
+                7 to 3 to (8f to 4f),
+                7 to 2 to (10f to 4f),
+                7 to 1 to (12f to 4f),
+                7 to 0 to (14f to 4f),
+                6 to 7 to (1f to 5f),
+                6 to 6 to (3f to 5f),
+                6 to 5 to (5f to 5f),
+                6 to 4 to (7f to 5f),
+                6 to 3 to (9f to 5f),
+                6 to 2 to (11f to 5f),
+                6 to 1 to (13f to 5f),
+                6 to 0 to (15f to 5f),
+                5 to 6 to (2f to 6f),
+                5 to 5 to (4f to 6f),
+                5 to 4 to (6f to 6f),
+                5 to 3 to (8f to 6f),
+                5 to 2 to (10f to 6f),
+                5 to 1 to (12f to 6f),
+                5 to 0 to (14f to 6f),
+                4 to 7 to (1f to 7f),
+                4 to 6 to (3f to 7f),
+                4 to 5 to (5f to 7f),
+                4 to 4 to (7f to 7f),
+                4 to 3 to (9f to 7f),
+                4 to 2 to (11f to 7f),
+                4 to 1 to (13f to 7f),
+                4 to 0 to (15f to 7f),
+                3 to 6 to (2f to 8f),
+                3 to 5 to (4f to 8f),
+                3 to 4 to (6f to 8f),
+                3 to 3 to (8f to 8f),
+                3 to 2 to (10f to 8f),
+                3 to 1 to (12f to 8f),
+                3 to 0 to (14f to 8f),
+                2 to 7 to (1f to 9f),
+                2 to 6 to (3f to 9f),
+                2 to 5 to (5f to 9f),
+                2 to 4 to (7f to 9f),
+                2 to 3 to (9f to 9f),
+                2 to 2 to (11f to 9f),
+                2 to 1 to (13f to 9f),
+                2 to 0 to (15f to 9f),
+                3 to 7 to (8f to 10f)
+            )
+            val leds = spots.map { (ro, xy) -> Led(LedKind.ROUND, ro.first, ro.second, tx(xy.first + 0.5f), ty(xy.second + 0.5f), 17f, 0xFFFF3A44.toInt()) }
+            fun key(x: Float, y: Float, bit: Int, label: String) = Control(Kind.BUTTON, x, y, 40f, color = 0xFF202024.toInt(), bit = bit, bw = 170f, bh = 90f,
+                face = "", shine = false, label = label, labelAbove = y < 600f, labelColor = 0xFFE8E8E8.toInt(), labelSize = 26f)
+            return HhSkin(
+                1000f, 1460f, 0xFF2E2E34.toInt(),
+                screen = RectF(), bezel = 0, bezelPad = 0f,
+                menu = PointF(500f, 1420f),
+                controls = listOf(
+                    key(230f, 300f, 0x08, "SELECT / SCORE"), key(500f, 300f, 0x10, "BALL UP"), key(770f, 300f, 0x20, "BALL OVER"),
+                    key(230f, 1130f, 0x01, "ANGLE"), key(500f, 1130f, 0x02, "AIM"), key(770f, 1130f, 0x04, "CUE UP / SHOOT"),
+                ),
+                leds = leds,
+                drawBody = { c, p, s ->
+                    // the black case
+                    p.color = 0xFF141418.toInt(); c.drawRoundRect(30f, 40f, 970f, 1400f, 60f, 60f, p)
+                    p.color = 0xFF1E1E24.toInt(); c.drawRoundRect(55f, 160f, 945f, 1260f, 40f, 40f, p)
+                    // white rails and the dark felt, as the unit's printed table
+                    p.color = 0xFFE6E6E6.toInt(); c.drawRect(tx(0f), ty(0f), tx(17f), ty(11f), p)
+                    p.color = 0xFF210709.toInt(); c.drawRect(tx(1f), ty(1f), tx(16f), ty(10f), p)
+                    // the six pockets
+                    for ((px, py) in listOf(0.7f to 0.7f, 8.5f to 0.5f, 16.3f to 0.7f, 0.7f to 10.3f, 8.5f to 10.5f, 16.3f to 10.3f)) {
+                        p.color = 0xFF0A0A0C.toInt(); c.drawCircle(tx(px), ty(py), 34f, p)
+                    }
+                    // diamond marks on the rails
+                    p.color = 0xFF202020.toInt()
+                    for (x in listOf(3.5f, 5.5f, 11.5f, 13.5f)) { c.drawRect(tx(x) - 5f, ty(0.2f), tx(x) + 5f, ty(0.8f), p); c.drawRect(tx(x) - 5f, ty(10.2f), tx(x) + 5f, ty(10.8f), p) }
+                    for (y in listOf(3.5f, 5.5f, 7.5f)) { c.drawRect(tx(0.2f), ty(y) - 5f, tx(0.8f), ty(y) + 5f, p); c.drawRect(tx(16.2f), ty(y) - 5f, tx(16.8f), ty(y) + 5f, p) }
+                    // unlit lamps
+                    p.color = 0xFF3A0C10.toInt()
+                    for (l in leds) c.drawCircle(l.x, l.y, 16f, p)
+                    // speaker grille
+                    p.color = 0xFF0A0A0C.toInt()
+                    for (i in 0 until 8) c.drawRoundRect(400f + i * 26f, 1300f, 412f + i * 26f, 1370f, 6f, 6f, p)
+                    s.color = 0xFF5A5A62.toInt(); s.strokeWidth = 3f
+                    c.drawRoundRect(30f, 40f, 970f, 1400f, 60f, 60f, s)
+                },
+            )
+        }
+
         private fun arrangeBall(): HhSkin {
             // MAME layout units -> design space
             fun lx(x: Float) = 200f + x * 24f

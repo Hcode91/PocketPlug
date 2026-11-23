@@ -871,6 +871,21 @@ object Machines {
             skin = Skin.HH,
         ),
         MachineDef(
+            id = "bankshot",
+            title = "Bank Shot",
+            subtitle = "1980 electronic pool on a 70-LED table: SELECT picks the game, BALL UP / BALL OVER place the balls, "
+                + "AIM and ANGLE line up the shot, CUE UP / SHOOT takes it (Parker Brothers Bank Shot: Electronic Pool; MAME set: bankshot)",
+            chip = "TI TMS1400",
+            region = "USA",
+            year = "1980",
+            roms = listOf(
+                RomSpec("mp7313", 0x1000L, 0x7a5016a9L),
+                RomSpec("tms1100_common1_micro.pla", 0x363L, 0x62445fc9L),
+                RomSpec("tms1400_bankshot_output.pla", 0x22dL, 0x7539283bL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
             id = "astrocmd",
             title = "Astro Command Tabletop",
             subtitle = "1982 VFD shooter: fight off the invaders with MISSILE and BOMB, steer with the "

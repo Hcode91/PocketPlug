@@ -22,7 +22,7 @@ private:
 
 class TMS1K {
 public:
-    enum Type { TMS1000, TMS1100, TMS1200, TMS1300, TMS1070, TMS1270, TMS1170, TMS1370 };
+    enum Type { TMS1000, TMS1100, TMS1200, TMS1300, TMS1070, TMS1270, TMS1170, TMS1370, TMS1400 };
     struct Io {
         virtual ~Io() {}
         virtual uint8_t readK() { return 0; }
@@ -53,6 +53,7 @@ public:
         uint64_t fixed;
         uint8_t ram[256];
         uint64_t total;
+        uint32_t sr3;   // TMS1400: the 3-level return address stack (sr only holds one level)
     } s;
 
 private:
@@ -68,6 +69,7 @@ private:
     int m_oPins = 8, m_rPins = 11, m_pcBits = 6, m_xBits = 2;
     uint32_t m_oMask = 0xff, m_rMask = 0x7ff, m_pcMask = 0x3f, m_xMask = 3;
     bool m_1100 = false;
+    bool m_1400 = false;     // 4 chapters, 3-level call stack, TPC instead of COMC
     std::vector<uint8_t> m_rom;
     uint16_t m_romMask = 0x3ff;
     uint8_t m_ramMask = 0x3f;
