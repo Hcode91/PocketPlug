@@ -107,6 +107,15 @@ good reference. Differences found so far are marked V.Flash below.
   idle: some task waits on an event that is not raised yet. Next: find that consumer and what it
   waits for (likely FOK / GFS / subcode Q through 0x40, 0x4C, 0x64).
 
+- CD interrupt mask helper: 0x10061adc(enable, bits) (enable: mask |= bits; disable: mask &= bits).
+  Nothing has enabled CD interrupts yet when the system goes idle. Bits the driver uses:
+  0x4, 0x10, 0x20, 0x100, 0x200, 0x400, 0x1800, 0x2000, 0x4000, 0x8000, 0x10000.
+- CD events: the ISR posts events 8, 0x10, 6, 9 (bits 4 / 5 / 11-12 / 16) through 0x100676dc into a
+  message queue (0x1006f9b4); event 0xE comes from 0x10068734 after 0x10096444 reads the 0xBC000000
+  device. The TOC job consumer 0x10069708 is registered with 0x10067a98 as the CD event callback,
+  so the TOC read only advances on CD events: the next step is finding which event must come
+  first (probably a periodic subcode / frame event once the spindle runs).
+
 ### Interrupt map (handler chain at 0x100ACA18, check -> handler)
 
 | IRQ | Device (from the handler's registers) |
