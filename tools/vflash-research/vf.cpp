@@ -10,10 +10,37 @@
 #include <cstring>
 using namespace didj;
 struct VF : Bus {
-    std::vector<u8> rom, sdram, sram;
+    std::vector<u8> rom, sdram, sram, nv = std::vector<u8>(0x2000);
     ARM926* cpu = nullptr;
     std::map<u32, u32> regs;
     unsigned long long cycles = 0; u32 rtcBase = 0;
+    int sens = getenv("SENS0") ? 0 : 1;
+    // ---- CD drive (Sony servo chip behind the 0xC4000000 command port) ----
+    u32 servoLast = 0;              // last command's address nibble selects what SENS reports
+    int sledMode = 0;               // $2x low bits: 2 = move out, 3 = move in
+    long long sledPos = 200000;     // arbitrary units; 0 = inner limit switch
+    unsigned long long sledAt = 0;
+    void sled_update() {
+        long long dt = (long long)(cycles - sledAt) / 15000;   // 0.1 ms steps
+        sledAt = cycles;
+        if (sledMode == 3) sledPos = std::max(0LL, sledPos - dt * 20);
+        else if (sledMode == 2) sledPos += dt * 20;
+    }
+    void servo_cmd(int bits, u64 v) {
+        sled_update();
+        u32 addr = bits >= 4 ? u32(v >> (bits - 4)) & 15 : 0;
+        servoLast = addr;
+        if (addr == 2) sledMode = v & 3;
+        if (getenv("VFBT")) { printf("bt:"); u32 sp = cpu->r[13]; for (int k = 0; k < 64; k++) { u32 w; u32 a = sp + k * 4; if (a < 0x10000000 || a >= 0x14000000) break; memcpy(&w, &sdram[a - 0x10000000], 4); if (w >= 0x10010000 && w < 0x100a0000) printf(" %08x", w); } printf("\n"); }
+        if (getenv("VFSERVO")) printf("servo %d %09llx addr %x  sled %lld mode %d lr %08x t=%llu\n", bits, (unsigned long long)v, addr, sledPos, sledMode, cpu->r[14], cycles / 150000);
+    }
+    bool drive_sens() {
+        sled_update();
+        switch (servoLast) {
+        case 3: return sledPos == 0;                // limit switch
+        default: return sens;
+        }
+    }
     u32 gpioD = getenv("GPIOD") ? u32(strtoul(getenv("GPIOD"), 0, 16)) : 5;           // last written value per I/O address
     std::set<u32> seen;
     int logLimit = 4000, logged = 0;
@@ -22,12 +49,14 @@ struct VF : Bus {
         if (pa < rom.size()) return &rom[pa & ~0xfffu];
         if (pa >= 0x10000000 && pa < 0x10000000 + sdram.size()) return &sdram[(pa - 0x10000000) & ~0xfffu];
         if (pa >= 0xb8001000 && pa < 0xb8000000 + sram.size()) return &sram[(pa - 0xb8000000) & ~0xfffu];
+        if (pa >= 0xf8000000 && pa < 0xf8002000) return &nv[(pa - 0xf8000000) & ~0xfffu];
         return nullptr;
     }
     bool page_readonly(u32 pa) override { return pa < rom.size(); }
     void log(const char* k, u32 a, u32 v) {
         u32 pc = cpu ? cpu->r[15] : 0;
         bool novel = seen.insert(a).second;
+        if (getenv("VFC4") && (a >> 24) == 0xc4) { printf("%s %08x = %08x  pc %08x  t=%llu\n", k, a, v, pc, cycles / 150000); return; }
         if ((novel || getenv("VFALL")) && logged < logLimit) { logged++; printf("%s %08x = %08x  pc %08x\n", k, a, v, pc); }
     }
     // ---- interrupt controller (classic TI-Nspire / Zevio, after Firebird) ----
@@ -119,6 +148,7 @@ struct VF : Bus {
         if ((a >> 24) == 0xdc) { u32 v = int_read(a); log("R", a, v); return v; }
         u32 dev = a >> 16;
         if (dev == 0x9001 || dev == 0x900c) { u32 v = timer_read(a); log("R", a, v); return v; }
+        if (a == 0xc4000018) { u32 v = drive_sens() ? 3 : 0; log("R", a, v); return v; }
         if (a == 0xa1000010) { u32 v = 1; log("R", a, v); return v; }   // serial bus: transfer done
         if (a == 0x900d0018) { u32 v = gpioD; log("R", a, v); return v; }
         if (a == 0x90090000) return rtcBase + u32(cycles / 150000000ull);
@@ -134,6 +164,14 @@ struct VF : Bus {
     }
     std::string line;
     void io_write(u32 a, u32 v) {
+        if (a == 0xc4000014) {
+            if ((v & 1) && !(regs[a] & 1)) {
+                u64 cmd = u64(regs[0xc400000c]) << 32 | regs[0xc4000008];
+                servo_cmd(int(regs[0xc4000000]), cmd);
+                regs[0xc4000064] |= 1;                    // sent
+            }
+            regs[a] = v & ~1u; log("W", a, v); return;
+        }
         if (a >= 0xb8000800 && a < 0xb8001000) { memcpy(&sram[a - 0xb8000000], &v, 4); return; }
         if ((a >> 24) == 0xdc) { int_write(a, v); log("W", a, v); return; }
         { u32 dev = a >> 16;
@@ -147,6 +185,7 @@ struct VF : Bus {
             else if (ch != '\r') line += ch;
             return;
         }
+        if (a == 0xc4000064) { regs[a] &= ~v; log("W", a, v); return; }
         regs[a] = v; log("W", a, v);
     }
     u32 read32(u32 pa) override { u8* p = page_ptr(pa); if (p) { u32 v; memcpy(&v, p + (pa & 0xfff), 4); return v; } return io_read(pa); }
@@ -169,6 +208,7 @@ int main(int argc, char** argv) {
         vf.cycles += 4578;
         vf.tick32k();
         hot[cpu.r[15] & ~0xffu]++;
+        if (getenv("VFSAMPLE") && i % 50 == 0 && (cpu.r[15] < 0x10010900 || cpu.r[15] >= 0x10010a00)) printf("sample t=%llu pc %08x lr %08x\n", vf.cycles / 150000, cpu.r[15], cpu.r[14]);
     }
     if (getenv("DUMP")) { FILE* o = fopen("ram.bin", "wb"); fwrite(vf.sdram.data(), 1, 8 << 20, o); fclose(o); }
     for (int k = 0; k < 32; k++) if (vf.claims[k]) printf("irq %d x%lu\n", k, vf.claims[k]);

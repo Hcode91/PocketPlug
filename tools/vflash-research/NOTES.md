@@ -87,10 +87,44 @@ good reference. Differences found so far are marked V.Flash below.
 - BOOT.BIN carries its own MORE OS and drivers, so hooks at this level would not cover games:
   emulating the CD hardware (servo chip + 0xC4000000 block) is the robust route.
 
+### Drive (Sony CXD3059AR) behaviour found so far
+
+- Command words are sent MSB-first; width in 0x00 (8, 24, 32 or 36 bits), bits in 0x08 (low) / 0x0C (high).
+  The address nibble is the top 4 bits. Start = rising edge of 0x14 bit 0; 0x64 bit 0 = sent.
+- Startup: $34xxxx x 80 (servo coefficient RAM), $10, $30, $9B.., $81.., $A0.., $B0.., $C5.., $D0..,
+  $E0.., $3Axxxx and $A5EA.. (same as the datasheet's test settings), then the sled is homed:
+  loop {$AE0000, $A2004000, $30, read SENS}; SENS after $3X = SSTOP = sled at inner limit.
+  $22 moves the sled out, $23 moves it in, $20 stops. The harness models a sled that takes
+  about a second to reach home.
+- Then a successive-approximation calibration ($AD8008, $ADC008, ... $ADF788), more $A5EA..
+  settings, $A48339, and the drive's job queue empties.
+- SENS by command group (Sony CD DSP family, CXD2500 and later datasheets; psx-spx documents the
+  PS1's CXD2510): $0X FZC, $1X A.S, $2X TZC, $3X SSTOP, $4X XBUSY (high when the auto sequence
+  ends), $5X FOK, $6X SEIN, $AX GFS (frame sync), $BX COMP, $CX COUT, $EX OV64.
+- FOK, GFS, SCOR and SQSO/SQCK (subcode Q) are separate chip pins; the Zevio probably exposes
+  them through 0x40 (status) and 0x4C (subcode bytes) and the 0x64 interrupt bits.
+- The TOC request is queued as job 0x106 on queue 0x10355840 (0x1006a708). Everything is then
+  idle: some task waits on an event that is not raised yet. Next: find that consumer and what it
+  waits for (likely FOK / GFS / subcode Q through 0x40, 0x4C, 0x64).
+
+### Interrupt map (handler chain at 0x100ACA18, check -> handler)
+
+| IRQ | Device (from the handler's registers) |
+|---|---|
+| 1, 2 | UART 0 / 1 |
+| 5, 6 | timer pairs (6 = OS tick) |
+| 8 | 0xA8000000 device (0x14, 0x28) |
+| 9 | DMA (0xB0001004) |
+| 12, 20 | 0xBC000000 device (0x0C, 0x1C, 0x100..) |
+| 14 | CD controller |
+| 17, 18 | ? (0x900A0104 / 0x900A0110) |
+
+0xF8000000: 8 KB RAM cleared at boot with a flag at 0xF8001FFE (settings memory?).
+
 ## Status
 
 The boot reaches the MORE OS scheduler with a working 100 Hz tick, sets up the display (320x240),
-DMA and CD controller, then waits for the CD drive to answer its first servo command.
+DMA and CD controller, homes the drive's sled and calibrates, then queues the TOC read and goes idle.
 
 ## Next steps
 
