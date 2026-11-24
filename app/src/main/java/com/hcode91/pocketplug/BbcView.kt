@@ -13,9 +13,9 @@ import kotlin.math.hypot
 /**
  * Early-80s British school computers: a monitor on top, the cream wedge with
  * dark keys, a row of red function keys f0-f9 and BREAK, the cursor keys and
- * COPY on the right. The Master style adds the numeric keypad; the Compact
- * style is the light grey separate keyboard. Below: a pad for games and a twin
- * disc drive (tap: discs and tapes). No maker's name or logo is drawn.
+ * COPY on the right (after photos). The Master and Compact styles add the
+ * numeric keypad. The monitor stands on a twin disc drive (tap: discs and
+ * tapes); a pad for games is in front. No maker's name or logo is drawn.
  *
  * Keys report the keyboard matrix code (row << 4 | column, see bbc.h); BREAK
  * is 0xff. SHIFT and CTRL latch for the next key when tapped on their own.
@@ -57,8 +57,9 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         const val SPACE = 32
     }
 
-    private val master = model == MODEL_MASTER
     private val compact = model == MODEL_COMPACT
+    /** the Masters and the Compact have the numeric keypad */
+    private val master = model == MODEL_MASTER || compact
 
     private enum class Kind { CHAR, WIDE, FUNC, CURSOR, PAD }
 
@@ -138,16 +139,21 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
     private val drive = RectF()
     private var unit = 1f
 
-    // colours: case, case shade, keys, key side, key ink, wide keys, function keys
-    private val bodyTop = if (compact) 0xFFD4D2CC.toInt() else 0xFFE4D9BE.toInt()
-    private val bodyBottom = if (compact) 0xFFB9B7B0.toInt() else 0xFFCBBE9E.toInt()
-    private val wellColor = if (compact) 0xFF55534F.toInt() else 0xFF2B2420.toInt()
-    private val keyTop = if (compact) 0xFF4A4A4C.toInt() else 0xFF3E352F.toInt()
-    private val keySide = if (compact) 0xFF2C2C2E.toInt() else 0xFF231D19.toInt()
-    private val keyInk = 0xFFF1EADA.toInt()
-    private val wideTop = if (compact) 0xFF8E8C88.toInt() else 0xFF9C8C72.toInt()
-    private val wideSide = if (compact) 0xFF66645F.toInt() else 0xFF6F624E.toInt()
-    private val wideInk = 0xFF1E1A16.toInt()
+    // colours (from photos): cream case, black key plate, black keys with white legends,
+    // red f0-f9; the Model B's cursor keys and COPY are a brown-grey, the Masters' black
+    private val bodyTop = 0xFFEAE4D0.toInt()
+    private val bodyBottom = 0xFFD6CEB4.toInt()
+    private val wellColor = if (compact) 0xFF2A2420.toInt() else 0xFF1A1816.toInt()
+    private val keyTop = 0xFF2C2A28.toInt()
+    private val keySide = 0xFF121110.toInt()
+    private val keyInk = 0xFFF4F2EC.toInt()
+    private val wideTop = keyTop
+    private val wideSide = keySide
+    private val wideInk = keyInk
+    private val curTop = if (master) keyTop else 0xFF5E5644.toInt()
+    private val curSide = if (master) keySide else 0xFF3A3428.toInt()
+    private val driveUnit = RectF()
+    private val plate = RectF()
     private val funcTop = 0xFFC8392C.toInt()
     private val funcSide = 0xFF8C2219.toInt()
 
@@ -174,6 +180,9 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         screen.set(wf / 2 - sw / 2, monitor.top + mw * 0.05f, wf / 2 + sw / 2, monitor.top + mw * 0.05f + sh)
 
         // keyboard
+        // the twin disc drive the monitor stands on
+        driveUnit.set(monitor.left + mw * 0.04f, monitor.bottom, monitor.right - mw * 0.04f, monitor.bottom + mw * 0.1f)
+        drive.set(driveUnit)
         val cw = wf * 0.99f
         val mainUnits = rows.maxOf { r -> r.sumOf { it.units.toDouble() }.toFloat() }
         val padUnits = if (master) 4.3f else 0f
@@ -181,7 +190,7 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         val kh = unit * 1.2f
         val topH = unit * 0.7f
         val caseH = topH + kh * rows.size + unit * 0.55f
-        case.set((wf - cw) / 2, monitor.bottom + vh * 0.012f, (wf + cw) / 2, monitor.bottom + vh * 0.012f + caseH)
+        case.set((wf - cw) / 2, driveUnit.bottom + vh * 0.01f, (wf + cw) / 2, driveUnit.bottom + vh * 0.01f + caseH)
         val kbW = unit * (mainUnits + padUnits)
         val left = case.centerX() - kbW / 2
         var y = case.top + topH
@@ -213,27 +222,26 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         menuPlate.set(left, case.top + topH + kh * 0.12f, left + unit * 1.45f, case.top + topH + kh * 0.88f)
         keyByRow[0][0].rect.setEmpty()
         ledPos.set(case.right - unit * 0.8f, case.top + topH * 0.5f)
+        // the black plate the keys sit in
+        plate.set(case.left + unit * 0.25f, case.top + topH * 0.55f, case.right - unit * 0.25f, case.bottom - unit * 0.2f)
 
-        // pad (left) and drive (right) in front of the keyboard
+        // the game pad in front of the keyboard: cross on the left, RETURN / SPACE on the right
         val below = vh - case.bottom
         val zoneTop = case.bottom + below * 0.06f
         val zoneH = below * 0.88f
-        val ds = minOf(zoneH, wf * 0.32f)
-        dpad.set(wf * 0.03f, zoneTop + (zoneH - ds) / 2, wf * 0.03f + ds, zoneTop + (zoneH + ds) / 2)
-        val bs = minOf(ds * 0.42f, wf * 0.13f)
-        btnA.set(dpad.right + wf * 0.02f, dpad.centerY() - bs * 0.1f, dpad.right + wf * 0.02f + bs, dpad.centerY() - bs * 0.1f + bs)
-        btnB.set(btnA.right + wf * 0.015f, btnA.top - bs * 0.55f, btnA.right + wf * 0.015f + bs, btnA.top - bs * 0.55f + bs)
-        val dw = wf * 0.97f - (btnB.right + wf * 0.03f)
-        val dh = minOf(zoneH * 0.8f, dw * 0.75f)
-        drive.set(wf * 0.97f - dw, zoneTop + (zoneH - dh) / 2, wf * 0.97f, zoneTop + (zoneH + dh) / 2)
+        val ds = minOf(zoneH, wf * 0.42f)
+        dpad.set(wf * 0.05f, zoneTop + (zoneH - ds) / 2, wf * 0.05f + ds, zoneTop + (zoneH + ds) / 2)
+        val bs = minOf(ds * 0.48f, wf * 0.2f)
+        btnA.set(wf * 0.95f - bs * 2.15f, dpad.centerY() - bs * 0.2f, wf * 0.95f - bs * 1.15f, dpad.centerY() + bs * 0.8f)
+        btnB.set(wf * 0.95f - bs, dpad.centerY() - bs * 0.85f, wf * 0.95f, dpad.centerY() + bs * 0.15f)
     }
 
     override fun onDraw(cv: Canvas) {
         cv.drawColor(0xFF1C1A18.toInt())
         drawMonitor(cv)
+        drawDrive(cv)
         drawKeyboard(cv)
         drawPad(cv)
-        drawDrive(cv)
     }
 
     private fun drawMonitor(cv: Canvas) {
@@ -243,8 +251,11 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         paint.shader = LinearGradient(0f, monitor.top, 0f, monitor.bottom, bodyTop, bodyBottom, Shader.TileMode.CLAMP)
         cv.drawRoundRect(monitor, mw * 0.035f, mw * 0.035f, paint)
         paint.shader = null
-        paint.color = 0xFF2A2622.toInt()
-        cv.drawRoundRect(screen.left - mw * 0.02f, screen.top - mw * 0.02f, screen.right + mw * 0.02f, screen.bottom + mw * 0.02f, mw * 0.03f, mw * 0.03f, paint)
+        // the dark brown bezel around the tube
+        paint.color = 0xFF3A2E28.toInt()
+        cv.drawRoundRect(screen.left - mw * 0.035f, screen.top - mw * 0.03f, screen.right + mw * 0.035f, screen.bottom + mw * 0.04f, mw * 0.045f, mw * 0.045f, paint)
+        paint.color = 0xFF221A16.toInt()
+        cv.drawRoundRect(screen.left - mw * 0.012f, screen.top - mw * 0.012f, screen.right + mw * 0.012f, screen.bottom + mw * 0.012f, mw * 0.03f, mw * 0.03f, paint)
         paint.color = 0xFF050505.toInt()
         cv.drawRect(screen, paint)
         frame.setPixels(framePx, 0, W, 0, 0, W, H)
@@ -252,14 +263,10 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         paint.shader = RadialGradient(screen.centerX(), screen.centerY(), screen.width() * 0.75f, 0x00000000, 0x38000000, Shader.TileMode.CLAMP)
         cv.drawRect(screen, paint)
         paint.shader = null
-        // power light and knobs along the bottom
-        val by = (screen.bottom + mw * 0.02f + monitor.bottom) / 2
-        paint.color = 0xFF2A2622.toInt()
-        cv.drawCircle(monitor.right - mw * 0.06f, by, mw * 0.012f, paint)
-        paint.color = 0xFF3BD15A.toInt()
-        cv.drawCircle(monitor.right - mw * 0.06f, by, mw * 0.007f, paint)
-        paint.color = 0xFF8E846F.toInt()
-        for (i in 0..1) cv.drawCircle(monitor.right - mw * (0.11f + i * 0.045f), by, mw * 0.011f, paint)
+        // red power light on the bezel, bottom right
+        val by = screen.bottom + mw * 0.026f
+        paint.color = 0xFFE8302A.toInt()
+        cv.drawCircle(screen.right - mw * 0.02f, by, mw * 0.007f, paint)
     }
 
     private fun drawKeyboard(cv: Canvas) {
@@ -269,31 +276,34 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         paint.shader = LinearGradient(0f, case.top, 0f, case.bottom, bodyTop, bodyBottom, Shader.TileMode.CLAMP)
         cv.drawRoundRect(case, r, r, paint)
         paint.shader = null
-        // vents across the back edge
-        stroke.color = if (compact) 0xFFA3A19B.toInt() else 0xFFB7AA8B.toInt(); stroke.strokeWidth = unit * 0.06f
-        var gx = case.left + unit * 3f
-        while (gx < case.right - unit * 3f) {
-            cv.drawLine(gx, case.top + unit * 0.12f, gx, case.top + unit * 0.38f, stroke)
-            gx += unit * 0.22f
+        if (master) {
+            // ribs / vents across the back edge
+            stroke.color = 0xFFC4BBA0.toInt(); stroke.strokeWidth = unit * 0.06f
+            var gx = case.left + unit * 0.5f
+            while (gx < case.right - unit * 0.5f) {
+                cv.drawLine(gx, case.top + unit * 0.06f, gx, plate.top - unit * 0.06f, stroke)
+                gx += unit * 0.2f
+            }
         }
         paint.color = wellColor
-        cv.drawRoundRect(keyWell, unit * 0.12f, unit * 0.12f, paint)
-        if (master) cv.drawRoundRect(padWell, unit * 0.12f, unit * 0.12f, paint)
+        cv.drawRoundRect(plate, unit * 0.1f, unit * 0.1f, paint)
+        if (!master) {
+            // the glass strip along the top of the plate (no badge drawn)
+            val f0 = keyByRow[0][1].rect
+            paint.color = 0xFF3A3A3C.toInt()
+            cv.drawRect(f0.left, plate.top + unit * 0.08f, plate.right - unit * 0.3f, f0.top - unit * 0.05f, paint)
+        }
+        // caps lock / shift lock lights at the bottom left of the plate
+        for (i in 0..2) {
+            paint.color = 0xFF4A1A16.toInt()
+            cv.drawCircle(plate.left + unit * (0.35f + i * 0.4f), plate.bottom - unit * 0.18f, unit * 0.07f, paint)
+        }
         for (k in keys) drawKey(cv, k)
 
-        // drive light
-        paint.color = 0xFF2A2622.toInt()
-        cv.drawCircle(ledPos.x, ledPos.y, unit * 0.15f, paint)
-        paint.color = if (indicators != 0) 0xFFFF3B2E.toInt() else 0xFF4A2A22.toInt()
-        cv.drawCircle(ledPos.x, ledPos.y, unit * 0.1f, paint)
-        text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-        text.color = 0xFF5A5040.toInt(); text.textSize = unit * 0.18f
-        cv.drawText("DRIVE", ledPos.x - unit * 0.65f, ledPos.y + text.textSize * 0.36f, text)
-
         // MENU plate, where the blank before f0 is
-        paint.color = if (compact) 0xFFA9A7A0.toInt() else 0xFFB8AA88.toInt()
+        paint.color = 0xFF3E3A36.toInt()
         cv.drawRoundRect(menuPlate, unit * 0.08f, unit * 0.08f, paint)
-        text.color = 0xFF2A2420.toInt(); text.textSize = minOf(menuPlate.height() * 0.38f, menuPlate.width() * 0.26f)
+        text.color = 0xFFE6E0D0.toInt(); text.textSize = minOf(menuPlate.height() * 0.38f, menuPlate.width() * 0.26f)
         text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
         cv.drawText("MENU", menuPlate.centerX(), menuPlate.centerY() + text.textSize * 0.36f, text)
     }
@@ -303,7 +313,8 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
         val down = k.down || latched.contains(k)
         val (top, side, ink) = when (k.kind) {
             Kind.FUNC -> Triple(funcTop, funcSide, 0xFFFFF2E8.toInt())
-            Kind.WIDE, Kind.CURSOR -> Triple(wideTop, wideSide, wideInk)
+            Kind.CURSOR -> Triple(curTop, curSide, keyInk)
+            Kind.WIDE -> Triple(wideTop, wideSide, wideInk)
             else -> Triple(keyTop, keySide, keyInk)
         }
         val rad = unit * 0.1f
@@ -381,27 +392,27 @@ class BbcView(ctx: Context, private val model: Int) : View(ctx) {
     }
 
     private fun drawDrive(cv: Canvas) {
+        // cream twin 5.25" unit under the monitor: two dark drive fronts with slots, levers and lights
         val d = drive
         val dw = d.width()
-        paint.color = 0x77000000
-        cv.drawRoundRect(d.left + dw * 0.015f, d.top + dw * 0.02f, d.right + dw * 0.015f, d.bottom + dw * 0.02f, dw * 0.04f, dw * 0.04f, paint)
         paint.shader = LinearGradient(0f, d.top, 0f, d.bottom, bodyTop, bodyBottom, Shader.TileMode.CLAMP)
-        cv.drawRoundRect(d, dw * 0.04f, dw * 0.04f, paint)
+        cv.drawRect(d, paint)
         paint.shader = null
-        // two dark drive fronts with slots and lights
         for (i in 0..1) {
-            val fr = RectF(d.left + dw * 0.06f, d.top + d.height() * (0.24f + i * 0.36f), d.right - dw * 0.06f, d.top + d.height() * (0.54f + i * 0.36f))
-            paint.color = 0xFF2E2A26.toInt()
-            cv.drawRoundRect(fr, dw * 0.02f, dw * 0.02f, paint)
+            val fr = RectF(d.left + dw * (0.03f + i * 0.49f), d.top + d.height() * 0.15f, d.left + dw * (0.48f + i * 0.49f), d.bottom - d.height() * 0.15f)
+            paint.color = 0xFF2A2624.toInt()
+            cv.drawRoundRect(fr, dw * 0.01f, dw * 0.01f, paint)
             paint.color = 0xFF0C0B0A.toInt()
             val sy = fr.centerY()
-            cv.drawRoundRect(fr.left + dw * 0.18f, sy - fr.height() * 0.1f, fr.right - dw * 0.06f, sy + fr.height() * 0.1f, fr.height() * 0.1f, fr.height() * 0.1f, paint)
+            cv.drawRoundRect(fr.left + fr.width() * 0.2f, sy - fr.height() * 0.1f, fr.right - fr.width() * 0.06f, sy + fr.height() * 0.1f, fr.height() * 0.1f, fr.height() * 0.1f, paint)
+            paint.color = 0xFF55504A.toInt()
+            cv.drawRect(fr.left + fr.width() * 0.45f, sy + fr.height() * 0.14f, fr.left + fr.width() * 0.6f, sy + fr.height() * 0.3f, paint)
             paint.color = if (i == 0 && indicators != 0) 0xFFFF3B2E.toInt() else 0xFF4A2A22.toInt()
-            cv.drawCircle(fr.left + dw * 0.08f, sy, fr.height() * 0.11f, paint)
+            cv.drawCircle(fr.left + fr.width() * 0.08f, sy, fr.height() * 0.1f, paint)
         }
         text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-        text.color = 0xFF4E4638.toInt(); text.textSize = d.height() * 0.11f
-        cv.drawText(mediaLabel ?: "DISCS & TAPES", d.centerX(), d.top + d.height() * 0.16f, text)
+        text.color = 0xFFCFC6B4.toInt(); text.textSize = d.height() * 0.16f
+        cv.drawText(mediaLabel ?: "tap: discs & tapes", d.centerX(), d.bottom - d.height() * 0.22f, text)
     }
 
     // ---- keyboard ----
