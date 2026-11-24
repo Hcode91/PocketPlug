@@ -147,7 +147,7 @@ u16 Gpl951Core::port_in(int port)
     if (m_inputs & 0x20) v |= 0x40;
     if (m_inputs & 0x40) v |= 0x20;
     if (m_inputs & 0x80) v |= 0x10;
-    if (m_inputs & 0x01) v |= 0x08;
+    if (m_inputs & 0x03) v |= 0x08;   // A (or B from a gamepad)
     if (m_inputs & 0x08) v |= 0x02;
     return v;
 }

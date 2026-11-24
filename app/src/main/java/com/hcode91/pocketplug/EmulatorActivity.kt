@@ -43,6 +43,7 @@ class EmulatorActivity : Activity() {
     private var pet: EggPetView? = null
     private var phone: PhoneCaseView? = null
     private var arcade: ArcadeCabinetView? = null
+    private var bfCab: BasicFunCabinetView? = null
     private var handheld: HandheldView? = null
     private var nixie: NixieClockView? = null
     private var joypad: JoystickPadView? = null
@@ -549,6 +550,24 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 handheld = v
+                setContentView(v)
+            }
+            Skin.BASIC_FUN -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val level = prefs.getInt("volume_${machine.id}", 0).coerceIn(0, BasicFunCabinetView.VOLUME_LEVELS - 1)
+                volume = VOLUME_STEPS[level]
+                val style = when (machine.id) { "bfgalaga" -> BasicFunCabinetView.SWARM; "bfdigdug" -> BasicFunCabinetView.DIG; else -> BasicFunCabinetView.MAZE }
+                val v = BasicFunCabinetView(this, style).apply {
+                    volumeLevel = level
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    onVolume = {
+                        volume = VOLUME_STEPS[it]
+                        prefs.edit().putInt("volume_${machine.id}", it).apply()
+                    }
+                }
+                bfCab = v
                 setContentView(v)
             }
             Skin.ARCADE_CABINET -> {
@@ -1723,6 +1742,7 @@ class EmulatorActivity : Activity() {
             else if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
             else if (arcade != null) arcade?.updateFrame(pixels)
+            else if (bfCab != null) bfCab?.updateFrame(pixels)
             else if (handheld != null) handheld?.updateFrame(pixels)
             else if (mini != null) mini?.updateFrame(pixels)
             else if (nixie != null) nixie?.updateFrame(pixels)
@@ -1882,7 +1902,7 @@ class EmulatorActivity : Activity() {
     private fun keyBit(code: Int): Int = when (machine.skin) {
         Skin.APVS_1292 -> apvsKeyBit(code)
         Skin.EGG_PET -> petKeyBit(code)
-        Skin.PHONE_CASE, Skin.ARCADE_CABINET -> caseKeyBit(code)
+        Skin.PHONE_CASE, Skin.ARCADE_CABINET, Skin.BASIC_FUN -> caseKeyBit(code)
         Skin.HANDHELD -> handheldKeyBit(code)
         Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
         Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
@@ -2017,7 +2037,7 @@ class EmulatorActivity : Activity() {
             if (m != stickMask) { stickMask = m; setTouch(3, m); handheld?.externalMask = keyInputs or m }
             return true
         }
-        if ((machine.skin == Skin.PHONE_CASE || machine.skin == Skin.ARCADE_CABINET) && event.action == android.view.MotionEvent.ACTION_MOVE &&
+        if ((machine.skin == Skin.PHONE_CASE || machine.skin == Skin.ARCADE_CABINET || machine.skin == Skin.BASIC_FUN) && event.action == android.view.MotionEvent.ACTION_MOVE &&
             (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
             // left stick and hat both drive the D-pad
             val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
@@ -2027,7 +2047,7 @@ class EmulatorActivity : Activity() {
             if (y > 0.5f) m = m or 0x20
             if (x < -0.5f) m = m or 0x40
             if (x > 0.5f) m = m or 0x80
-            if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m }
+            if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m; bfCab?.externalMask = keyInputs or m }
             return true
         }
         if (machine.skin == Skin.GAME_WAVE && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -2493,6 +2513,7 @@ class EmulatorActivity : Activity() {
         pet?.externalMask = keyInputs
         phone?.externalMask = keyInputs or stickMask
         arcade?.externalMask = keyInputs or stickMask
+        bfCab?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
@@ -2578,6 +2599,7 @@ class EmulatorActivity : Activity() {
         pet?.externalMask = keyInputs
         phone?.externalMask = keyInputs or stickMask
         arcade?.externalMask = keyInputs or stickMask
+        bfCab?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask

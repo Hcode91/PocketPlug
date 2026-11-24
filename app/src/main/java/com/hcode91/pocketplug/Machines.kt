@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -52,7 +52,7 @@ data class MachineDef(
 val MachineDef.category: String
     get() = when (skin) {
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.LETS_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
-        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC, Skin.BEIJUE -> "Handhelds"
+        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC, Skin.BEIJUE, Skin.BASIC_FUN -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN, Skin.PLAYDIA, Skin.GAME_WAVE, Skin.BRIDGE, Skin.BEENA -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK, Skin.BACKGAMMON -> "Chess & clocks"
@@ -2830,7 +2830,7 @@ object Machines {
         MachineDef(
             id = "bfmpac",
             title = "Mini Arcade: Maze Chase",
-            subtitle = "The 1982 maze game in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet "
+            subtitle = "The 1982 maze game in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
                 + "(Basic Fun Ms. Pac-Man mini arcade; MAME sets: bfmpac + the chip's boot ROM, gpl951.bin)",
             chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 1 MB encrypted SPI flash",
             region = "USA",
@@ -2839,12 +2839,12 @@ object Machines {
                 RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
                 RomSpec("mspacman_25q80_c84014.bin", 0x100000L, 0xc0c3f8ceL),
             ),
-            skin = Skin.ARCADE_CABINET,
+            skin = Skin.BASIC_FUN,
         ),
         MachineDef(
             id = "bfgalaga",
             title = "Mini Arcade: Space Swarm",
-            subtitle = "The 1981 space shooter in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet "
+            subtitle = "The 1981 space shooter in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
                 + "(Basic Fun Galaga mini arcade; MAME sets: bfgalaga + the chip's boot ROM, gpl951.bin)",
             chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 1 MB encrypted SPI flash",
             region = "USA",
@@ -2853,12 +2853,12 @@ object Machines {
                 RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
                 RomSpec("arcadeclassicsgalaga_25q80csig_c84014.bin", 0x100000L, 0x69982c9dL),
             ),
-            skin = Skin.ARCADE_CABINET,
+            skin = Skin.BASIC_FUN,
         ),
         MachineDef(
             id = "bfdigdug",
             title = "Mini Arcade: Underground",
-            subtitle = "The 1982 digging game in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet "
+            subtitle = "The 1982 digging game in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
                 + "(Basic Fun Dig Dug mini arcade; MAME sets: bfdigdug + the chip's boot ROM, gpl951.bin)",
             chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 1 MB encrypted SPI flash",
             region = "USA",
@@ -2867,7 +2867,7 @@ object Machines {
                 RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
                 RomSpec("arcadeclassicsdigdug_25q80csig_c84014.bin", 0x100000L, 0x4030bc46L),
             ),
-            skin = Skin.ARCADE_CABINET,
+            skin = Skin.BASIC_FUN,
         ),
         MachineDef(
             id = "500in1hh",
