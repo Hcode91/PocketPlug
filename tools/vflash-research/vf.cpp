@@ -49,11 +49,13 @@ struct VF : Bus {
     static u8 bcd(int v) { return u8((v / 10) << 4 | (v % 10)); }
     static void msf(long lba, u8* m) { lba += 150; if (lba < 0) lba += 450000; m[0] = bcd(int(lba / 4500)); m[1] = bcd(int(lba / 75 % 60)); m[2] = bcd(int(lba % 75)); }
     bool spinning() { return clv != 0 && clv != 8 && tracking == 1; }
+    void gfx_int() { int_set(8, (regs[0xa8000014] & 0x3f) && (regs[0xa8000010] & 1)); }
+    void dma_int() { int_set(12, (regs[0xbc00001c] & regs[0xbc000004]) != 0); }
     void cd_int() { int_set(14, (regs[0xc4000064] & regs[0xc4000068]) != 0); }
     // ---- CD-ROM decoder: 4 slots of 1 KB at 0x3C (8 status bytes, then the raw sector start) ----
     FILE* disc = nullptr;
     int slotRd = 0, slotCount = 0;
-    bool ringStopped = false, endPending = false;
+    bool ringStopped = false, endPending = false, resetPending = false;
     bool decoding = false, matched = false;
     void read_raw(long lba, u8* out) {
         memset(out, 0, 2352);
@@ -360,9 +362,43 @@ struct VF : Bus {
         if (a == 0xc4000068) { regs[a] = v; cd_int(); log("W", a, v); return; }
         if (a == 0xc4000080 || a == 0xc4000024) ringStopped = false;
         if (a == 0xc4000024) { slotRd = slotCount = 0; decoder_update(); decoding = false; }   // a new ring read starts with an empty header buffer
+        // ---- DMA engine 0xBC000000: channel n at 0x100 + n*16 (control: count in bits 0-9, words;
+        // source; destination). 0x10 bit n starts it, 0x1C = done (write 1 to clear), 0x04 = IRQ 12 enable.
+        if ((a >> 24) == 0xbc) {
+            if (a == 0xbc00001c) { regs[a] &= ~v; dma_int(); log("W", a, v); return; }
+            regs[a] = v; log("W", a, v);
+            if (a == 0xbc000004) dma_int();
+            if (a == 0xbc000010) for (int ch = 0; ch < 8; ch++) if (v >> ch & 1) {
+                u32 base = 0xbc000100 + ch * 16, ctl = regs[base], src = regs[base + 4], dst = regs[base + 8], n = (ctl & 0x3ff) * 4;
+                for (u32 i = 0; i < n; i += 4) {
+                    if (src + i < 0x10000000 || src + i + 4 > 0x10000000 + sdram.size() || dst + i < 0x10000000 || dst + i + 4 > 0x10000000 + sdram.size()) break;
+                    memcpy(&sdram[dst + i - 0x10000000], &sdram[src + i - 0x10000000], 4);
+                }
+                if (getenv("VFDMA")) printf("dma ch%d %08x -> %08x %u bytes t=%llu\n", ch, src, dst, n, cycles / 150000);
+                regs[0xbc00000c] &= ~(1u << ch); regs[0xbc00001c] |= 1u << ch; dma_int();
+            }
+            return;
+        }
+        // ---- graphics engine 0xA8000000 (stub): a command list at 0x28 starts with 0x00 = 1; report it
+        // finished at once (code 3 in bits 16-31), pending in 0x14 (write 1 to clear), IRQ 8 when 0x10 bit 0
+        if ((a >> 24) == 0xa8) {
+            if (a == 0xa8000014) { regs[a] &= ~v; gfx_int(); log("W", a, v); return; }
+            if (a == 0xa8000000) {                     // 1 = run the list at 0x28, 3 = reset; status code 3 = busy, 0 = idle
+                if ((v & 3) == 1) {
+                    if (getenv("VFGFX")) printf("gfx list %08x t=%llu\n", regs[0xa8000028], cycles / 150000);
+                    regs[0xa8000014] |= 0xfd08; gfx_int();   // the list's closing 0x1400FD01 packet: interrupt with ID 0xFD
+                }
+                regs[a] = 0; log("W", a, v); return;
+            }
+            regs[a] = v; if (a == 0xa8000010) gfx_int(); log("W", a, v); return;
+        }
+        if (a == 0x900a0008 && (v & 1)) { resetPending = true; log("W", a, v); return; }   // chip reset (RAM and 0x8FFF0000 kept)
         if (a == 0xc4000074) { if ((v & 3) && slotCount) { slotRd = (slotRd + 1) & 3; slotCount--; decoder_update(); } log("W", a, v); return; }
         if (a == 0xc4000040) {
-            if (!(v & 4)) decoding = false;
+            if (!(v & 4)) {
+                decoding = false;
+                if ((regs[a] & 4) && !(v & 0x80)) { regs[0xc4000064] |= 1u << 4; cd_int(); }   // stopping a ring transfer: confirm with "ended"
+            }
             if ((v & 4) && !(regs[a] & 4)) { slotRd = slotCount = 0; decoder_update(); }   // transfer start empties the header buffer
         }
         regs[a] = v; log("W", a, v);
@@ -413,6 +449,14 @@ int main(int argc, char** argv) {
         vf.cycles += 4578;
         vf.tick32k();
         vf.subcode_tick();
+        if (vf.resetPending) {
+            vf.resetPending = false;
+            printf("chip reset at t=%llu (0x8fff0004 = %x)\n", vf.cycles / 150000, vf.regs[0x8fff0004]);
+            u32 keep = vf.regs[0x8fff0004];
+            cpu.reset();
+            vf.regs[0x8fff0004] = keep;
+            if (vf.regs[0x900b0000] == 3) vf.regs[0x900a000c] = 2;   // suspended (0x900B0000 = 3): wake-up reason for the ROM
+        }
         if (i % 546 == 0) vf.vblank();        // ~60 Hz
         hot[cpu.r[15] & ~0xffu]++;
         if (getenv("VFSAMPLE") && i % 3 == 0 && (cpu.r[15] < 0x10010900 || cpu.r[15] >= 0x10010a00)) {

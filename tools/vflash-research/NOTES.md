@@ -224,11 +224,39 @@ good reference. Differences found so far are marked V.Flash below.
   received code 5 (started). Next: find what should call 0x10066568 while data arrives (or why
   it does not), so the file system copies the 14 sectors out and completes job 0x206.
 
+### BOOT.BIN loads and runs (vf.cpp, DISC=<image.bin>, GPIOD=0)
+
+- Ring consumer: each sector is copied out of the ring by the DMA engine at 0xBC000000 (channel 7:
+  0x170 control with the count of 32-bit words in bits 0-9, 0x174 source, 0x178 destination;
+  0x10 bit n starts channel n, 0x0C = busy, 0x1C = done (write 1 to clear), 0x04 = IRQ 12 enable;
+  the handler 0x10096C88 calls the channel's callback). Its completion posts event 0x0E, which lets
+  the CD layer deliver the next sector (flow flag bit 0 of 0x103561F8; bit 2 = paused until the
+  file system asks for more with event 1).
+- Event 1 for data outside the ring stops the transfer (0x40 bit 2 cleared) and waits for the
+  decoder to confirm with "transfer ended" (0x64 bit 4); the event-8 handler then re-issues the
+  pending request saved at 0x10355300.
+- BOOT.BIN (LBA 50..1030, header "BOOT", size 0x1EA2CC, load 0x10C00000, entry 0x10C0011C) is read
+  into 0x10C00000 and started. It jumps through [0x10C00020] = 0x1880, the ROM's suspend routine
+  (0x900A0F04 = 0x16, 0x8FFF0004 = 0xCD, 0x900B0000 = 3, 0x900B0004 = 2, 0x900B0014 = 1,
+  0x900A0008 = 1). The chip resets; the ROM reset path reads the wake reason in 0x900A000C
+  (bit 1 = woke from sleep) and resumes through the RAM vector 0x1000FFC8, which brings up the
+  game's own MORE OS (second UART banner) running at 0x109xxxxx.
+- The game drives the graphics engine at 0xA8000000 (IRQ 8): 0x28 = command list address,
+  0x00 = 1 runs it (3 = reset; status code in bits 16-31, 3 = busy), 0x10 = IRQ enable, 0x14 =
+  interrupt status (write 1 to clear): bit 3 with ID 0xFD in bits 8-15 is the list-end interrupt
+  raised by the list's closing 0x1400FD01 packet. 0x90/0x94 = 0x00F00200 and 0x98 = 0x10048000
+  look like the render target. Command lists are register-write packets (0x20RRNNNN = write N
+  registers from R), opcodes 0x84/0x88/0x8A/0x8B/0x8C and 0x1400xx01 interrupts.
+- With a stub that finishes every list at once, the game runs its main loop (about 1.8 million
+  lists in 15 s). Nothing appears on screen because all drawing goes through this engine.
+  Next: decode the graphics command stream and render it; then input (GPIO), sound and the
+  game's own CD reads.
+
 ## Status
 
 The boot reaches the MORE OS scheduler, shows the VTech logo and the V.Smile Pro splash, spins the
-disc up, reads the TOC, accepts the disc, starts the boot loader and reads the first 20 sectors of
-the ISO file system. BOOT.BIN itself is not read yet.
+disc up, accepts it, loads BOOT.BIN, suspends and resumes into it, and the game's main loop runs.
+Nothing is drawn yet: the graphics engine is a stub.
 
 ## Next steps
 
