@@ -43,7 +43,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/common/tms5110/*` | BSD-3-Clause | Port of MAME's sound/tms5110.cpp (Frank Palazzolo, Jarek Burczynski, Aaron Giles, Jonathan Gevaryahu, Couriersud) and machine/tms6100.cpp (hap) |
 | `app/src/main/cpp/cores/bbcbc/*` | GPL-2.0-or-later | Port of MAME's unicard/bbcbc.cpp (Incog, Robbbert), BSD-3 |
 | `app/src/main/cpp/cores/beena/*` | BSD-3-Clause | Port of MAME's sega/sega_beena.cpp and sound/ap2010pcm.cpp (R. Belmont, QUFB), BSD-3; runs on the GPL-3 ARM926 interpreter |
-| `app/src/main/cpp/cores/gpl162xx/*` | BSD-3-Clause | Port of MAME's generalplus_gpl162xx_soc*.cpp, generalplus_gpl162xx_b_soc.cpp, gpl_renderer.cpp, generalplus_gpl_dma.cpp, generalplus_gpl_timebase.cpp and generalplus_gpl16250*.cpp (David Haywood, Ryan Holtz), BSD-3; uses the GPL-2+ u'nSP core |
+| `app/src/main/cpp/cores/gpl162xx/*` | BSD-3-Clause | Port of MAME's generalplus_gpl162xx_soc*.cpp, generalplus_gpl162xx_b_soc.cpp, gpl_renderer.cpp, generalplus_gpl_dma.cpp, generalplus_gpl_timebase.cpp, generalplus_gpl16250*.cpp, generalplus_gpl951xx_soc.cpp, generalplus_gpl_chx.cpp, generalplus_gpl951xx_rtc.cpp, generic_spi_flash.cpp and generalplus_gpl951xx.cpp (David Haywood, Ryan Holtz), BSD-3; uses the GPL-2+ u'nSP core |
 | `app/src/main/cpp/cores/chess/beluga.*` | GPL-2.0-or-later | Port of MAME's novag/primo.cpp (hap), BSD-3 |
 | `app/src/main/cpp/common/chessboard.h` | BSD-3-Clause | Logic of MAME's sensorboard (hap) |
 | `app/src/main/cpp/common/w65c02.*` | GPL-2.0-or-later | Own W65C02S core |

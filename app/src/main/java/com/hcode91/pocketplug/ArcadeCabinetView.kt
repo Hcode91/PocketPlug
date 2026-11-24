@@ -19,7 +19,8 @@ import kotlin.random.Random
  * Tap the marquee for the menu. Input bits follow the VT369 controller:
  * A 0x01, B 0x02, Select 0x04, Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80.
  */
-class ArcadeCabinetView(ctx: Context, private val a6: Boolean = false) : View(ctx) {
+class ArcadeCabinetView(ctx: Context, private val a6: Boolean = false, private val fw: Int = 256) : View(ctx) {
+    // fw: picture width (256 for the NES-type chips, 320 for the GPL951 mini arcades)
     // a6 = true: the A6Plus type (white and blue cabinet, red ball-top stick,
     // eight red action buttons and small SELECT / START / RESET buttons)
 
@@ -34,8 +35,8 @@ class ArcadeCabinetView(ctx: Context, private val a6: Boolean = false) : View(ct
 
     companion object { const val VOLUME_LEVELS = 4 }
 
-    private val frame = Bitmap.createBitmap(256, 240, Bitmap.Config.ARGB_8888)
-    private val framePx = IntArray(256 * 240)
+    private val frame = Bitmap.createBitmap(fw, 240, Bitmap.Config.ARGB_8888)
+    private val framePx = IntArray(fw * 240)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -76,8 +77,8 @@ class ArcadeCabinetView(ctx: Context, private val a6: Boolean = false) : View(ct
     private var volumeShownAt = Long.MIN_VALUE / 2
 
     fun updateFrame(px: IntArray) {
-        if (px.size < 256 * 240) return
-        System.arraycopy(px, 0, framePx, 0, 256 * 240)
+        if (px.size < fw * 240) return
+        System.arraycopy(px, 0, framePx, 0, fw * 240)
         postInvalidate()
     }
 
@@ -90,7 +91,7 @@ class ArcadeCabinetView(ctx: Context, private val a6: Boolean = false) : View(ct
         cab.set(l, t, l + cw, t + ch)
         marquee.set(l - cw * 0.02f, t, l + cw * 1.02f, t + cw * 0.26f)
         val sw = cw * 0.74f
-        val sh = sw * 240f / 256f
+        val sh = sw * 240f / fw
         val sTop = t + cw * 0.36f
         screen.set(l + (cw - sw) / 2, sTop, l + (cw + sw) / 2, sTop + sh)
         bezel.set(screen.left - cw * 0.06f, screen.top - cw * 0.05f, screen.right + cw * 0.06f, screen.bottom + cw * 0.05f)
@@ -264,7 +265,7 @@ class ArcadeCabinetView(ctx: Context, private val a6: Boolean = false) : View(ct
         c.drawRoundRect(bezel, cw * 0.03f, cw * 0.03f, paint)
         stroke.color = 0xFF3B2F55.toInt(); stroke.strokeWidth = cw * 0.008f
         c.drawRoundRect(bezel, cw * 0.03f, cw * 0.03f, stroke)
-        frame.setPixels(framePx, 0, 256, 0, 0, 256, 240)
+        frame.setPixels(framePx, 0, fw, 0, 0, fw, 240)
         c.drawBitmap(frame, null, screen, nearest)
         paint.color = Color.WHITE; paint.shader = LinearGradient(screen.left, screen.top, screen.right, screen.bottom, 0x14FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
         c.drawRect(screen, paint); paint.color = Color.WHITE; paint.shader = null

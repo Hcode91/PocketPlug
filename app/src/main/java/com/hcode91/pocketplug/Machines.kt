@@ -2828,6 +2828,48 @@ object Machines {
             skin = Skin.BEIJUE,
         ),
         MachineDef(
+            id = "bfmpac",
+            title = "Mini Arcade: Maze Chase",
+            subtitle = "The 1982 maze game in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet "
+                + "(Basic Fun Ms. Pac-Man mini arcade; MAME sets: bfmpac + the chip's boot ROM, gpl951.bin)",
+            chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 1 MB encrypted SPI flash",
+            region = "USA",
+            year = "2017",
+            roms = listOf(
+                RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
+                RomSpec("mspacman_25q80_c84014.bin", 0x100000L, 0xc0c3f8ceL),
+            ),
+            skin = Skin.ARCADE_CABINET,
+        ),
+        MachineDef(
+            id = "bfgalaga",
+            title = "Mini Arcade: Space Swarm",
+            subtitle = "The 1981 space shooter in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet "
+                + "(Basic Fun Galaga mini arcade; MAME sets: bfgalaga + the chip's boot ROM, gpl951.bin)",
+            chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 1 MB encrypted SPI flash",
+            region = "USA",
+            year = "2017",
+            roms = listOf(
+                RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
+                RomSpec("arcadeclassicsgalaga_25q80csig_c84014.bin", 0x100000L, 0x69982c9dL),
+            ),
+            skin = Skin.ARCADE_CABINET,
+        ),
+        MachineDef(
+            id = "bfdigdug",
+            title = "Mini Arcade: Underground",
+            subtitle = "The 1982 digging game in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet "
+                + "(Basic Fun Dig Dug mini arcade; MAME sets: bfdigdug + the chip's boot ROM, gpl951.bin)",
+            chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 1 MB encrypted SPI flash",
+            region = "USA",
+            year = "2018",
+            roms = listOf(
+                RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
+                RomSpec("arcadeclassicsdigdug_25q80csig_c84014.bin", 0x100000L, 0x4030bc46L),
+            ),
+            skin = Skin.ARCADE_CABINET,
+        ),
+        MachineDef(
             id = "500in1hh",
             title = "500-in-1 Handheld Game",
             subtitle = "White sideways handheld with a square colour screen, D-pad and A/B; 500 NES-style games "

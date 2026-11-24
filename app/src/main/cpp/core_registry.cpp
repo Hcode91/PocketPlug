@@ -33,6 +33,7 @@
 #include "cores/bbcbc/bbcbc.h"
 #include "cores/beena/beena.h"
 #include "cores/gpl162xx/gpl162xx.h"
+#include "cores/gpl162xx/gpl951.h"
 #include "cores/chess/beluga.h"
 #include "cores/chess/bkc.h"
 #include "cores/xavix/xavix.h"
@@ -486,6 +487,8 @@ Core* createCore(const std::string& id)
         return new Gpl162xxCore(Gpl162xxCore::BEIJUEHH);
     if (id == "beambox")       // Rescue Bots Beam Box (GPL16258VB + NAND)
         return new Gpl162xxCore(Gpl162xxCore::BEAMBOX);
+    if (id == "bfmpac" || id == "bfgalaga" || id == "bfdigdug")   // Basic Fun mini arcades (GPL951xx)
+        return new Gpl951Core();
     if (id == "beena")         // Sega Toys Advanced Pico BEENA
         return new BeenaCore();
     if (id == "bbcbc")         // Unicard Bridge Companion
