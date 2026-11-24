@@ -45,6 +45,8 @@ controller.
 | Basketball (Bambino, 1979) | `bambball` | Hitachi HD38750 (HMCS43, own core), VFD drawn from MAME's SVG | Attract mode and play run; skill and teams switches |
 | Alien Chase tabletop (Tomy, 1984) | `alnchase` | NEC uPD553C (uCOM-43, own core), two-sided VFD from MAME's SVG | Every element's lit time over 600 frames within a few frames of MAME |
 | Alphie robot (Playskool, 1978) | `alphie` | TI TMS1000 (own core) | LED and sound output match MAME with the same presses |
+| Bridge Companion (Unicard, 1985) | `bbcbc` | Z80 + Z80 PIO + TMS9129 (port of MAME's unicard/bbcbc.cpp) | Runs to its "plug in cartridge" screen; needs cartridge dumps to play |
+| Bingo Bear talking puppet (Hasbro / Tiger, 1986) | `bbear` | TI TMS1100 + TMS5110A speech and TMS6100 speech ROMs (ports of MAME's tms1k, tms5110, tms6100) | Greets you, then talks when the mouth sensor is worked, as in MAME (which marks its controls imperfect) |
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
 | Arcade Mania (Milton Bradley, 1983) | `arcmania` | TI TMS1100 (own core) | LEDs and sound match MAME with the same presses |
 | Arrange Ball (Tandy, 1980) | `arrball` | TI TMS1000 (own core) | Lamps, digits and sound match MAME with the same presses |
@@ -160,6 +162,8 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Basketball | `bambball` | `hd38750a08`, `bambball.svg` | 2,176 / 281,982 bytes | `907fef18`, `df113d8a` |
 | Alien Chase | `alnchase` | `d553c_258`, `alnchase.svg` | 2,048 / 576,555 bytes | `c5284ff5`, `b2c1734b` |
 | Alphie | `alphie` | `us4280809`, `tms1000_common2_micro.pla` | 1,024 / 867 bytes | `f8f14013`, `d33da3cf` |
+| Bridge Companion | `bbcbc` | `br_4_1.ic3`, `br_4_2.ic4` (plus your cartridge dumps, MAME software list `bbcbc`) | 8,192 / 8,192 bytes | `7c880d75`, `16a33aef` |
+| Bingo Bear talking puppet | `bbear` | `e7cl04n2l`, `tms1100_common1_micro.pla`, `tms1100_bbear_output.pla`, `cm62056`, `cm62057` | 2,048 / 867 / 365 / 16,384 / 16,384 bytes | `e2e4ff07`, `62445fc9`, `5a0b8e88`, `550b40d1`, `383a8a9a` |
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |
 | Arcade Mania | `arcmania` | `m34078a`, `tms1100_common1_micro.pla`, `tms1100_arcmania_output.pla` | 2,048 / 867 / 365 bytes | `90ea0087`, `62445fc9`, `a1517b15` |
 | Arrange Ball | `arrball` | `mp0166`, `tms1000_common2_micro.pla`, `tms1000_arrball_output.pla` | 1,024 / 867 / 365 bytes | `a78694db`, `d33da3cf`, `ffc206fb` |

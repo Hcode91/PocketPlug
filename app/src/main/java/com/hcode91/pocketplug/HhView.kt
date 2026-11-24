@@ -425,6 +425,7 @@ class HhSkin(
             "auslalom" -> autoslalom()
             "autorace" -> autoRace()
             "bassmate" -> bassmate()
+            "bbear" -> talkingBear()
             else -> null
         }
 
@@ -1011,6 +1012,41 @@ class HhSkin(
                 },
             )
         }
+
+        /** Talking plush puppet (placeholder until photos): a plain brown bear with its three
+         *  touch sensors: the mouth (open / close it to make him talk), the neck (scratch it when he
+         *  asks) and the body (hug). No screen. */
+        private fun talkingBear() = HhSkin(
+            1000f, 1320f, 0xFF1C2A3A.toInt(),
+            screen = RectF(), bezel = 0, bezelPad = 0f,
+            menu = PointF(500f, 1290f),
+            parts = listOf(HhSkin.ScreenPart(0f, 1f, RectF())),
+            controls = listOf(
+                Control(Kind.BUTTON, 500f, 470f, 60f, color = 0xFFE9C9A0.toInt(), bit = 1 shl 4, bw = 200f, bh = 110f,
+                    face = "MOUTH", faceColor = 0xFF5A3418.toInt(), faceSize = 34f, shine = false),
+                Control(Kind.BUTTON, 500f, 640f, 50f, color = 0xFF9A6236.toInt(), bit = 1 shl 6, bw = 260f, bh = 70f,
+                    face = "NECK", faceColor = 0xFFF6E6D0.toInt(), faceSize = 30f, shine = false),
+                Control(Kind.BUTTON, 500f, 930f, 80f, color = 0xFFE9C9A0.toInt(), bit = 1 shl 5, bw = 300f, bh = 240f,
+                    face = "HUG", faceColor = 0xFF5A3418.toInt(), faceSize = 44f, shine = false),
+            ),
+            drawBody = { c, p, _ ->
+                val fur = 0xFF8A5530.toInt(); val dark = 0xFF6E4122.toInt(); val light = 0xFFD9B48A.toInt()
+                // body, arms and feet
+                p.color = dark
+                c.drawOval(RectF(150f, 700f, 330f, 1000f), p); c.drawOval(RectF(670f, 700f, 850f, 1000f), p)
+                p.color = fur; c.drawOval(RectF(250f, 640f, 750f, 1210f), p)
+                p.color = dark; c.drawOval(RectF(250f, 1120f, 450f, 1260f), p); c.drawOval(RectF(550f, 1120f, 750f, 1260f), p)
+                p.color = light; c.drawOval(RectF(290f, 1150f, 410f, 1240f), p); c.drawOval(RectF(590f, 1150f, 710f, 1240f), p)
+                // head, ears, eyes and nose
+                p.color = fur; c.drawCircle(285f, 190f, 95f, p); c.drawCircle(715f, 190f, 95f, p)
+                p.color = light; c.drawCircle(285f, 190f, 55f, p); c.drawCircle(715f, 190f, 55f, p)
+                p.color = fur; c.drawOval(RectF(250f, 130f, 750f, 640f), p)
+                p.color = 0xFF1A1210.toInt(); c.drawCircle(405f, 330f, 30f, p); c.drawCircle(595f, 330f, 30f, p)
+                p.color = Color.WHITE; c.drawCircle(395f, 320f, 9f, p); c.drawCircle(585f, 320f, 9f, p)
+                p.color = light; c.drawOval(RectF(370f, 380f, 630f, 560f), p)
+                p.color = 0xFF2A1A12.toInt(); c.drawOval(RectF(460f, 385f, 540f, 430f), p)
+            },
+        )
 
         /** Playskool Alphie (1978), from the box: the blue robot with the button at its neck, the
          *  five LEDs down its chest over the coloured stripes, the question arm (left) and answer

@@ -37,6 +37,7 @@ class EmulatorActivity : Activity() {
     private var astroPad: AstrocadeControllerView? = null
     private var astroConsole: AstrocadeConsoleView? = null
     private var a3dPad: Arcade3dPadView? = null
+    private var bridge: BridgeCompanionView? = null
     private var mini: MiniArcadeView? = null
     private var pet: EggPetView? = null
     private var phone: PhoneCaseView? = null
@@ -577,6 +578,19 @@ class EmulatorActivity : Activity() {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)   // TV cabinet incl. margins
                     add(m, 1.12f)    // mat incl. its SELECT/START strip
+                })
+            }
+            Skin.BRIDGE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = BridgeCompanionView(this).apply {
+                    onInput = { setTouch(1, it) }
+                    onMenu = { showMenu() }
+                }
+                bridge = v
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.85f)
+                    add(v, 0.75f)
                 })
             }
             Skin.APF -> {
@@ -1853,6 +1867,7 @@ class EmulatorActivity : Activity() {
         Skin.ASTROCADE -> AstroBits.keyBit(code)
         Skin.MINI_ARCADE -> MiniArcadeView.keyBit(code)
         Skin.TV_CONSOLE, Skin.PLUG_PAD -> A3dBits.keyBit(code)
+        Skin.BRIDGE -> BridgeCompanionView.keyBit(code)
         Skin.ARCADE_GENIUS -> GeniusBits.keyBit(code)
         Skin.GIZMONDO -> GizBits.keyBit(code)
         Skin.ZODIAC -> ZodBits.keyBit(code)
@@ -2469,6 +2484,7 @@ class EmulatorActivity : Activity() {
         astroPad?.externalMask = keyInputs
         astroConsole?.externalMask = keyInputs
         a3dPad?.externalMask = keyInputs
+        bridge?.externalMask = keyInputs
         mini?.externalMask = keyInputs
         return true
     }
@@ -2551,6 +2567,7 @@ class EmulatorActivity : Activity() {
         astroPad?.externalMask = keyInputs
         astroConsole?.externalMask = keyInputs
         a3dPad?.externalMask = keyInputs
+        bridge?.externalMask = keyInputs
         mini?.externalMask = keyInputs
         return true
     }

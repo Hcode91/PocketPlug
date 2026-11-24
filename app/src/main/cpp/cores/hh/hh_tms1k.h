@@ -4,6 +4,7 @@
 #pragma once
 #include "hh_base.h"
 #include "../../common/tms1k.h"
+#include "../../common/tms5110/tms5110.h"
 
 class HhTms1kCore : public HhBase, private TMS1K::Io {
 public:
@@ -24,10 +25,20 @@ private:
     void writeR(uint32_t r) override;
     void setPower(bool on);
 
+    void speechTo(uint64_t t);
+
     const struct Tms1kGame* m_g;
+    // talking toys: TMS5110A speech + TMS6100 VSM, 8 kHz (one sample per 40 clocks at 320 kHz)
+    Tms5110 m_tms;
+    Tms6100 m_vsm;
+    std::vector<uint8_t> m_vsmRom;
+    bool m_speechOn = false;
+    uint64_t m_spPos = 0;
+    std::vector<int16_t> m_speech;
     TMS1K m_cpu;
     struct State {
         uint32_t r;
+        uint32_t o2;          // Bingo Bear: the raw R outputs
         uint16_t o, inpMux;
         uint8_t power;
         uint64_t idle;        // clocks passed while powered off

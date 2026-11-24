@@ -106,6 +106,7 @@ object SkinPreview {
             else -> AtariXlView.MODEL_1200XL
         })
         Skin.ACORN -> AcornView(ctx, m.badge)
+        Skin.BRIDGE -> stack(ctx, tv(ctx) to 0.85f, BridgeCompanionView(ctx) to 0.75f)
         Skin.BBC -> BbcView(ctx, when (m.badge) {
             "m128", "mt", "m512", "met" -> BbcView.MODEL_MASTER
             "mc" -> BbcView.MODEL_COMPACT

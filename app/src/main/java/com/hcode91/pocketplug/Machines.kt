@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -54,7 +54,7 @@ val MachineDef.category: String
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.LETS_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC -> "Handhelds"
         Skin.EGG_PET -> "Pets"
-        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN, Skin.PLAYDIA, Skin.GAME_WAVE -> "Consoles"
+        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN, Skin.PLAYDIA, Skin.GAME_WAVE, Skin.BRIDGE -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK, Skin.BACKGAMMON -> "Chess & clocks"
         else -> "Computers"
     }
@@ -1254,6 +1254,27 @@ object Machines {
             builtInGame = "Gunfight, Checkmate, Calculator, Scribbling",
         ),
         MachineDef(
+            id = "bbcbc",
+            title = "Bridge Companion",
+            subtitle = "1985 bridge-playing console for the TV: plug in a bridge cartridge (bidding, defence, club and "
+                + "master play) and bid with the suit keys (Unicard BBC Bridge Companion; MAME set: bbcbc)",
+            chip = "Z80 + TMS9129 VDP",
+            region = "UK",
+            year = "1985",
+            roms = listOf(
+                RomSpec("br_4_1.ic3", 0x2000L, 0x7c880d75L),
+                RomSpec("br_4_2.ic4", 0x2000L, 0x16a33aefL),
+            ),
+            skin = Skin.BRIDGE,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x8000,
+            cartJoin = true,
+            setup = listOf(
+                "The console needs a cartridge: without one it asks you to plug one in. Add your bridge cartridge dumps (MAME's bbcbc software list zips).",
+                "Bid with the grey keys (the suits, NT, PASS, DBL, RDBL); PLAY YES / PLAY NO answer its questions; START begins, BACK steps back.",
+            ),
+        ),
+        MachineDef(
             id = "apfm1000",
             title = "MP1000 TV Game",
             subtitle = "1978 console with Rocket Patrol built in and two joystick-and-keypad controllers. "
@@ -1327,6 +1348,28 @@ object Machines {
                 RomSpec("tms1000_common2_micro.pla", 0x363L, 0xd33da3cfL),
             ),
             skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "bbear",
+            title = "Talking Bear Puppet",
+            subtitle = "1986 talking hand puppet with speech: open and close his mouth to make him talk, scratch his "
+                + "neck when he asks, hug him (Hasbro / Tiger Bingo Bear; MAME set: bbear)",
+            chip = "TI TMS1100 + TMS5110A speech",
+            region = "USA",
+            year = "1986",
+            roms = listOf(
+                RomSpec("e7cl04n2l", 0x800L, 0xe2e4ff07L),
+                RomSpec("tms1100_common1_micro.pla", 0x363L, 0x62445fc9L),
+                RomSpec("tms1100_bbear_output.pla", 0x16dL, 0x5a0b8e88L),
+                RomSpec("cm62056", 0x4000L, 0x550b40d1L),
+                RomSpec("cm62057", 0x4000L, 0x383a8a9aL),
+            ),
+            skin = Skin.HH,
+            setup = listOf(
+                "He greets you when he starts, then waits: tap MOUTH (open and close his mouth) to make him talk.",
+                "Scratch his NECK when he asks for it, and HUG him.",
+                "The touch areas are placeholders for now: the puppet itself comes later.",
+            ),
         ),
         MachineDef(
             id = "amaztron",

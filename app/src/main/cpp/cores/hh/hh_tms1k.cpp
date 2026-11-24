@@ -3,9 +3,12 @@
 
 #include "hh_tms1k.h"
 #include <cstring>
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 
 namespace {
-enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT };
+enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT, BBEAR };
 // the guessed output PLA (O0 = bit 0 of the index)
 const uint16_t kAlphieOpla[0x20] = { 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1 };
 }
@@ -34,6 +37,8 @@ const Tms1kGame kGames[] = {
     { "arrball", ARRBALL, TMS1K::TMS1000, 325000, "mp0166", "tms1000_common2_micro.pla", "tms1000_arrball_output.pla", nullptr, "", 7, 7 },
     // Parker Brothers Bank Shot (1980): TMS1400, 70 LEDs on a pool table (R2-R10 x O0-O7)
     { "bankshot", BANKSHOT, TMS1K::TMS1400, 475000, "mp7313", "tms1100_common1_micro.pla", "tms1400_bankshot_output.pla", nullptr, "", 11, 8 },
+    // Hasbro / Tiger Bingo Bear (1986): TMS1100 + TMS5110A speech from 2 x 16 KB VSMs, no display
+    { "bbear", BBEAR, TMS1K::TMS1100, 320000, "e7cl04n2l", "tms1100_common1_micro.pla", "tms1100_bbear_output.pla", nullptr, "", 1, 1 },
     { "arcmania", ARCMANIA, TMS1K::TMS1100, 250000, "m34078a", "tms1100_common1_micro.pla", "tms1100_arcmania_output.pla", nullptr, "", 1, 9 },
 };
 const Tms1kGame* find(const std::string& id)
@@ -62,6 +67,18 @@ bool HhTms1kCore::load(const std::vector<RomFile>& roms, std::string& error)
     if (!mp) { error = std::string("Missing ") + m_g->mpla; return false; }
     if (m_g->opla && !op) { error = std::string("Missing ") + m_g->opla; return false; }
     if (!loadScreen(roms, m_g->svg, m_g->rows, m_g->cols, error)) return false;
+    if (m_g->kind == BBEAR) {
+        const RomFile* v0 = file(roms, "cm62056");
+        const RomFile* v1 = file(roms, "cm62057");
+        if (!v0 || !v1) { error = "Missing the speech ROMs (cm62056, cm62057)"; return false; }
+        m_vsmRom.assign(0x10000, 0xff);     // 8000-bfff: the module slot (empty)
+        std::memcpy(m_vsmRom.data(), v0->data.data(), std::min<size_t>(v0->data.size(), 0x4000));
+        std::memcpy(m_vsmRom.data() + 0x4000, v1->data.data(), std::min<size_t>(v1->data.size(), 0x4000));
+        m_vsm.setRom(m_vsmRom.data(), 0x10000);
+        m_tms.init(&m_vsm);
+        m_tms.update = [this] { speechTo(now()); };
+        m_speechOn = true;
+    }
     m_cpu.configure(m_g->type, this);
     if (m_g->otable) m_cpu.setOutputTable(m_g->otable);
     std::string mtext(mp->data.begin(), mp->data.end());
@@ -80,6 +97,17 @@ void HhTms1kCore::reset()
     m_cpu.reset();
     m_s.power = 1;        // as MAME's machine_reset: on, whatever the reset wrote
     m_s.prevIn = m_in;
+    if (m_speechOn) { m_vsm.reset(); m_tms.device_reset(); m_spPos = now(); m_speech.clear(); }
+}
+
+void HhTms1kCore::speechTo(uint64_t t)
+{
+    while (m_spPos + 40 <= t) {
+        int16_t smp;
+        m_tms.process(&smp, 1);
+        m_speech.push_back(smp);
+        m_spPos += 40;
+    }
 }
 
 void HhTms1kCore::setPower(bool on)
@@ -102,7 +130,20 @@ int HhTms1kCore::runCpu(int n)
 
 void HhTms1kCore::runFrame()
 {
+    size_t before = m_audio.size();
     runFrameCommon();
+    if (!m_speechOn) return;
+    // mix the speech (8 kHz) into this frame's 44.1 kHz samples
+    speechTo(now());
+    size_t n = m_audio.size() > before ? m_audio.size() - before : 0;
+    size_t sn = m_speech.size();
+    if (n && sn) {
+        for (size_t i = 0; i < n; i++) {
+            int v = m_audio[before + i] + m_speech[std::min(sn - 1, i * sn / n)] / 2;
+            m_audio[before + i] = int16_t(v < -32768 ? -32768 : v > 32767 ? 32767 : v);
+        }
+    }
+    m_speech.clear();
 }
 
 void HhTms1kCore::inputsChanged()
@@ -112,6 +153,7 @@ void HhTms1kCore::inputsChanged()
     switch (m_g->kind) {
     case ALPHIE: if (pressed & 1) setPower(true); break;       // the button turns it back on
     case ARCMANIA: if (pressed & 7) setPower(true); break;     // the orange buttons do
+    case BBEAR: if (pressed & 0x30) setPower(true); break;     // the mouth or body sensor
     default: break;
     }
 }
@@ -152,6 +194,12 @@ uint8_t HhTms1kCore::readK()
         if (m_s.inpMux & 2) k |= uint8_t(in(3) | in(4) << 1 | in(5) << 2);
         return k;
     }
+    case BBEAR: {
+        // K: sensors (bit 4 mouth, 5 body (hug), 6 neck: 1 = touched) masked by the mux, and the
+        // TMS5100 CTL (also tied to R1234)
+        uint8_t sensors = uint8_t((in(6) ? 1 : 0) | (in(4) ? 0 : 4) | (in(5) ? 0 : 8));
+        return uint8_t((m_s.inpMux & sensors) | m_tms.ctl_r() | (m_s.r & 0xf));
+    }
     case ARCMANIA: {
         // O3: Alien Raiders (6), yellow 2 (7), Rattler (8); O4: Run Amuk (3), yellow 1 (4), Sneak Attack (5);
         // O6: orange 1-3 (0-2)
@@ -170,6 +218,7 @@ void HhTms1kCore::writeO(uint16_t o)
     m_s.o = o;
     switch (m_g->kind) {
     case ALPHIE: speaker(o & 1); break;
+    case BBEAR: m_s.inpMux = uint16_t((m_s.inpMux & ~1) | (o & 1)); break;   // O0: input mux low
     case AMAZTRON: m_disp.matrix(now(), m_s.r, o & 0x7f); break;
     case ARRBALL: m_disp.matrix(now(), m_s.r & 0x7f, o & 0x7f); break;
     case BANKSHOT: m_disp.matrix(now(), m_s.r & 0x7fc, o & 0xff); break;
@@ -210,6 +259,19 @@ void HhTms1kCore::writeR(uint32_t r)
         m_s.r = r;
         m_disp.matrix(now(), r & 0x7fc, m_s.o & 0xff);
         break;
+    case BBEAR: {
+        // R1234: TMS5100 CTL8421, R0: its PDC pin, R6-R8: input mux high, R9: power off (falling edge)
+        uint32_t sw = ((r >> 0 & 1) << 4) | ((r >> 1 & 1) << 3) | ((r >> 2 & 1) << 2) | ((r >> 3 & 1) << 1) | (r >> 4 & 1);
+        uint32_t rr = sw | (r & ~0x1fu);
+        m_tms.ctl_w(uint8_t(rr & 0xf));
+        m_tms.pdc_w(r & 1);
+        m_s.inpMux = uint16_t((m_s.inpMux & 1) | (r >> 5 & 0xe));
+        bool off = (~r & m_s.o2 & 0x200) != 0;
+        m_s.o2 = r;
+        m_s.r = rr;
+        if (off) setPower(false);
+        break;
+    }
     case ARCMANIA:
         m_disp.matrix(now(), 1, r >> 1);
         m_s.r = r;

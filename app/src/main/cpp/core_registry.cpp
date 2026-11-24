@@ -30,6 +30,7 @@
 #include "cores/chess/mephmod1.h"
 #include "cores/chess/arb.h"
 #include "cores/chess/vcc.h"
+#include "cores/bbcbc/bbcbc.h"
 #include "cores/chess/bkc.h"
 #include "cores/xavix/xavix.h"
 #include "cores/xavix2/xavix2.h"
@@ -468,6 +469,8 @@ Core* createCore(const std::string& id)
         return new ArchiCore(id);
     if (BbcCore::known(id))   // Acorn BBC Micro family (B-em)
         return new BbcCore(id);
+    if (id == "bbcbc")         // Unicard Bridge Companion
+        return new BbcbcCore();
     if (id == "a7000")        // Acorn A7000 (RPCEmu), RISC OS 3.60
         return new AcornCore(AcornCore::kA7000);
     if (id == "a7000p")       // Acorn A7000+ (RPCEmu), RISC OS 3.71

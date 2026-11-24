@@ -8,7 +8,7 @@ CFLAGS ?= -O2 -std=gnu99 -w
 DEFS = -DPOCKETPLUG -DXAVIX_DEBUG '-DMUSASHI_CNF="../m68kconf.h"'
 CPP = ../app/src/main/cpp
 SRC = headless.cpp $(CPP)/core_registry.cpp \
-      $(wildcard $(CPP)/common/*.cpp) $(CPP)/common/chd/chd.cpp $(CPP)/common/z80/z80.cpp $(wildcard $(CPP)/common/ymfm/*.cpp) \
+      $(wildcard $(CPP)/common/*.cpp) $(CPP)/common/chd/chd.cpp $(CPP)/common/z80/z80.cpp $(wildcard $(CPP)/common/ymfm/*.cpp) $(wildcard $(CPP)/common/tms5110/*.cpp) \
       $(wildcard $(CPP)/cores/*/*.cpp) $(wildcard $(CPP)/cores/trkfld/g65816/*.cpp)
 # the UNIX PC core (FreeBee + Musashi) is C
 FB = $(CPP)/cores/unixpc/freebee
@@ -33,14 +33,17 @@ AROBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(ARSRC))
 BB = $(CPP)/cores/bbc
 BBSRC = $(wildcard $(BB)/*.c) $(wildcard $(BB)/bem/*.c) $(wildcard $(BB)/shim/*.c)
 BBOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(BBSRC))
+GW = $(CPP)/cores/gamewave
+GWSRC = $(wildcard $(GW)/lua/*.c) $(wildcard $(GW)/mpeg2/*.c)
+GWOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(GWSRC))
 
 # CHD reading: the LZMA SDK and libFLAC's decoder, in C
 CHD = $(CPP)/common/chd
 CHDSRC = $(CHD)/lzma/LzmaDec.c $(wildcard $(CHD)/flac/*.c)
 CHDOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(CHDSRC))
 
-headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(BBOBJ) $(CHDOBJ)
-	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(BBOBJ) $(CHDOBJ) -lpthread -lz -lm
+headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(BBOBJ) $(GWOBJ) $(CHDOBJ)
+	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(BBOBJ) $(GWOBJ) $(CHDOBJ) -lpthread -lz -lm
 
 obj/cores/archi/%.o: $(AR)/%.c
 	@mkdir -p $(dir $@)
@@ -49,6 +52,14 @@ obj/cores/archi/%.o: $(AR)/%.c
 obj/common/chd/flac/%.o: $(CHD)/flac/%.c
 	@mkdir -p $(dir $@)
 	$(CC) -O2 -w -std=gnu99 -DHAVE_CONFIG_H -I$(CHD)/flac/include -I$(CHD)/flac/src/include -c $< -o $@
+
+obj/cores/gamewave/lua/%.o: $(GW)/lua/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -w -std=gnu99 -c $< -o $@
+
+obj/cores/gamewave/mpeg2/%.o: $(GW)/mpeg2/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -w -std=gnu99 -I$(GW)/mpeg2 -include $(GW)/mpeg2/config.h -c $< -o $@
 
 obj/cores/bbc/%.o: $(BB)/%.c
 	@mkdir -p $(dir $@)
