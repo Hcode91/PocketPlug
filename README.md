@@ -45,6 +45,10 @@ controller.
 | Basketball (Bambino, 1979) | `bambball` | Hitachi HD38750 (HMCS43, own core), VFD drawn from MAME's SVG | Attract mode and play run; skill and teams switches |
 | Alien Chase tabletop (Tomy, 1984) | `alnchase` | NEC uPD553C (uCOM-43, own core), two-sided VFD from MAME's SVG | Every element's lit time over 600 frames within a few frames of MAME |
 | Alphie robot (Playskool, 1978) | `alphie` | TI TMS1000 (own core) | LED and sound output match MAME with the same presses |
+| Burger Time (Bandai, 1983) | `bbtime` | Hitachi HD38820 (own HMCS40 core) | VFD, joystick, two buttons |
+| Crazy Climber (Bandai, 1982) | `bcclimbr` | NEC uPD553C (own uCOM-4 core) | VFD, two levers |
+| Dokodemo Dorayaki Doraemon (Bandai, 1983) | `bdoramon` | Hitachi HD38800 (own HMCS40 core) | VFD, joystick, one button |
+| System Control Car: Cheetah (Bandai, 1979) | `bcheetah` | TI TMS1000 (own core) | Programmable buggy: its motors are shown as lights |
 | Bridge Companion (Unicard, 1985) | `bbcbc` | Z80 + Z80 PIO + TMS9129 (port of MAME's unicard/bbcbc.cpp) | Runs to its "plug in cartridge" screen; needs cartridge dumps to play |
 | Bingo Bear talking puppet (Hasbro / Tiger, 1986) | `bbear` | TI TMS1100 + TMS5110A speech and TMS6100 speech ROMs (ports of MAME's tms1k, tms5110, tms6100) | Greets you, then talks when the mouth sensor is worked, as in MAME (which marks its controls imperfect) |
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
@@ -162,6 +166,10 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Basketball | `bambball` | `hd38750a08`, `bambball.svg` | 2,176 / 281,982 bytes | `907fef18`, `df113d8a` |
 | Alien Chase | `alnchase` | `d553c_258`, `alnchase.svg` | 2,048 / 576,555 bytes | `c5284ff5`, `b2c1734b` |
 | Alphie | `alphie` | `us4280809`, `tms1000_common2_micro.pla` | 1,024 / 867 bytes | `f8f14013`, `d33da3cf` |
+| Burger Time (Bandai) | `bbtime` | `hd38820a65`, `bbtime.svg` | 4,352 / 461,598 bytes | `33611faf`, `297f30de` |
+| Crazy Climber (Bandai) | `bcclimbr` | `d553c_170`, `bcclimbr.svg` | 2,048 / 219,983 bytes | `fc2eabdb`, `776a80ad` |
+| Dokodemo Dorayaki Doraemon | `bdoramon` | `hd38800b43`, `bdoramon.svg` | 4,352 / 624,751 bytes | `9387ca42`, `fc6ae4e4` |
+| System Control Car: Cheetah | `bcheetah` | `mp0915`, `tms1000_common2_micro.pla`, `tms1000_bcheetah_output.pla` | 1,024 / 867 / 365 bytes | `2968c81e`, `d33da3cf`, `cc6d1ecd` |
 | Bridge Companion | `bbcbc` | `br_4_1.ic3`, `br_4_2.ic4` (plus your cartridge dumps, MAME software list `bbcbc`) | 8,192 / 8,192 bytes | `7c880d75`, `16a33aef` |
 | Bingo Bear talking puppet | `bbear` | `e7cl04n2l`, `tms1100_common1_micro.pla`, `tms1100_bbear_output.pla`, `cm62056`, `cm62057` | 2,048 / 867 / 365 / 16,384 / 16,384 bytes | `e2e4ff07`, `62445fc9`, `5a0b8e88`, `550b40d1`, `383a8a9a` |
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |

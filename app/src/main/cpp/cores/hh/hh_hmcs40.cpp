@@ -13,7 +13,7 @@ constexpr int OPT = 100;
 struct InBit { uint16_t mask; int src; };
 struct InRow { InBit bits[4]; };
 
-enum Kind { ALNATTCK, BAMBBALL };
+enum Kind { ALNATTCK, BAMBBALL, BBTIME, BDORAMON };
 
 }
 
@@ -50,6 +50,13 @@ const Hmcs40Game kGames[] = {
         { { { 0x01, RIGHT }, { 0x02, LEFT } } },
         { { { 0x04, B4 }, { 0x08, B5 } } },                               // start, display
     } },
+    // Bandai Burger Time (1983): HD38820A65, D10-D14 select the inputs on INT0; B1 (pepper) is INT1
+    { "bbtime", BBTIME, HMCS40::HMCS45, false, 400000, "hd38820a65", "bbtime.svg", 6, 28, 5, {
+        { { { 0x01, RIGHT } } }, { { { 0x01, LEFT } } }, { { { 0x01, DOWN } } }, { { { 0x01, UP } } },
+        { { { 0x01, B2 } } },
+    } },
+    // Bandai Dokodemo Dorayaki Doraemon (1983): HD38800B43; LEFT is INT0, B1 INT1, up / right / down on D4-D6
+    { "bdoramon", BDORAMON, HMCS40::HMCS44, false, 400000, "hd38800b43", "bdoramon.svg", 8, 20, 0, {} },
 };
 
 const Hmcs40Game* find(const std::string& id)
@@ -110,7 +117,21 @@ uint16_t HhHmcs40Core::readInputs(int columns) const
     return ret;
 }
 
-void HhHmcs40Core::inputsChanged() {}
+void HhHmcs40Core::setInterrupt(int line, bool state)
+{
+    if (m_s.intLine[line] == (state ? 1 : 0)) return;
+    m_s.intLine[line] = state ? 1 : 0;
+    m_cpu.setInput(line, state ? 1 : 0);
+}
+
+void HhHmcs40Core::inputsChanged()
+{
+    switch (m_g->kind) {
+    case BBTIME: setInterrupt(0, readInputs(5) != 0); setInterrupt(1, in(B1)); break;
+    case BDORAMON: setInterrupt(0, in(LEFT)); setInterrupt(1, in(B1)); break;
+    default: break;
+    }
+}
 
 void HhHmcs40Core::updateDisplay()
 {
@@ -140,6 +161,22 @@ void HhHmcs40Core::writeR(int index, uint8_t data)
             updateDisplay();
         }
         break;
+    case BBTIME:
+        if (index < 7) {
+            // R0x-R6x: vfd plate
+            int shift = index * 4;
+            m_s.plate = (m_s.plate & ~(uint64_t(0xf) << shift)) | (uint64_t(data) << shift);
+            updateDisplay();
+        }
+        break;
+    case BDORAMON:
+        if (index < 4) {
+            // R0x-R3x: vfd plate
+            int shift = index * 4;
+            m_s.plate = (m_s.plate & ~(uint64_t(0xf) << shift)) | (uint64_t(data) << shift);
+            updateDisplay();
+        }
+        break;
     case BAMBBALL:
         if (index >= 1 && index <= 3) {
             // R1x-R3x: vfd plate
@@ -155,6 +192,7 @@ uint16_t HhHmcs40Core::readD()
 {
     switch (m_g->kind) {
     case ALNATTCK: return readInputs(7) & 0x20;   // D5: multiplexed inputs
+    case BDORAMON: return uint16_t((in(UP) ? 0x10 : 0) | (in(RIGHT) ? 0x20 : 0) | (in(DOWN) ? 0x40 : 0));
     default: break;
     }
     return m_g->cmos ? 0xffff : 0;
@@ -169,6 +207,19 @@ void HhHmcs40Core::writeD(uint16_t data, uint16_t mask)
         speaker(data >> 4 & 1);                     // D4: speaker
         m_s.inpMux = data >> 7 & 0x7f;              // D7-D13: input mux
         m_s.grid = data >> 6 & 0x3ff;               // D6-D15: vfd grid
+        m_s.plate = (m_s.plate & ~(uint64_t(0xf) << 16)) | (uint64_t(data & 0xf) << 16);   // D0-D3: plate
+        updateDisplay();
+        break;
+    case BBTIME:
+        speaker(data >> 3 & 1);                     // D3: speaker
+        m_s.inpMux = data >> 10 & 0x1f;             // D10-D14: input mux (INT0)
+        setInterrupt(0, readInputs(5) != 0);
+        m_s.grid = data >> 4 & 0x3f;                // D4-D9: vfd grid
+        updateDisplay();
+        break;
+    case BDORAMON:
+        speaker(data >> 7 & 1);                     // D7: speaker
+        m_s.grid = data >> 8 & 0xff;                // D8-D15: vfd grid
         m_s.plate = (m_s.plate & ~(uint64_t(0xf) << 16)) | (uint64_t(data & 0xf) << 16);   // D0-D3: plate
         updateDisplay();
         break;

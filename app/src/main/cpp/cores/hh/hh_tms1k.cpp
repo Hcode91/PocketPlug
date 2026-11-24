@@ -8,7 +8,7 @@
 #include <cstdlib>
 
 namespace {
-enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT, BBEAR };
+enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT, BBEAR, BCHEETAH };
 // the guessed output PLA (O0 = bit 0 of the index)
 const uint16_t kAlphieOpla[0x20] = { 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1 };
 }
@@ -39,6 +39,9 @@ const Tms1kGame kGames[] = {
     { "bankshot", BANKSHOT, TMS1K::TMS1400, 475000, "mp7313", "tms1100_common1_micro.pla", "tms1400_bankshot_output.pla", nullptr, "", 11, 8 },
     // Hasbro / Tiger Bingo Bear (1986): TMS1100 + TMS5110A speech from 2 x 16 KB VSMs, no display
     { "bbear", BBEAR, TMS1K::TMS1100, 320000, "e7cl04n2l", "tms1100_common1_micro.pla", "tms1100_bbear_output.pla", nullptr, "", 1, 1 },
+    // Bandai System Control Car: Cheetah (1979): TMS1000, a programmable buggy; the "display" is its
+    // motors: column 0 steer left (O0), 1 drive (O1), 2 steer right (O2)
+    { "bcheetah", BCHEETAH, TMS1K::TMS1000, 350000, "mp0915", "tms1000_common2_micro.pla", "tms1000_bcheetah_output.pla", nullptr, "", 1, 3 },
     { "arcmania", ARCMANIA, TMS1K::TMS1100, 250000, "m34078a", "tms1100_common1_micro.pla", "tms1100_arcmania_output.pla", nullptr, "", 1, 9 },
 };
 const Tms1kGame* find(const std::string& id)
@@ -194,6 +197,19 @@ uint8_t HhTms1kCore::readK()
         if (m_s.inpMux & 2) k |= uint8_t(in(3) | in(4) << 1 | in(5) << 2);
         return k;
     }
+    case BCHEETAH: {
+        // R0: mode (K2 = program; option 0: 1 = run); R1: left, forward, right, go; R2: K8 stop;
+        // R3: K2 1, K8 2; R4: K2 3, K8 4. K4 is also tied to R5 + R6.
+        // input bits: 4 left, 5 forward, 6 right, 7 go, 8 stop, 9-12 keys 1-4
+        uint8_t k = 0, mux = uint8_t(m_s.inpMux);
+        if (mux & 1) k |= m_opt[0] ? 0 : 2;
+        if (mux & 2) k |= uint8_t(in(4) | in(5) << 1 | in(6) << 2 | in(7) << 3);
+        if (mux & 4) k |= uint8_t(in(8) << 3);
+        if (mux & 8) k |= uint8_t(in(9) << 1 | in(10) << 3);
+        if (mux & 16) k |= uint8_t(in(11) << 1 | in(12) << 3);
+        if (m_s.r & 0x60) k |= 4;
+        return k;
+    }
     case BBEAR: {
         // K: sensors (bit 4 mouth, 5 body (hug), 6 neck: 1 = touched) masked by the mux, and the
         // TMS5100 CTL (also tied to R1234)
@@ -219,6 +235,7 @@ void HhTms1kCore::writeO(uint16_t o)
     switch (m_g->kind) {
     case ALPHIE: speaker(o & 1); break;
     case BBEAR: m_s.inpMux = uint16_t((m_s.inpMux & ~1) | (o & 1)); break;   // O0: input mux low
+    case BCHEETAH: m_disp.matrix(now(), 1, o & 7); break;                       // the motors
     case AMAZTRON: m_disp.matrix(now(), m_s.r, o & 0x7f); break;
     case ARRBALL: m_disp.matrix(now(), m_s.r & 0x7f, o & 0x7f); break;
     case BANKSHOT: m_disp.matrix(now(), m_s.r & 0x7fc, o & 0xff); break;
@@ -258,6 +275,10 @@ void HhTms1kCore::writeR(uint32_t r)
         m_s.inpMux = uint16_t(r >> 2 & 3);
         m_s.r = r;
         m_disp.matrix(now(), r & 0x7fc, m_s.o & 0xff);
+        break;
+    case BCHEETAH:
+        m_s.inpMux = uint16_t(r & 0x1f);    // R0-R4: input mux
+        m_s.r = r;
         break;
     case BBEAR: {
         // R1234: TMS5100 CTL8421, R0: its PDC pin, R6-R8: input mux high, R9: power off (falling edge)

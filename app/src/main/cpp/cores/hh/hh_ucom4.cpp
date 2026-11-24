@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace {
-enum Kind { ALNCHASE, ASTROCMD };
+enum Kind { ALNCHASE, ASTROCMD, BCCLIMBR };
 }
 
 struct Ucom4Game {
@@ -26,6 +26,8 @@ const Ucom4Game kGames[] = {
     { "alnchase", ALNCHASE, UCOM4::UCOM43, false, 400000, "d553c_258", 0x800, "alnchase.svg", 9, 17 },
     // Epoch Astro Command (1982): uPD553C, VFD
     { "astrocmd", ASTROCMD, UCOM4::UCOM43, false, 400000, "d553c_202.s01", 0x800, "astrocmd.svg", 9, 19 },
+    // Bandai Crazy Climber (1982): uPD553C, VFD; two sticks (left: up / down / left, right: up / down / right)
+    { "bcclimbr", BCCLIMBR, UCOM4::UCOM43, false, 400000, "d553c_170", 0x800, "bcclimbr.svg", 6, 20 },
 };
 const Ucom4Game* find(const std::string& id)
 {
@@ -79,6 +81,11 @@ uint8_t HhUcom4Core::input(int port)
         if (port == UCOM4::PA) return uint8_t(in(4) | in(5) << 1 | in(6) << 2 | in(7) << 3);
         if (port == UCOM4::PB) return uint8_t(m_in & 0xf);
         return 0;
+    case BCCLIMBR:
+        // A: START, left stick up, down, left; B: factory test (off), right stick up, down, right
+        if (port == UCOM4::PA) return uint8_t(in(4) | in(0) << 1 | in(1) << 2 | in(2) << 3);
+        if (port == UCOM4::PB) return uint8_t(in(12) << 1 | in(13) << 2 | in(15) << 3);
+        return 0;
     }
     return 0;
 }
@@ -112,6 +119,18 @@ void HhUcom4Core::output(int port, uint8_t data)
                 speaker(data >> 2 & 1);
                 m_s.grid = (m_s.grid & ~0x100u) | (uint32_t(data >> 3 & 1) << 8);
             }
+        }
+        m_disp.matrix(now(), m_s.grid, m_s.plate);
+        break;
+    case BCCLIMBR:
+        // H, I0-1: grid (I2: speaker); C, D, E, F, G: plate
+        if (port >= UCOM4::PH) {
+            if (port == UCOM4::PI) speaker(data >> 2 & 1);
+            int shift = (port - UCOM4::PH) * 4;
+            m_s.grid = (m_s.grid & ~(0xfu << shift)) | (uint32_t(data) << shift);
+        } else if (port >= UCOM4::PC) {
+            int shift = (port - UCOM4::PC) * 4;
+            m_s.plate = (m_s.plate & ~(0xfu << shift)) | (uint32_t(data) << shift);
         }
         m_disp.matrix(now(), m_s.grid, m_s.plate);
         break;

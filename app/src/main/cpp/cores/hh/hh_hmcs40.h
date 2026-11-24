@@ -39,5 +39,7 @@ private:
         uint16_t d, inpMux;
         uint32_t grid;
         uint64_t plate;
+        uint8_t intLine[2];
     } m_s;
+    void setInterrupt(int line, bool state);
 };

@@ -426,6 +426,10 @@ class HhSkin(
             "autorace" -> autoRace()
             "bassmate" -> bassmate()
             "bbear" -> talkingBear()
+            "bbtime" -> burgerTime()
+            "bcclimbr" -> crazyClimber()
+            "bdoramon" -> dorayaki()
+            "bcheetah" -> cheetahCar()
             else -> null
         }
 
@@ -1009,6 +1013,97 @@ class HhSkin(
                     // speaker grille
                     p.color = 0xFFB0B0AC.toInt()
                     for (i in 0 until 6) c.drawRoundRect(120f, 1080f + i * 50f, 470f - i * 6f, 1106f + i * 50f, 6f, 6f, p)
+                },
+            )
+        }
+
+        // ---- placeholders until photos: plain cases around the screen and the game's controls ----
+
+        /** Bandai Burger Time (1983): tall VFD tabletop, joystick and two buttons. */
+        private fun burgerTime() = HhSkin(
+            1000f, 1320f, 0xFF161A22.toInt(),
+            screen = RectF(360f, 80f, 640f, 878f), bezel = 0xFF0A0A0C.toInt(), bezelPad = 14f,
+            menu = PointF(500f, 1290f),
+            controls = listOf(
+                Control(Kind.STICK, 290f, 1080f, 110f, color = 0xFFE23A2A.toInt(), base = 0xFF1C1C1C.toInt(), arrows = true, eightWay = false),
+                Control(Kind.BUTTON, 640f, 1110f, 58f, color = 0xFFF2C230.toInt(), bit = 1 shl 4, label = "A", labelColor = Color.WHITE),
+                Control(Kind.BUTTON, 800f, 1040f, 58f, color = 0xFF2E7AD8.toInt(), bit = 1 shl 5, label = "B", labelColor = Color.WHITE),
+            ),
+            drawBody = { c, p, _ ->
+                p.color = 0xFFE8E4DA.toInt(); c.drawRoundRect(230f, 30f, 770f, 940f, 40f, 40f, p)
+                p.color = 0xFFD23A2E.toInt(); c.drawRoundRect(60f, 900f, 940f, 1250f, 50f, 50f, p)
+                p.color = 0xFF2A2A2E.toInt(); c.drawRoundRect(300f, 50f, 700f, 920f, 24f, 24f, p)
+            },
+        )
+
+        /** Bandai Crazy Climber (1982): tall VFD tabletop, a left and a right lever (here as keys). */
+        private fun crazyClimber(): HhSkin {
+            fun key(x: Float, y: Float, bit: Int, label: String) = Control(Kind.BUTTON, x, y, 40f, color = 0xFF2A2A2E.toInt(), bit = bit,
+                bw = 120f, bh = 84f, face = label, faceColor = 0xFFF2F2F2.toInt(), faceSize = 40f)
+            return HhSkin(
+                1000f, 1320f, 0xFF101820.toInt(),
+                screen = RectF(380f, 70f, 620f, 906f), bezel = 0xFF0A0A0C.toInt(), bezelPad = 14f,
+                menu = PointF(500f, 1290f),
+                controls = listOf(
+                    key(180f, 990f, 1 shl 0, "▲"), key(110f, 1100f, 1 shl 2, "◀"), key(180f, 1200f, 1 shl 1, "▼"),
+                    key(820f, 990f, 1 shl 12, "▲"), key(890f, 1100f, 1 shl 15, "▶"), key(820f, 1200f, 1 shl 13, "▼"),
+                    Control(Kind.BUTTON, 500f, 1110f, 46f, color = 0xFFE23A2A.toInt(), bit = 1 shl 4, label = "START", labelColor = Color.WHITE, labelSize = 26f),
+                ),
+                drawBody = { c, p, _ ->
+                    p.color = 0xFF2A62B8.toInt(); c.drawRoundRect(250f, 30f, 750f, 960f, 40f, 40f, p)
+                    p.color = 0xFFE8E4DA.toInt(); c.drawRoundRect(30f, 920f, 970f, 1260f, 50f, 50f, p)
+                    p.color = 0xFF1A1A1E.toInt(); c.drawRoundRect(330f, 50f, 670f, 940f, 24f, 24f, p)
+                },
+            )
+        }
+
+        /** Bandai Dokodemo Dorayaki (1983): wide VFD tabletop, joystick and one button. */
+        private fun dorayaki() = HhSkin(
+            1200f, 1000f, 0xFF14181E.toInt(),
+            screen = RectF(150f, 160f, 1050f, 473f), bezel = 0xFF0A0A0C.toInt(), bezelPad = 14f,
+            menu = PointF(600f, 960f),
+            controls = listOf(
+                Control(Kind.STICK, 380f, 720f, 120f, color = 0xFF2E7AD8.toInt(), base = 0xFF1C1C1C.toInt(), arrows = true, eightWay = false),
+                Control(Kind.BUTTON, 840f, 720f, 70f, color = 0xFFE23A2A.toInt(), bit = 1 shl 4, label = "A", labelColor = Color.WHITE),
+            ),
+            drawBody = { c, p, _ ->
+                p.color = 0xFF3A8AD8.toInt(); c.drawRoundRect(60f, 60f, 1140f, 920f, 60f, 60f, p)
+                p.color = 0xFFF4F2EC.toInt(); c.drawRoundRect(100f, 560f, 1100f, 880f, 40f, 40f, p)
+                p.color = 0xFF1A1A1E.toInt(); c.drawRoundRect(120f, 120f, 1080f, 520f, 24f, 24f, p)
+            },
+        )
+
+        /** Bandai System Control Car: Cheetah (1979): the buggy seen from above with its motors lit
+         *  (left / drive / right) and the program keys on its back; PROGRAM / RUN slide. */
+        private fun cheetahCar(): HhSkin {
+            fun key(x: Float, y: Float, bit: Int, label: String, color: Int = 0xFF2A2A2E.toInt()) = Control(Kind.BUTTON, x, y, 40f, color = color,
+                bit = bit, bw = 130f, bh = 90f, face = label, faceColor = 0xFFF2F2F2.toInt(), faceSize = 36f)
+            return HhSkin(
+                1000f, 1320f, 0xFF1A2418.toInt(),
+                screen = RectF(), bezel = 0, bezelPad = 0f,
+                menu = PointF(500f, 1290f),
+                controls = listOf(
+                    key(330f, 700f, 1 shl 4, "◀"), key(500f, 620f, 1 shl 5, "▲"), key(670f, 700f, 1 shl 6, "▶"),
+                    key(500f, 780f, 1 shl 8, "STOP", 0xFFB8302A.toInt()),
+                    key(260f, 920f, 1 shl 9, "1"), key(420f, 920f, 1 shl 10, "2"), key(580f, 920f, 1 shl 11, "3"), key(740f, 920f, 1 shl 12, "4"),
+                    key(500f, 1060f, 1 shl 7, "GO", 0xFF2E9A44.toInt()),
+                    Control(Kind.SWITCH, 500f, 1180f, 26f, color = 0xFF2A2A2A.toInt(), option = 0, positions = listOf("PROGRAM", "RUN"),
+                        labelColor = 0xFFF2F2F2.toInt(), labelSize = 24f),
+                ),
+                leds = listOf(
+                    Led(LedKind.ROUND, 0, 0, 230f, 230f, 34f, 0xFFF2C230.toInt(), "◀", 0xFF1A1A1A.toInt()),
+                    Led(LedKind.ROUND, 0, 1, 500f, 470f, 40f, 0xFF3AD25A.toInt(), "▲", 0xFF1A1A1A.toInt()),
+                    Led(LedKind.ROUND, 0, 2, 770f, 230f, 34f, 0xFFF2C230.toInt(), "▶", 0xFF1A1A1A.toInt()),
+                ),
+                drawBody = { c, p, _ ->
+                    // wheels, the body and the windscreen
+                    p.color = 0xFF141414.toInt()
+                    for ((x, y) in listOf(170f to 260f, 830f to 260f, 150f to 980f, 850f to 980f)) c.drawRoundRect(x - 70f, y - 120f, x + 70f, y + 120f, 30f, 30f, p)
+                    p.color = 0xFFE2C23A.toInt(); c.drawRoundRect(200f, 80f, 800f, 1240f, 120f, 120f, p)
+                    p.color = 0xFF2A3A48.toInt(); c.drawRoundRect(300f, 300f, 700f, 420f, 30f, 30f, p)
+                    p.color = 0xFF3A3A3E.toInt(); c.drawRoundRect(220f, 560f, 780f, 1220f, 40f, 40f, p)
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF1A1A1A.toInt(); textSize = 26f }
+                    c.drawText("MOTORS", 500f, 150f, t)
                 },
             )
         }

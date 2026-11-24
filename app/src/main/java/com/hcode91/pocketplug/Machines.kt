@@ -1372,6 +1372,67 @@ object Machines {
             ),
         ),
         MachineDef(
+            id = "bbtime",
+            title = "Burger Chef VFD Game",
+            subtitle = "1983 tall tabletop with a colour VFD: walk the burger parts down to the plates and stay away "
+                + "from the chasing food (Bandai Burger Time; MAME set: bbtime)",
+            chip = "Hitachi HD38820 (HMCS45)",
+            region = "Japan",
+            year = "1983",
+            roms = listOf(
+                RomSpec("hd38820a65", 0x1100L, 0x33611fafL),
+                RomSpec("bbtime.svg", 461598L, 0x297f30deL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "bcclimbr",
+            title = "Building Climber VFD Game",
+            subtitle = "1982 tall tabletop with a colour VFD: climb the skyscraper with a lever for each hand, "
+                + "dodging falling objects (Bandai Crazy Climber; MAME set: bcclimbr)",
+            chip = "NEC uPD553C (uCOM-43)",
+            region = "Japan",
+            year = "1982",
+            roms = listOf(
+                RomSpec("d553c_170", 0x800L, 0xfc2eabdbL),
+                RomSpec("bcclimbr.svg", 219983L, 0x776a80adL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "bdoramon",
+            title = "Dorayaki Catch VFD Game",
+            subtitle = "1983 wide tabletop with a colour VFD: catch the pancakes for the robot cat "
+                + "(Bandai Dokodemo Dorayaki Doraemon; MAME set: bdoramon)",
+            chip = "Hitachi HD38800 (HMCS44)",
+            region = "Japan",
+            year = "1983",
+            roms = listOf(
+                RomSpec("hd38800b43", 0x1100L, 0x9387ca42L),
+                RomSpec("bdoramon.svg", 624751L, 0xfc6ae4e4L),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "bcheetah",
+            title = "Programmable Buggy",
+            subtitle = "1979 programmable toy car: key in up to 24 moves (a direction with a time 1-4), switch to RUN "
+                + "and press GO; the lights show its motors (Bandai System Control Car: Cheetah; MAME set: bcheetah)",
+            chip = "TI TMS1000",
+            region = "Japan",
+            year = "1979",
+            roms = listOf(
+                RomSpec("mp0915", 0x400L, 0x2968c81eL),
+                RomSpec("tms1000_common2_micro.pla", 0x363L, 0xd33da3cfL),
+                RomSpec("tms1000_bcheetah_output.pla", 0x16dL, 0xcc6d1ecdL),
+            ),
+            skin = Skin.HH,
+            setup = listOf(
+                "With the slide on PROGRAM, hold a direction (◀ ▲ ▶) and tap a time key 1-4 to add a step; STOP adds a pause.",
+                "Slide to RUN and press GO: the lights show the drive and steering motors as the car would move.",
+            ),
+        ),
+        MachineDef(
             id = "amaztron",
             title = "Amaze-A-Tron Maze Game",
             subtitle = "1978 hidden-maze board game: press GAME SELECT to pick a game, GAME START, then press the "
