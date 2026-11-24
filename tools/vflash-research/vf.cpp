@@ -33,6 +33,7 @@ struct VF : Bus {
     unsigned long long brakeAt = 0;
     unsigned long long sledAt = 0, subAt = 0;
     int leadInPtr = 0;
+    bool mediaReported = false;
     static double lba_at(double r) { return 75.0 * M_PI * (r * r - R0 * R0) / (PITCH * VEL) - 150; }
     static double rad_at(double lba) { return sqrt(R0 * R0 + (lba + 150) / 75.0 * PITCH * VEL / M_PI); }
     void sled_update() {
@@ -72,6 +73,7 @@ struct VF : Bus {
         regs[0xc4000058] = u32(q[2]) << 24 | q[3] << 16 | q[4] << 8 | q[5];
         regs[0xc400005c] = u32(q[6]) << 24 | q[7] << 16 | q[8] << 8 | q[9];
         regs[0xc4000064] |= 1u << 5;
+        if ((regs[0xc4000068] & 0x4000) && !mediaReported && !getenv("NOMEDIA")) { regs[0xc4000064] |= 1u << 14; mediaReported = true; }   // media monitor: disc found (once per insertion)
         if ((regs[0xc4000060] >> 31) && lba >= 0 && lba < discSectors) {   // CD-ROM decoder: header of the sector passing by
             u8 m[3]; msf(lba, m);
             regs[0xc400004c] = 1u << 31 | m[0] << 16 | m[1] << 8 | m[2];

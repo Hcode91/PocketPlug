@@ -159,15 +159,28 @@ good reference. Differences found so far are marked V.Flash below.
 - The disc-check task (0x100145B0) registers callback 0x10013670 (job 0x202) and starts detection
   (job 0x201 -> 0x10068198 -> 0x100704BC posts handler 0x1007095C to the device manager queue).
   The callback needs event 0x10 (sets 0x1024C580), which 0x1007095C posts via 0x10067AB8 at its end.
-- With the model above the drive spins up, calibrates, reads the TOC from the lead-in and parks in
-  pause (repeated $49 1-track kicks) near LBA 0..40, but 0x1007095C is never started: it sits as
-  the current device-manager operation (0x103561B8) without being run. Next: find what starts it
-  (dispatcher around 0x1006FC60, busy flag 0x10354620).
+- Media detection: 0x64 bit 14 (monitor enabled by 0x10062AC0: 0x60 bits 20-23 and mask 0x4000)
+  is "disc found". Raise it once per insertion: its handler 0x10067754 posts a media message to the
+  state machine at 0x1006E400 (state 0x103556C0, substate 0x10355760). A second media message while
+  the substate is non-zero counts as "disc changed again" (substate 7, retry counter 0x10354500,
+  gives up after 3 and the callback receives event 0x0F). Bit 15 is the matching "lost" event.
+- The device manager (task 0x1006F858, current op 0x103561A0, busy flag 0x10354620) runs one op at
+  a time and waits in 0x10356140 for its completion; completions come from the job thread
+  0x1006DA40, which runs a job's work function and then its completion wrapper (0x1006E130..
+  0x1006E208, posting a type-2 message handled at 0x1006FE6C).
+- After the media event the state machine re-inits the drive (substate 2 job, work function
+  0x1006D020). That job reads the TOC (0x10060C10 / 0x10060D88) and then calls 0x1006145C, which seeks
+  to MSF 00:02:08 (LBA 8) with 0x10055CBC(0, 2, 8, 1) and only then programs the first sector read
+  (0x10062BE0(0xA6)). The seek never converges in the model: the pickup hovers around LBA 3..25 with
+  1-track kicks. Next: work out 0x10055CBC's acceptance test (compare near 0x10055DC4 with 0x21,
+  current Q from 0x10355640 vs target 0x10354E60) and fix the jump/kick model so it lands.
+- 0x1005908C waits for a valid subcode Q (0x10354648 = 0 after parsing; 1 = CRC error, 2 = bad).
 
 ## Status
 
 The boot reaches the MORE OS scheduler, shows the VTech logo and the V.Smile Pro splash, spins the
-disc up, calibrates, reads the TOC and parks the pickup. No sector has been read yet.
+disc up, calibrates, reads the TOC, reports the disc as found and seeks towards LBA 8 for the first
+sector read. No sector has been read yet.
 
 ## Next steps
 
