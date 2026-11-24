@@ -35,12 +35,14 @@
 #include "cores/hh/hh_hmcs40.h"
 #include "cores/hh/hh_ucom4.h"
 #include "cores/hh/hh_sm510.h"
+#include "cores/hh/hh_sm511.h"
 #include "cores/hh/hh_rw5000.h"
 #include "cores/hh/hh_tms1k.h"
 #include "cores/kits/acrnsys1.h"
 #include "cores/kits/aim65.h"
 #include "cores/altair/altair.h"
 #include "cores/eu3a05/eu3a05.h"
+#include "cores/eu3a05/eu3a14.h"
 #include "cores/advision/advision.h"
 #include "cores/adam/adam.h"
 #include "cores/ngen/ngen.h"
@@ -233,6 +235,8 @@ Core* createCore(const std::string& id)
         return new AdvisionCore();
     if (id == "airblsjs")     // Air-Blaster Joystick (Elan EU3A05)
         return new Eu3a05Core();
+    if (id == "batvgc")       // Thinkway motion-gear TV games (Elan EU3A14)
+        return new Eu3a14Core(id);
     if (id == "al8800b")      // Altair 8800b (front panel)
         return new AltairCore(false);
     if (id == "al8800bt")     // Altair 8800b Turnkey
@@ -247,6 +251,8 @@ Core* createCore(const std::string& id)
         return new HhTms1kCore(id);
     if (HhRw5000Core::known(id))   // Rockwell B6000 handhelds (autorace)
         return new HhRw5000Core(id);
+    if (HhSm511Core::known(id))    // Sharp SM511 LCD handhelds (bassmate)
+        return new HhSm511Core(id);
     if (HhSm510Core::known(id))    // Sharp SM5xx LCD handhelds (atakaast, auslalom)
         return new HhSm510Core(id);
     if (HhUcom4Core::known(id))    // NEC uCOM-4 handhelds (alnchase, ...)

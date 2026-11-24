@@ -70,6 +70,8 @@ controller.
 | Super Ping Pong (Advance Bright sensor bat) (PAL) | `ablping` | VT02 / VT03 "sports" PAL + the bat's speech chip handshake | Menus and matches play (MAME's driver stops after the menu); the umpire's voice is silent (its data format is unknown) |
 | TV Games Baseball (sensor bat) | `bb6578` | SH6578 + the cartridge's security chip (EXT port handshake) + 8 kHz sampled speech on the timer DAC | Plays: setup menu and full innings (MAME's driver stops at the title) |
 | Pet Rescue (2005 TV game) | `barbpet` | SPG2xx (unSP) | Plays: story intro, title and the rooms |
+| Motion Gear: Night City Fighter | `batvgc` | Elan EU3A14 (new core: paged tilemaps, RAM-tile text layer, bus sprites, 6 ADPCM voices) + the gear's radio link on port B | Plays: title, difficulty menu and the fights (MAME's driver has no gear input) |
+| Bassmate Computer | `bassmate` | Sharp SM511 (new core, with its melody ROM) on two stacked LCDs | Runs: clock, condition keys and COMPUTE. The SVGs are segments only, so the printed labels on the real screens aren't drawn |
 | Double Players Mini Joystick 80-in-1 (Advance Bright) (PAL) | `ablmini` | VT02 / VT03 Waixing PAL, 8 MB, two pads | Menu and games match MAME's frames; two players |
 | Joystick 14-in-1 (Advance Bright "Wikid Joystick") (PAL) | `ablwikid` | SH6578 PAL, 2 MB in two halves | Menu and games match MAME's frames |
 | Wireless Tennis (Advance Bright) | `abltenni` | SunPlus SPG24x + the wireless racket receiver | Menus match MAME; serving and rallies play with the on-screen racket (MAME's driver can't get past "press the button") |
@@ -186,6 +188,8 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Super Ping Pong | `ablping` | `abl_pingpong.bin` | 2 MB (2,097,152 bytes) | `b31de1fb` |
 | TV Games Baseball | `bb6578` | `tv game baseball.bin` | 512 KB (524,288 bytes) | `dec862b2` |
 | Pet Rescue | `barbpet` | `barbiepetrescue.u3` | 2 MB (2,097,152 bytes) | `a740b19d` |
+| Motion Gear: Night City Fighter | `batvgc` | `batvgc.bin` | 8 MB (8,388,608 bytes) | `513a5625` |
+| Bassmate Computer | `bassmate` | `bm-501.program`, `bm-501.melody`, `bassmate_top.svg`, `bassmate_bottom.svg` | 4 KB, 256 bytes, 42,305 and 19,775 bytes | `9bdd0501`, `fbe15600`, `0cc056fe`, `9561d52d` |
 | Double Players Mini Joystick 80-in-1 | `ablmini` | `ablmini.bin` | 8 MB (8,388,608 bytes) | `e65a2c3a` |
 | Joystick 14-in-1 | `ablwikid` | `mx29f1610atc.u2` | 2 MB (2,097,152 bytes) | `f16abf79` |
 | Wireless Tennis | `abltenni` | `ablpnpwirelesstennis.bin` | 4 MB (4,194,304 bytes) | `66bd8ef1` |

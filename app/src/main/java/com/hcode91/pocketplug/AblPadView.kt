@@ -19,9 +19,13 @@ import kotlin.math.hypot
  *                START and SELECT. NES pad bits.
  *  - "pingpong": a table-tennis bat; tap the rubber to swing (and to choose),
  *                arrows and cancel on the handle. NES pad bits.
- *  - "baseball": a bat for the sensor baseball game: tap the barrel for a full
- *                swing (A), the B button for a medium one, with arrows, SELECT and
- *                START on the handle for the setup menu. NES pad bits.
+ *  - "baseball": the sensor baseball set: a home-plate base with red keys along
+ *                its top (arrows, SELECT, START), a ball-shaped B button (medium
+ *                swing) and a black bat to tap for a full swing (A). NES pad bits.
+ *  - "gear":     the motion gear for the Elan EU3A14 fighting games: four strike
+ *                pads (punch, kick, guard, jab) and a spin move on a black wrist
+ *                band, and the base unit's PAUSE. Bits: pause 0, punch 4, kick 5,
+ *                guard 6, jab 7, spin 9.
  *  - "minijoy":  two teal-and-white mini joysticks with grey-green ball tops,
  *                one per player (player 2 in bits 8-15).
  *  - "tennis":   a racket (tap or swipe the strings to swing, the handle button
@@ -65,6 +69,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         const val F_START = 0x01; const val F_SELECT = 0x02; const val F_UP = 0x04; const val F_DOWN = 0x08
         const val F_LEFT = 0x10; const val F_RIGHT = 0x20; const val F_B1 = 0x40; const val F_B2 = 0x80
         const val RESET_KEY = 0x40000000      // console RESET (not an input bit)
+        const val G_PAUSE = 0x01; const val G_PUNCH = 0x10; const val G_KICK = 0x20; const val G_GUARD = 0x40; const val G_JAB = 0x80; const val G_SPIN = 0x200
         const val Y_A = 0x10; const val Y_B = 0x20; const val Y_X = 0x40; const val Y_Y = 0x80; const val Y_PAUSE = 0x100
         const val K_X = 0x01; const val K_RED = 0x02; const val K_GREEN = 0x04; const val K_O = 0x08
         const val M_BLUE = 0x10; const val M_YELLOW = 0x20; const val M_RED = 0x40; const val M_GREEN = 0x80; const val M_SELECT = 0x100
@@ -81,6 +86,15 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_X -> F_B2
                 KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER -> F_START
                 KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_SHIFT_RIGHT -> F_SELECT
+                else -> 0
+            }
+            if (style == "gear") return when (code) {
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_Z -> G_PUNCH
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_X -> G_KICK
+                KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_C -> G_GUARD
+                KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_V -> G_JAB
+                KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_SPACE -> G_SPIN
+                KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_ESCAPE -> G_PAUSE
                 else -> 0
             }
             if (style == "keroro") return when (code) {
@@ -204,16 +218,26 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 circle(B, "✕", l + bw * 0.35f, t + bh * 0.5f, bh * 0.07f)
             }
             "baseball" -> {
-                // the bat lies across: barrel on the right, handle and its buttons to the left
-                circle(A, "", l + bw * 0.7f, t + bh * 0.5f, bh * 0.38f)
-                val ax = l + bw * 0.14f; val ay = t + bh * 0.5f; val ar = bh * 0.07f
-                circle(UP, "▲", ax, ay - ar * 2.1f, ar)
-                circle(DOWN, "▼", ax, ay + ar * 2.1f, ar)
-                circle(LEFT, "◀", ax - ar * 2.1f, ay, ar)
-                circle(RIGHT, "▶", ax + ar * 2.1f, ay, ar)
-                circle(B, "B", l + bw * 0.36f, t + bh * 0.5f, bh * 0.075f)
-                rect(SELECT, "SELECT", l + bw * 0.04f, t + bh * 0.86f, l + bw * 0.17f, t + bh * 0.94f)
-                rect(START, "START", l + bw * 0.2f, t + bh * 0.86f, l + bw * 0.33f, t + bh * 0.94f)
+                // home-plate base on the left (red keys along its top edge), the ball-shaped
+                // button below it, and the bat standing on the right: tap the bat to swing
+                circle(A, "", l + bw * 0.79f, t + bh * 0.45f, bh * 0.42f)
+                val kw = bw * 0.062f; val ky = t + bh * 0.16f
+                val keys = listOf(LEFT to "◀", UP to "▲", DOWN to "▼", RIGHT to "▶", SELECT to "SEL", START to "START")
+                for ((n, k) in keys.withIndex()) {
+                    val kx = l + bw * 0.045f + n * (kw + bw * 0.008f)
+                    rect(k.first, k.second, kx, ky, kx + kw, ky + bh * 0.13f)
+                }
+                circle(B, "B", l + bw * 0.5f, t + bh * 0.8f, bh * 0.1f)
+            }
+            "gear" -> {
+                // the band runs across; four strike pads on it, the spin move and PAUSE beside
+                val r = bh * 0.15f
+                circle(G_PUNCH, "PUNCH", l + bw * 0.2f, t + bh * 0.42f, r)
+                circle(G_JAB, "JAB", l + bw * 0.4f, t + bh * 0.42f, r)
+                circle(G_GUARD, "GUARD", l + bw * 0.6f, t + bh * 0.42f, r)
+                circle(G_KICK, "KICK", l + bw * 0.8f, t + bh * 0.42f, r)
+                rect(G_SPIN, "SPIN", l + bw * 0.3f, t + bh * 0.78f, l + bw * 0.5f, t + bh * 0.9f)
+                rect(G_PAUSE, "PAUSE", l + bw * 0.6f, t + bh * 0.78f, l + bw * 0.8f, t + bh * 0.9f)
             }
             "minijoy" -> {
                 for (p in 0..1) {
@@ -320,6 +344,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             "pinball" -> drawPinball(c, held)
             "pingpong" -> drawPingPong(c, held)
             "baseball" -> drawBat(c, held)
+            "gear" -> drawGear(c, held)
             "minijoy" -> drawMiniJoy(c, held)
             "tennis" -> { drawReceiver(c, held); drawRacket(c, held) }
             "kickbox" -> { drawReceiver(c, held); drawKickBox(c, held) }
@@ -415,27 +440,66 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
 
     private fun drawBat(c: Canvas, held: Int) {
         val bw = body.width(); val bh = body.height()
-        val barrel = ctls.first { it.bit == A }
-        // a light wooden bat lying across, thick end on the right
-        val down = held and A != 0
-        val r = barrel.r * (if (down) 0.95f else 1f)
+        val l = body.left; val t = body.top
+        // home plate: white top, dark rim, pointing down
         path.reset()
-        val gy = body.top + bh * 0.5f
-        path.moveTo(body.left + bw * 0.03f, gy - bh * 0.06f)
-        path.lineTo(barrel.cx - r * 0.2f, gy - r * 0.62f)
-        path.quadTo(barrel.cx + r * 1.25f, gy - r * 0.7f, barrel.cx + r * 1.25f, gy)
-        path.quadTo(barrel.cx + r * 1.25f, gy + r * 0.7f, barrel.cx - r * 0.2f, gy + r * 0.62f)
-        path.lineTo(body.left + bw * 0.03f, gy + bh * 0.06f)
-        path.close()
-        paint.shader = LinearGradient(0f, gy - r * 0.7f, 0f, gy + r * 0.7f, intArrayOf(0xFFF1D29C.toInt(), 0xFFD4A462.toInt(), 0xFF9C6B30.toInt()), null, Shader.TileMode.CLAMP)
+        path.moveTo(l + bw * 0.02f, t + bh * 0.08f); path.lineTo(l + bw * 0.47f, t + bh * 0.08f)
+        path.lineTo(l + bw * 0.47f, t + bh * 0.5f); path.lineTo(l + bw * 0.245f, t + bh * 0.78f)
+        path.lineTo(l + bw * 0.02f, t + bh * 0.5f); path.close()
+        paint.color = 0x55000000; c.save(); c.translate(bw * 0.006f, bh * 0.03f); c.drawPath(path, paint); c.restore()
+        paint.color = 0xFF3B3B42.toInt(); c.drawPath(path, paint)
+        c.save(); c.translate(0f, -bh * 0.025f)
+        paint.shader = LinearGradient(0f, t, 0f, t + bh * 0.75f, 0xFFF7F7F9.toInt(), 0xFFD9DAE0.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(path, paint); paint.shader = null; c.restore()
+        // the hole for the bat's cable and a red swoosh, no lettering
+        paint.color = 0xFF1C1C22.toInt(); c.drawCircle(l + bw * 0.245f, t + bh * 0.55f, bh * 0.035f, paint)
+        stroke.color = 0xFFD8322A.toInt(); stroke.strokeWidth = bh * 0.025f
+        c.drawArc(l + bw * 0.08f, t + bh * 0.34f, l + bw * 0.41f, t + bh * 0.5f, 200f, 140f, false, stroke)
+        // the ball: white with red stitching, the B key in its blue centre
+        val ball = ctls.first { it.bit == B }
+        paint.color = 0x55000000; c.drawCircle(ball.cx, ball.cy + ball.r * 0.12f, ball.r * 1.35f, paint)
+        paint.color = 0xFFF4F4F0.toInt(); c.drawCircle(ball.cx, ball.cy, ball.r * 1.3f, paint)
+        stroke.color = 0xFFC8302A.toInt(); stroke.strokeWidth = ball.r * 0.08f
+        c.drawArc(ball.cx - ball.r * 2.1f, ball.cy - ball.r * 1.2f, ball.cx - ball.r * 0.5f, ball.cy + ball.r * 1.2f, -50f, 100f, false, stroke)
+        c.drawArc(ball.cx + ball.r * 0.5f, ball.cy - ball.r * 1.2f, ball.cx + ball.r * 2.1f, ball.cy + ball.r * 1.2f, 130f, 100f, false, stroke)
+        // the bat: black, leaning, knob at the bottom
+        val bat = ctls.first { it.bit == A }
+        val down = held and A != 0
+        c.save()
+        c.rotate(if (down) 32f else 18f, bat.cx, bat.cy + bat.r * 0.95f)
+        val cx = bat.cx; val top = bat.cy - bat.r * 1.05f; val bot = bat.cy + bat.r * 0.95f
+        path.reset()
+        path.moveTo(cx - bh * 0.03f, bot); path.lineTo(cx - bh * 0.075f, top + bh * 0.12f)
+        path.quadTo(cx - bh * 0.08f, top, cx, top); path.quadTo(cx + bh * 0.08f, top, cx + bh * 0.075f, top + bh * 0.12f)
+        path.lineTo(cx + bh * 0.03f, bot); path.close()
+        paint.shader = LinearGradient(cx - bh * 0.08f, 0f, cx + bh * 0.08f, 0f, intArrayOf(0xFF111114.toInt(), 0xFF4A4A52.toInt(), 0xFF141417.toInt()), null, Shader.TileMode.CLAMP)
         c.drawPath(path, paint); paint.shader = null
-        stroke.color = 0xFF6E4318.toInt(); stroke.strokeWidth = bw * 0.004f
-        c.drawPath(path, stroke)
-        // dark grip tape on the handle, under the buttons
-        paint.color = 0xFF2B2B33.toInt()
-        c.drawRoundRect(body.left + bw * 0.02f, gy - bh * 0.3f, body.left + bw * 0.42f, gy + bh * 0.3f, bh * 0.12f, bh * 0.12f, paint)
-        label(c, "TAP TO SWING", barrel.cx + r * 0.15f, gy, bh * 0.06f, 0x996E4318.toInt())
-        drawButtons(c, held, 0xFFE9E9EE.toInt(), 0xFF9A9AA6.toInt(), 0xFF202028.toInt(), setOf(A))
+        paint.color = 0xFF2A2A30.toInt(); c.drawRoundRect(cx - bh * 0.06f, top + bh * 0.42f, cx + bh * 0.06f, top + bh * 0.5f, bh * 0.02f, bh * 0.02f, paint)
+        paint.color = 0xFF18181C.toInt(); c.drawOval(cx - bh * 0.05f, bot - bh * 0.01f, cx + bh * 0.05f, bot + bh * 0.04f, paint)
+        c.restore()
+        label(c, "TAP THE BAT TO SWING", bat.cx, body.bottom - bh * 0.03f, bh * 0.05f, 0x99FFFFFF.toInt())
+        drawButtons(c, held, 0xFFEF5340.toInt(), 0xFFA8231A.toInt(), 0xFFFFFFFF.toInt(), setOf(A, B))
+        if (held and B != 0) { paint.color = 0x33000000; c.drawCircle(ball.cx, ball.cy, ball.r * 1.3f, paint) }
+        paint.color = 0xFF2C4FA8.toInt(); c.drawCircle(ball.cx, ball.cy, ball.r * 0.55f, paint)
+        label(c, "B", ball.cx, ball.cy, ball.r * 0.6f, 0xFFFFFFFF.toInt())
+    }
+
+    private fun drawGear(c: Canvas, held: Int) {
+        val bw = body.width(); val bh = body.height()
+        val l = body.left; val t = body.top
+        // a black padded band with a silver edge and stitched seams
+        val band = RectF(l + bw * 0.04f, t + bh * 0.16f, l + bw * 0.96f, t + bh * 0.68f)
+        paint.color = 0x55000000; c.drawRoundRect(band.left + bw * 0.006f, band.top + bh * 0.03f, band.right + bw * 0.006f, band.bottom + bh * 0.03f, bh * 0.12f, bh * 0.12f, paint)
+        paint.shader = LinearGradient(0f, band.top, 0f, band.bottom, intArrayOf(0xFF2C2C34.toInt(), 0xFF141418.toInt(), 0xFF24242A.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(band, bh * 0.12f, bh * 0.12f, paint); paint.shader = null
+        stroke.color = 0xFF8A8E98.toInt(); stroke.strokeWidth = bw * 0.006f; c.drawRoundRect(band, bh * 0.12f, bh * 0.12f, stroke)
+        stroke.color = 0xFF3C3C46.toInt(); stroke.strokeWidth = bw * 0.003f
+        stroke.pathEffect = DashPathEffect(floatArrayOf(bw * 0.012f, bw * 0.008f), 0f)
+        c.drawRoundRect(RectF(band).apply { inset(bw * 0.015f, bh * 0.04f) }, bh * 0.1f, bh * 0.1f, stroke)
+        stroke.pathEffect = null
+        // the base unit's ledge for the two small keys
+        paint.color = 0xFF3A3F4A.toInt(); c.drawRoundRect(l + bw * 0.26f, t + bh * 0.74f, l + bw * 0.84f, t + bh * 0.94f, bh * 0.05f, bh * 0.05f, paint)
+        drawButtons(c, held, 0xFFF2C230.toInt(), 0xFF8C6A08.toInt(), 0xFF1A1A1A.toInt())
     }
 
     private fun drawMiniJoy(c: Canvas, held: Int) {

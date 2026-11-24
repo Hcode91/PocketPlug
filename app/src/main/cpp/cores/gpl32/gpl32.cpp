@@ -107,7 +107,7 @@ void GplCore::reset()
         m_cpu->hle_user = this;
         m_cpu->hle_hook = [](didj::ARM926* c, uint32_t pc, void* u) -> bool {
             auto* self = static_cast<GplCore*>(u);
-            fprintf(stderr, "BRK %08x r0 %08x r1 %08x r2 %08x r3 %08x lr %08x i%llu :", pc, c->r[0], c->r[1], c->r[2], c->r[3], c->r[14], (unsigned long long)c->insn_count);
+            fprintf(stderr, "BRK %08x r0 %08x r1 %08x r2 %08x r3 %08x r4 %08x r5 %08x r6 %08x r7 %08x r8 %08x sp %08x lr %08x i%llu :", pc, c->r[0], c->r[1], c->r[2], c->r[3], c->r[4], c->r[5], c->r[6], c->r[7], c->r[8], c->r[13], c->r[14], (unsigned long long)c->insn_count);
             uint32_t m = getenv("GPLBRKMEM") ? uint32_t(strtoul(getenv("GPLBRKMEM"), nullptr, 16)) : c->r[0];
             for (int i = 0; i < 32; i++) fprintf(stderr, " %02x", self->read8(m + uint32_t(i)));
             fprintf(stderr, "\n  bt:");

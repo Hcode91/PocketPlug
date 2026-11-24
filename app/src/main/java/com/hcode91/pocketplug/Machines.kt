@@ -1323,6 +1323,23 @@ object Machines {
             skin = Skin.HH,
         ),
         MachineDef(
+            id = "bassmate",
+            title = "Bassmate Computer",
+            subtitle = "1984 fishing advisor on two LCDs: set the season, water temperature, depth, time of day, "
+                + "structure, cover, clarity and wind, then COMPUTE for the lure and spot to try. Also a clock "
+                + "with an alarm (made by Nintendo for Telko; MAME set: bassmate)",
+            chip = "Sharp SM511",
+            region = "USA",
+            year = "1984",
+            roms = listOf(
+                RomSpec("bm-501.program", 0x1000L, 0x9bdd0501L),
+                RomSpec("bm-501.melody", 0x100L, 0xfbe15600L),
+                RomSpec("bassmate_top.svg", 42305L, 0x0cc056feL),
+                RomSpec("bassmate_bottom.svg", 19775L, 0x9561d52dL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
             id = "barbpet",
             title = "Pet Rescue",
             subtitle = "2005 TV game: find lost pets around the house and garden, wash, feed and play with them. "
@@ -1333,6 +1350,19 @@ object Machines {
             roms = listOf(RomSpec("barbiepetrescue.u3", 0x200000L, 0xa740b19dL)),
             skin = Skin.ABL_TV,
             badge = "backyard",
+        ),
+        MachineDef(
+            id = "batvgc",
+            title = "Motion Gear: Night City Fighter",
+            subtitle = "Strap-on motion-gear fighting game: punch, jab, guard and kick your way through a "
+                + "city of villains. The pads send the band's moves over its radio link "
+                + "(Thinkway Interactive M.A.G.; MAME set: batvgc)",
+            chip = "Elan EU3A14 (6502 TV game SoC)",
+            region = "USA",
+            year = "200x",
+            roms = listOf(RomSpec("batvgc.bin", 0x800000L, 0x513a5625L)),
+            skin = Skin.ABL_TV,
+            badge = "gear",
         ),
         MachineDef(
             id = "bb6578",

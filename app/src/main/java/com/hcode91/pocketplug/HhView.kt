@@ -401,6 +401,7 @@ class HhSkin(
             "atakaast" -> atakaAsteroidov()
             "auslalom" -> autoslalom()
             "autorace" -> autoRace()
+            "bassmate" -> bassmate()
             else -> null
         }
 
@@ -738,6 +739,37 @@ class HhSkin(
                 p.color = 0xFFE8862C.toInt(); c.drawRect(500f, 760f, 1100f, 770f, p)
             },
         )
+
+        /** Bassmate Computer (1984): a tall case holding the two LCDs one above the other, the eight
+         *  fishing-condition keys in two rows under them, COMPUTE, ALARM and the recessed ACL. */
+        private fun bassmate(): HhSkin {
+            val key = 0xFF2E6E4E.toInt(); val ink = 0xFFE8F0E8.toInt()
+            fun k(x: Float, y: Float, bit: Int, label: String) = Control(Kind.BUTTON, x, y, 0f, color = key, base = 0xFF14281E.toInt(),
+                bit = bit, label = label, labelColor = 0xFFCFE0D2.toInt(), labelSize = 24f, bw = 170f, bh = 62f)
+            return HhSkin(
+                1000f, 1900f, 0xFF101412.toInt(),
+                screen = RectF(90f, 110f, 910f, 1189f), bezel = 0xFF0C0C0C.toInt(), bezelPad = 14f,
+                menu = PointF(500f, 1860f),
+                controls = listOf(
+                    k(170f, 1330f, 0x10, "SEASON"), k(390f, 1330f, 0x20, "WATER TEMP"), k(610f, 1330f, 0x40, "DEPTH"), k(830f, 1330f, 0x80, "TIME OF DAY"),
+                    k(170f, 1480f, 0x100, "STRUCTURE"), k(390f, 1480f, 0x200, "COVER"), k(610f, 1480f, 0x400, "CLARITY"), k(830f, 1480f, 0x800, "WIND"),
+                    Control(Kind.BUTTON, 500f, 1680f, 0f, color = 0xFFE0B02A.toInt(), base = 0xFF5A4410.toInt(), bit = 0x1000,
+                        bw = 300f, bh = 90f, face = "COMPUTE", faceColor = 0xFF2A2008.toInt(), faceSize = 38f),
+                    Control(Kind.BUTTON, 170f, 1680f, 36f, color = 0xFF1C1C1C.toInt(), base = 0xFF6A6A6A.toInt(), bit = 0x2000,
+                        label = "ALARM", labelColor = 0xFFCFE0D2.toInt(), labelSize = 24f),
+                    Control(Kind.BUTTON, 830f, 1680f, 18f, color = 0xFF1C1C1C.toInt(), base = 0xFF6A6A6A.toInt(), bit = 0x4000,
+                        label = "ACL", labelColor = 0xFFCFE0D2.toInt(), labelSize = 24f),
+                ),
+                drawBody = { c, p, s ->
+                    p.shader = LinearGradient(0f, 0f, 1000f, 0f, intArrayOf(0xFF2A3A30.toInt(), 0xFF3C5244.toInt(), 0xFF26342C.toInt()), null, Shader.TileMode.CLAMP)
+                    c.drawRoundRect(20f, 20f, 980f, 1880f, 60f, 60f, p); p.shader = null
+                    s.color = 0xFF16201A.toInt(); s.strokeWidth = 6f; c.drawRoundRect(20f, 20f, 980f, 1880f, 60f, 60f, s)
+                    p.color = 0xFF1A231E.toInt(); c.drawRoundRect(60f, 80f, 940f, 1222f, 30f, 30f, p)
+                    // key panel
+                    p.color = 0xFF22302A.toInt(); c.drawRoundRect(60f, 1260f, 940f, 1560f, 24f, 24f, p)
+                },
+            )
+        }
 
         /** Mattel Auto Race (1976), from a photo: the grey case with a blank black badge, the black
          *  track with white lines down the right side holding the LED window (score on top, the cars as
