@@ -37,8 +37,8 @@ const m68k_register_t kRegs[] = {
 constexpr int kNumRegs = int(sizeof(kRegs) / sizeof(kRegs[0]));
 }
 
-AlmeriaCore::AlmeriaCore(bool is32, std::string romEven, std::string romOdd)
-    : m_is32(is32), m_romEven(std::move(romEven)), m_romOdd(std::move(romOdd))
+AlmeriaCore::AlmeriaCore(bool is32, std::string romEven, std::string romOdd, bool berlin)
+    : m_is32(is32), m_berlin(berlin), m_romEven(std::move(romEven)), m_romOdd(std::move(romOdd))
 {
     std::memset(m_cgrom, 0, sizeof(m_cgrom));
     std::memset(m_out, 0, sizeof(m_out));
@@ -48,8 +48,16 @@ AlmeriaCore::AlmeriaCore(bool is32, std::string romEven, std::string romOdd)
     m_ramMask = uint32_t(m_ram.size() - 1);
     // 16 bit: 12.288 MHz / 10 / 0x800 = 600 Hz; 32 bit: 12.288 MHz / 0x4000 = 750 Hz
     m_irqPeriod = is32 ? 0x4000 : 10 * 0x800;
+    m_hz = CPU_HZ;
+    m_irqLevel = 3;
+    if (berlin) {
+        // Berlin 68000: 12.288 MHz / 0x4000; Professional: 68EC020 at 24.576 MHz / 0x8000 (both 750 Hz)
+        m_hz = is32 ? 24576000 : CPU_HZ;
+        m_irqPeriod = is32 ? 0x8000 : 0x4000;
+        m_irqLevel = 2;
+    }
     m_lcd.setCgrom(m_cgrom);
-    m_lcd.setClockRatio(double(CPU_HZ) / 270000.0);   // OSC = 91K resistor
+    m_lcd.setClockRatio(double(m_hz) / 270000.0);   // OSC = 91K resistor
 }
 
 AlmeriaCore::~AlmeriaCore()
@@ -59,11 +67,12 @@ AlmeriaCore::~AlmeriaCore()
 
 bool AlmeriaCore::load(const std::vector<RomFile>& roms, std::string& error)
 {
-    m_rom.assign(0x20000, 0xff);
+    size_t romSize = (m_berlin && m_is32) ? 0x40000 : 0x20000;
+    m_rom.assign(romSize, 0xff);
     bool haveEven = false, haveOdd = m_romOdd.empty(), haveCg = false;
     for (auto& r : roms) {
-        if (m_romOdd.empty() && r.name == m_romEven && r.data.size() == 0x20000) {
-            std::memcpy(m_rom.data(), r.data.data(), 0x20000); haveEven = true;
+        if (m_romOdd.empty() && r.name == m_romEven && r.data.size() == romSize) {
+            std::memcpy(m_rom.data(), r.data.data(), romSize); haveEven = true;
         } else if (!m_romOdd.empty() && r.name == m_romEven && r.data.size() == 0x10000) {
             for (int i = 0; i < 0x10000; i++) m_rom[2 * i] = r.data[i];
             haveEven = true;
@@ -75,16 +84,16 @@ bool AlmeriaCore::load(const std::vector<RomFile>& roms, std::string& error)
         }
     }
     if (!haveEven || !haveOdd) {
-        error = "Missing the Almeria ROM" + std::string(m_romOdd.empty() ? " (" + m_romEven + ")" : "s (" + m_romEven + ", " + m_romOdd + ")");
+ error = std::string(m_berlin ? "Missing the Berlin ROM" : "Missing the Almeria ROM") + std::string(m_romOdd.empty() ? " (" + m_romEven + ")" : "s (" + m_romEven + ", " + m_romOdd + ")");
         return false;
     }
     if (!haveCg) { error = "Missing hd44780_a00.bin (the LCD's character ROM, from MAME's hd44780 zip)"; return false; }
     std::memset(m_s.nvram, 0, sizeof(m_s.nvram));   // battery RAM starts cleared
-    m_s.board.init(true, CPU_HZ * 15 / 100);         // 150 ms sensor delay
+    m_s.board.init(!m_berlin, m_hz * 15 / 100);      // 150 ms sensor delay (Berlin: buttons)
     g_core = this;
     m68k_bus_set(&kBus);
     m68k_init();
-    m68k_set_cpu_type(m_is32 ? M68K_CPU_TYPE_68020 : M68K_CPU_TYPE_68000);
+    m68k_set_cpu_type(m_is32 ? M68K_CPU_TYPE_68020 /* the EC020 is a 68020 on a 24-bit bus: addresses are masked here */ : M68K_CPU_TYPE_68000);
     reset();
     return true;
 }
@@ -134,6 +143,26 @@ void AlmeriaCore::displayIo(uint8_t d)
 
 uint8_t AlmeriaCore::read8(uint32_t a)
 {
+    if (m_berlin) {
+        a &= 0xffffff;
+        if (a < m_rom.size()) return m_rom[a];
+        // keypad (Enter, Clear, Up, Down, Left, Right, New Game 1/2) when display i/o d7 is low
+        uint8_t keys = 0;
+        if (!(m_s.ctrl & 0x80))
+            keys = uint8_t((m_keys & 1) | (m_keys >> 2 & 1) << 1 | (m_keys >> 1 & 1) << 2 | (m_keys >> 5 & 1) << 3
+                | (m_keys >> 3 & 1) << 4 | (m_keys >> 4 & 1) << 5 | ((m_keys >> 6 & 1) ? 0xc0 : 0));
+        uint8_t input = uint8_t(~boardInput() | keys);
+        if (!m_is32) {
+            if (a >= 0x800000 && a < 0x880000) return m_ram[a & m_ramMask];
+            if (a >= 0x900000 && a < 0x904000) return (a & 1) ? 0 : m_s.nvram[(a - 0x900000) >> 1];
+            if (a == 0xa00000) return input;
+            return 0;
+        }
+        if (a >= 0x400000 && a < 0x500000) return m_ram[a & m_ramMask];
+        if (a >= 0xd00000 && a < 0xd08000) return (a & 3) ? 0 : m_s.nvram[(a - 0xd00000) >> 2];
+        if (a == 0x800000) return input;
+        return 0;
+    }
     if (a < 0x20000) return m_rom[a];
     if (!m_is32) {
         a &= 0xffffff;
@@ -154,6 +183,29 @@ uint8_t AlmeriaCore::read8(uint32_t a)
 
 void AlmeriaCore::write8(uint32_t a, uint8_t d)
 {
+    if (m_berlin) {
+        a &= 0xffffff;
+        if (!m_is32) {
+            if (a >= 0x800000 && a < 0x880000) { m_ram[a & m_ramMask] = d; return; }
+            if (a >= 0x900000 && a < 0x904000) { if (!(a & 1)) m_s.nvram[(a - 0x900000) >> 1] = d; return; }
+            switch (a) {
+            case 0xb00000: m_s.mux = d; return;
+            case 0xc00000: m_s.latch = d; return;
+            case 0xd00008: displayIo(d); return;
+            case 0xe00000: m_s.ledData = d; return;
+            default: return;
+            }
+        }
+        if (a >= 0x400000 && a < 0x500000) { m_ram[a & m_ramMask] = d; return; }
+        if (a >= 0xd00000 && a < 0xd08000) { if (!(a & 3)) m_s.nvram[(a - 0xd00000) >> 2] = d; return; }
+        switch (a) {
+        case 0x900000: m_s.mux = d; return;
+        case 0xa00000: m_s.ledData = d; return;
+        case 0xb00000: displayIo(d); return;
+        case 0xc00000: m_s.latch = d; return;
+        default: return;
+        }
+    }
     if (!m_is32) {
         a &= 0xffffff;
         if (a >= 0x400000 && a < 0x480000) { m_ram[a & m_ramMask] = d; return; }
@@ -179,6 +231,13 @@ void AlmeriaCore::write8(uint32_t a, uint8_t d)
 
 uint16_t AlmeriaCore::read16(uint32_t a)
 {
+    if (m_berlin) {
+        uint32_t r = a & 0xffffff;
+        if (r < m_rom.size() - 1) return uint16_t(m_rom[r] << 8 | m_rom[r + 1]);
+        if (m_is32 ? (r >= 0x400000 && r < 0x4fffff) : (r >= 0x800000 && r < 0x87ffff))
+            return uint16_t(m_ram[r & m_ramMask] << 8 | m_ram[(r + 1) & m_ramMask]);
+        return uint16_t(read8(a) << 8 | read8(a + 1));
+    }
     if (a < 0x20000 - 1) return uint16_t(m_rom[a] << 8 | m_rom[a + 1]);
     uint32_t r = m_is32 ? a : (a & 0xffffff);
     if (m_is32 ? (r >= 0x40000000 && r < 0x400fffff) : (r >= 0x400000 && r < 0x47ffff))
@@ -229,9 +288,9 @@ void AlmeriaCore::sampleOutputs()
 void AlmeriaCore::runFrame()
 {
     if (g_core != this) { g_core = this; m68k_bus_set(&kBus); }
-    const int perFrame = CPU_HZ / 60;
+    const int perFrame = m_hz / 60;
     int done = 0;
-    const double perSample = double(CPU_HZ) / AUDIO_HZ;
+    const double perSample = double(m_hz) / AUDIO_HZ;
     while (done < perFrame) {
         m_carry += perSample;
         int slice = int(m_carry);
@@ -249,7 +308,7 @@ void AlmeriaCore::runFrame()
             if (m_s.irqCount <= 0) {
                 m_s.irqCount += m_irqPeriod;
                 m_s.irqLine = 1;
-                m68k_set_irq(3);
+                m68k_set_irq(m_irqLevel);
             }
         }
         done += ran;
@@ -282,7 +341,7 @@ size_t AlmeriaCore::readAudio(int16_t* out, size_t maxSamples)
 bool AlmeriaCore::saveState(std::vector<uint8_t>& out)
 {
     out.clear();
-    uint32_t magic = m_is32 ? 0x32334c41 : 0x36314c41;   // 'AL32' / 'AL16'
+    uint32_t magic = (m_is32 ? 0x32334c41 : 0x36314c41) ^ (m_berlin ? 0x00004200 : 0);   // 'AL32' / 'AL16'
     auto put = [&](const void* p, size_t n) { const uint8_t* b = (const uint8_t*)p; out.insert(out.end(), b, b + n); };
     put(&magic, 4);
     put(&m_s, sizeof(m_s));
@@ -299,7 +358,7 @@ bool AlmeriaCore::loadState(const std::vector<uint8_t>& in)
     uint32_t regs[kNumRegs];
     if (in.size() != 4 + sizeof(m_s) + sizeof(m_lcd.s) + m_ram.size() + sizeof(regs)) return false;
     uint32_t magic; std::memcpy(&magic, in.data(), 4);
-    if (magic != (m_is32 ? 0x32334c41u : 0x36314c41u)) return false;
+    if (magic != ((m_is32 ? 0x32334c41u : 0x36314c41u) ^ (m_berlin ? 0x00004200u : 0u))) return false;
     const uint8_t* p = in.data() + 4;
     std::memcpy(&m_s, p, sizeof(m_s)); p += sizeof(m_s);
     std::memcpy(&m_lcd.s, p, sizeof(m_lcd.s)); p += sizeof(m_lcd.s);
@@ -308,6 +367,6 @@ bool AlmeriaCore::loadState(const std::vector<uint8_t>& in)
     g_core = this;
     m68k_bus_set(&kBus);
     for (int i = 0; i < kNumRegs; i++) m68k_set_reg(kRegs[i], regs[i]);
-    m68k_set_irq(m_s.irqLine ? 3 : 0);
+    m68k_set_irq(m_s.irqLine ? m_irqLevel : 0);
     return true;
 }

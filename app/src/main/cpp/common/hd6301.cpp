@@ -32,11 +32,13 @@ enum {
 void Hd6301::reset()
 {
     // m6800 / m6801 / hd6301x device_reset
-    u8 ram[192];
+    u8 ram[192], ramY[64];
     std::memcpy(ram, m_st.ram, sizeof(ram));
+    std::memcpy(ramY, m_st.ramY, sizeof(ramY));
     u8 ramCtrl = m_st.ramCtrl;
     std::memset(&m_st, 0, sizeof(m_st));
     std::memcpy(m_st.ram, ram, sizeof(ram));
+    std::memcpy(m_st.ramY, ramY, sizeof(ramY));
     m_cc = 0xc0;
     SEI;
     PCD = RM16(0xfffe);
@@ -48,6 +50,7 @@ void Hd6301::reset()
     m_st.ramCtrl = u8(((ramCtrl | 0x40) & 0x80) | 0x7c);
     m_st.trcsr = 0x20;   // TDRE
     m_st.tconr = 0xff;
+    if (m_y0) { m_st.ramCtrl = u8((m_st.ramCtrl & 0x80) | 0x78); m_st.p6csr = 7; }
 }
 
 int Hd6301::run(int cycles)
@@ -233,6 +236,17 @@ void Hd6301::write_port2()
 Hd6301::u8 Hd6301::rd(u32 a)
 {
     a &= 0xffff;
+    if (m_y0) {
+        if (a < 0x28) {
+            // the expanded modes leave ports 1, 3, 4 and 7 to the bus
+            if (m_expanded && (a == 0x00 || a == 0x02 || (a >= 0x04 && a <= 0x07) || a == 0x18)) return m_ports->extRead(u16(a));
+            return regRead(int(a));
+        }
+        if (a >= 0x40 && a < 0x100) return m_st.ram[a - 0x40];
+        if (a >= 0x100 && a < 0x140) return m_st.ramY[a - 0x100];
+        if (a >= 0xc000) return m_rom ? m_rom[a - 0xc000] : 0xff;
+        return m_expanded ? m_ports->extRead(u16(a)) : 0xff;
+    }
     if (a < 0x20) return regRead(int(a));
     if (a >= 0x40 && a < 0x100) return m_st.ram[a - 0x40];
     if (a >= 0xf000) return m_rom ? m_rom[a - 0xf000] : 0xff;
@@ -242,6 +256,16 @@ Hd6301::u8 Hd6301::rd(u32 a)
 void Hd6301::wr(u32 a, u8 d)
 {
     a &= 0xffff;
+    if (m_y0) {
+        if (a < 0x28) {
+            if (m_expanded && (a == 0x00 || a == 0x02 || (a >= 0x04 && a <= 0x07) || a == 0x18)) { m_ports->extWrite(u16(a), d); return; }
+            regWrite(int(a), d); return;
+        }
+        if (a >= 0x40 && a < 0x100) { m_st.ram[a - 0x40] = d; return; }
+        if (a >= 0x100 && a < 0x140) { m_st.ramY[a - 0x100] = d; return; }
+        if (a < 0xc000 && m_expanded) m_ports->extWrite(u16(a), d);
+        return;
+    }
     if (a < 0x20) { regWrite(int(a), d); return; }
     if (a >= 0x40 && a < 0x100) { m_st.ram[a - 0x40] = d; return; }
 }
@@ -272,7 +296,15 @@ Hd6301::u8 Hd6301::regRead(int r)
     case 0x10: return m_st.rmcr;
     case 0x11: return m_st.trcsr;
     case 0x14: return u8(m_st.ramCtrl | 0x30);
-    case 0x15: return m_ports->portIn(5);
+    case 0x15:
+        if (m_y0) {
+            u8 ddr = m_st.portxDdr[0];
+            if (ddr == 0xff) return m_st.portxData[0];
+            return u8((m_ports->portIn(5) & ~ddr) | (m_st.portxData[0] & ddr));
+        }
+        return m_ports->portIn(5);
+    case 0x20: return 0xff;
+    case 0x21: return m_y0 ? u8(m_st.p6csr | 7) : 0xff;
     case 0x17: {
         u8 ddr = m_st.portxDdr[1];
         if (ddr == 0xff) return m_st.portxData[1];
@@ -292,8 +324,8 @@ void Hd6301::regWrite(int r, u8 data)
     switch (r) {
     case 0x00: m_st.portDdr[0] = data; break;
     case 0x01:
-        // DDR2 is 2-bit on the 6301X
-        m_st.portDdr[1] = u8(((data & 2) ? 0xfe : 0x00) | (data & 1));
+        // DDR2 is 2-bit on the 6301X, 8-bit on the 6301Y
+        m_st.portDdr[1] = m_y0 ? data : u8(((data & 2) ? 0xfe : 0x00) | (data & 1));
         m_st.port2Written = 1; write_port2();
         break;
     case 0x02:
@@ -342,6 +374,19 @@ void Hd6301::regWrite(int r, u8 data)
     case 0x10: m_st.rmcr = data; break;
     case 0x11: m_st.trcsr = u8((m_st.trcsr & 0xe0) | (data & 0x1f)); break;
     case 0x14: m_st.ramCtrl = data; check_irq_lines(); break;
+    case 0x15:
+        if (m_y0) {
+            m_st.portxData[0] = data;
+            m_ports->portOut(5, u8((data & m_st.portxDdr[0]) | (m_st.portxDdr[0] ^ 0xff)), m_st.portxDdr[0]);
+        }
+        break;
+    case 0x20:
+        if (m_y0 && m_st.portxDdr[0] != data) {
+            m_st.portxDdr[0] = data;
+            m_ports->portOut(5, u8((m_st.portxData[0] & data) | (data ^ 0xff)), data);
+        }
+        break;
+    case 0x21: if (m_y0) m_st.p6csr = u8((m_st.p6csr & 0x80) | (data & 0x7f)); break;
     case 0x16:
         if (m_st.portxDdr[1] != data) {
             m_st.portxDdr[1] = data;

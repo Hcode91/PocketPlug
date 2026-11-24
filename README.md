@@ -24,6 +24,8 @@ controller.
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Mephisto Almeria 16 Bit / 32 Bit chess modules (Hegener + Glaser) | `alm16`, `alm16a`, `alm32` | Motorola 68000 / 68020 (Musashi), HD44780 LCD, magnet sensor board | All three boot to the same LCD as MAME and answer 1. e2-e4 with e7-e5 (same LEDs and LCD as MAME's alm32) |
+| Mephisto Berlin 68000 / Berlin Professional 68020 (Hegener + Glaser) | `berl16`, `berl16a`, `berlinp`, `berlinpl` | Motorola 68000 / 68EC020 (Musashi), HD44780 LCD, button board with 64 LEDs | Boot to the LCD and answer 1. e2-e4 (with c7-c5 / e7-e5) |
+| Novag Beluga | `beluga` | Hitachi HD6301Y0 (own 6301 core, Y0 mode 2), VIP-style LCD from MAME's nvip.svg, button board with rank / file LEDs | Answers 1. e2-e4 with E7 E5 on the LCD and lights |
 | Chibi Pachi: Alien Fever (pachislot keychain) | `alienfev` | Epson E0C6S46 (+1 MHz OSC3), 39x16 dot LCD | Title, menus and spinning reels; HANDLE, MODE, SELECT, SOUND buttons |
 | 40 Bonus Games in 1 (AtGames, Firecore Mega Drive on a chip) | `atgame40` | 68000 (Musashi) + Z80 + own Mega Drive VDP + ymfm YM2612 + Sega PSG; the Firecore's flash banking and its extended graphics mode (128 KB VRAM, 6-bit tiles, 256-colour 24-bit palettes) worked out from the games, including its second extended mode (one palette for planes and sprites, DMA lengths in 32-bit units) | Menu and all 40 games show their screens (MAME shows 17) |
 | Survival Fight (Bandai, 2002) | `banmrid` | The same Mega Drive core, NTSC Japan, plain 4 MB ROM; the unit's four keys sit on the pad port's four direction lines | Plays: title, fighter select and fights |
@@ -146,6 +148,9 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Mephisto Academy | `academy` | `academy_engl.16k`, `academy_engl.32k` | 32 KB each | `ebda6674`, `a967922b` |
 | | | `hd44780_a00.bin` (from MAME's `hd44780` zip) | 4 KB (4,096 bytes) | `e459877c` |
 | Mephisto Almeria 32 Bit | `alm32` | `alm32.bin` + `hd44780_a00.bin` | 128 KB (131,072 bytes) | `38f4b305` |
+| Mephisto Berlin 68000 (v0.03 / v0.02) | `berl16`, `berl16a` | `berlin_68000_even.bin` + `berlin_68000_odd_b003.bin` / `_b002.bin` + `hd44780_a00.bin` | 64 KB each | `31337f15`, `cc146819` / `513a95f2` |
+| Mephisto Berlin Professional (+ London) | `berlinp`, `berlinpl` | `berlin_020_v400.u2` / `berlin_020_london.u2` + `hd44780_a00.bin` | 256 KB (262,144 bytes) | `82fbaf6e` / `d75e170f` |
+| Novag Beluga | `beluga` | `novag_903_31y0rm59p.u1`, `nvip.svg` | 16 KB / 36,256 bytes | `16fc6bfc`, `3373e0d5` |
 | Mephisto Almeria 16 Bit | `alm16` | `almeria_16bit_v0.13_even`, `..._odd` + `hd44780_a00.bin` | 64 KB each | `ee5b6ec4`, `d0be4ee4` |
 | Mephisto Almeria 16 Bit (v0.121) | `alm16a` | `almeria_16bit_v0.121_even`, `..._odd` + `hd44780_a00.bin` | 64 KB each | `3ab8fd3b`, `436c1d85` |
 | Chibi Pachi: Alien Fever | `alienfev` | `alienfev.bin` | 12 KB (12,288 bytes) | `e561599c` |

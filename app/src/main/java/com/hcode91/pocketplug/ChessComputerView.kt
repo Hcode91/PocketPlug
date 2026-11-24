@@ -52,7 +52,11 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
     }
 
     private val accord = style == "accord"
-    private val almeria = style == "almeria"
+    private val berlin = style == "berlin"
+    private val almeria = style == "almeria" || berlin
+    private val beluga = style == "beluga"
+    private val lcdImg = if (beluga) Bitmap.createBitmap(384, 121, Bitmap.Config.ARGB_8888) else null
+    private val lcdPx = if (beluga) IntArray(384 * 121) else null
     private val pieces = IntArray(64)
     private var hand = 0
     private var handPos = -1
@@ -103,6 +107,7 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
         if (modular1 || vcc || elektor) for (i in 0 until 32) lcdSeg[i] = px[130 + i]
         if (elektorLcd && px.size >= 840) for (i in 0 until 640) lcd4[i] = px[200 + i]
         if (arb) for (i in 0 until 12) arbLed[i] = px[130 + i]
+        if (beluga && px.size >= 1152 + 384 * 121) { System.arraycopy(px, 1152, lcdPx!!, 0, 384 * 121); lcdImg!!.setPixels(lcdPx, 0, 384, 0, 0, 384, 121) }
         postInvalidate()
     }
 
@@ -175,6 +180,20 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
                 val cx = kp.left + kw * (i % 6 + 0.5f); val cy = kp.top + kh * (i / 6 + 0.5f)
                 keys[i].set(cx - kw * 0.43f, cy - kh * 0.4f, cx + kw * 0.43f, cy + kh * 0.4f)
             }
+        } else if (beluga) {
+            // board with the rank LEDs on the left and the file LEDs underneath; LCD and two rows of 8 keys below
+            val bw = min(w * 0.88f, (h - toolH) * 0.66f)
+            sq = bw / 8f
+            board.set((w - bw) / 2 + sq * 0.15f, h * 0.02f, (w - bw) / 2 + sq * 0.15f + bw, h * 0.02f + bw)
+            panel.set(board.left - sq * 0.45f, board.bottom + sq * 0.55f, board.right + sq * 0.15f, board.bottom + sq * 2.9f)
+            lcdR.set(panel.left + panel.width() * 0.04f, panel.top + panel.height() * 0.08f, panel.left + panel.width() * 0.04f + panel.width() * 0.4f,
+                panel.top + panel.height() * 0.08f + panel.width() * 0.4f * 121f / 384f)
+            val kw = panel.width() / 8f
+            for (i in 0 until 16) {
+                val cx = panel.left + kw * (i % 8 + 0.5f)
+                val cy = panel.top + panel.height() * (if (i < 8) 0.55f else 0.82f)
+                keys[i].set(cx - kw * 0.38f, cy - panel.height() * 0.09f, cx + kw * 0.38f, cy + panel.height() * 0.09f)
+            }
         } else if (almeria) {
             val bw = min(w * 0.92f, (h - toolH) * 0.74f)
             sq = bw / 8f
@@ -187,6 +206,11 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
             val pos = arrayOf(floatArrayOf(-1.15f, -1.15f), floatArrayOf(0f, -1.15f), floatArrayOf(1.15f, -1.15f),
                 floatArrayOf(-1.15f, 0f), floatArrayOf(1.15f, 0f), floatArrayOf(0f, 1.15f))
             for (i in 0 until 8) {
+                if (berlin && i == 6) {
+                    // NEW GAME, under the left column
+                    val cx = kx - 1.15f * kw; val cy = ky + 1.15f * kh
+                    keys[i].set(cx - kw * 0.45f, cy - kh * 0.45f, cx + kw * 0.45f, cy + kh * 0.45f); continue
+                }
                 if (i >= 6) { keys[i].setEmpty(); continue }
                 val cx = kx + pos[i][0] * kw; val cy = ky + pos[i][1] * kh
                 keys[i].set(cx - kw * 0.45f, cy - kh * 0.45f, cx + kw * 0.45f, cy + kh * 0.45f)
@@ -221,7 +245,7 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
 
     // ---- drawing ----
     override fun onDraw(c: Canvas) {
-        if (elektor) drawElektor(c) else if (vcc) drawVcc(c) else if (arb) drawArb(c) else if (accord) drawAccord(c) else if (almeria) drawAlmeria(c) else if (modular1) drawModular1(c) else drawAcademy(c)
+        if (beluga) drawBeluga(c) else if (elektor) drawElektor(c) else if (vcc) drawVcc(c) else if (arb) drawArb(c) else if (accord) drawAccord(c) else if (almeria) drawAlmeria(c) else if (modular1) drawModular1(c) else drawAcademy(c)
         drawBoardPanel(c)
     }
 
@@ -622,8 +646,8 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
             val sy = lcdR.top + i * lcdR.height() / 4.5f
             c.drawRoundRect(panel.left + panel.width() * 0.015f, sy, panel.left + panel.width() * 0.045f, sy + lcdR.height() * 0.08f, 3f, 3f, paint)
         }
-        val labels = arrayOf("ENT", "↑", "CL", "←", "→", "↓")
-        for (i in 0 until 6) {
+        val labels = arrayOf("ENT", "↑", "CL", "←", "→", "↓", "NEW\nGAME")
+        for (i in 0 until (if (berlin) 7 else 6)) {
             val k = keys[i]
             val down = keyMask and (1 shl i) != 0
             paint.color = when (i) {
@@ -633,8 +657,51 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
             }
             c.drawRoundRect(k, k.width() * 0.12f, k.width() * 0.12f, paint)
             text.color = 0xFFF0F0F0.toInt()
+            if (i == 6) {
+                text.textSize = k.height() * 0.26f
+                c.drawText("NEW", k.centerX(), k.centerY() - text.textSize * 0.15f, text)
+                c.drawText("GAME", k.centerX(), k.centerY() + text.textSize * 0.95f, text)
+                continue
+            }
             text.textSize = if (i == 0 || i == 2) k.height() * 0.4f else k.height() * 0.62f
             c.drawText(labels[i], k.centerX(), k.centerY() + text.textSize * 0.36f, text)
+        }
+    }
+
+    /** Novag Beluga (placeholder until photos): grey-blue board, red rank / file LEDs, the VIP-style
+     *  LCD (the core renders its artwork) and the two rows of keys. */
+    private fun drawBeluga(c: Canvas) {
+        c.drawColor(0xFF15191C.toInt())
+        paint.color = 0xFF2A3136.toInt()
+        c.drawRoundRect(board.left - sq * 0.5f, board.top - sq * 0.1f, board.right + sq * 0.15f, panel.bottom + sq * 0.1f, sq * 0.12f, sq * 0.12f, paint)
+        drawSquares(c, 0xFFD5DDE0.toInt(), 0xFF82969C.toInt())
+        drawPieces(c)
+        text.color = 0xFFC8D0D4.toInt(); text.textSize = sq * 0.17f
+        for (i in 0 until 8) {
+            val cy = board.top + (i + 0.5f) * sq          // LED 0 = rank 8 at the top
+            c.drawText("${8 - i}", board.left - sq * 0.3f, cy - sq * 0.12f, text)
+            led(c, board.left - sq * 0.3f, cy + sq * 0.1f, sq * 0.065f, leds[i])
+            val cx = board.left + (i + 0.5f) * sq
+            c.drawText("${'A' + i}", cx - sq * 0.15f, board.bottom + sq * 0.33f, text)
+            led(c, cx + sq * 0.12f, board.bottom + sq * 0.27f, sq * 0.065f, leds[8 + i])
+        }
+        // LCD (the frame carries the rendered artwork)
+        paint.color = 0xFF0C0E10.toInt(); c.drawRoundRect(lcdR.left - 8f, lcdR.top - 8f, lcdR.right + 8f, lcdR.bottom + 8f, 6f, 6f, paint)
+        lcdImg?.let { synchronized(it) { c.drawBitmap(it, null, lcdR, paint) } }
+        val top = arrayOf("TRACE\nBACK", "TRACE\nFWD", "LEVEL\n♟", "INFO\n♞", "EASY\n♝", "SOLVE\n♜", "SOUND\n♛", "REFEREE\n♚")
+        val bottom = arrayOf("GO", "RESTORE", "HINT", "CLEAR", "COLOR", "VERIFY\nSET UP", "RANDOM", "NEW\nGAME")
+        for (i in 0 until 16) {
+            val k = keys[i]
+            val down = keyMask and (1 shl i) != 0
+            paint.color = when {
+                i == 8 -> if (down) 0xFF7A1A10.toInt() else 0xFFD03A22.toInt()
+                else -> if (down) 0xFF101214.toInt() else 0xFF3C454B.toInt()
+            }
+            c.drawRoundRect(k, k.height() * 0.3f, k.height() * 0.3f, paint)
+            val lines = (if (i < 8) top[i] else bottom[i - 8]).split('\n')
+            text.color = 0xFFE6ECEE.toInt(); text.textSize = min(k.height() * 0.36f, k.width() * 0.22f)
+            if (lines.size == 1) c.drawText(lines[0], k.centerX(), k.centerY() + text.textSize * 0.36f, text)
+            else { c.drawText(lines[0], k.centerX(), k.centerY() - text.textSize * 0.15f, text); c.drawText(lines[1], k.centerX(), k.centerY() + text.textSize * 0.95f, text) }
         }
     }
 
@@ -708,7 +775,7 @@ class ChessComputerView(ctx: Context, private val style: String) : View(ctx) {
 
     // ---- touch ----
     private fun keyAt(x: Float, y: Float): Int {
-        val n = if (modular1) 18 else if (vcc) 16 else if (elektor) 12 else if (arb) 10 else 8
+        val n = if (modular1) 18 else if (vcc || beluga) 16 else if (elektor) 12 else if (arb) 10 else 8
         for (i in 0 until n) {
             val r = RectF(keys[i]).apply { if (modular1 || vcc) inset(-width() * 0.06f, -height() * 0.12f) else if (elektor) inset(-width() * 0.25f, -height() * 0.25f) else inset(-width() * 0.2f, -height() * 0.4f) }
             if (r.contains(x, y)) { val b = if (modular1) m1Bits[i] else if (vcc) vccBits[i] else if (elektor) elkBits[i] else if (arb) arbBits[i] else 1 shl i; if (b != 0) return b }

@@ -23,8 +23,11 @@
 
 class AlmeriaCore : public Core {
 public:
-    // romEven/romOdd: the 16 bit module's two EPROMs; romOdd empty = the 32 bit module's single ROM
-    AlmeriaCore(bool is32, std::string romEven, std::string romOdd);
+    // romEven/romOdd: the 16 bit module's two EPROMs; romOdd empty = the 32 bit module's single ROM.
+    // berlin: the Mephisto Berlin 68000 (is32 false) / Berlin Professional 68020 (is32 true): the
+    // same display module and LCD in a self-contained board with buttons and 64 LEDs, an 8-key
+    // keypad read with the board, IRQ 2 at 750 Hz, other address maps
+    AlmeriaCore(bool is32, std::string romEven, std::string romOdd, bool berlin = false);
     ~AlmeriaCore() override;
     bool load(const std::vector<RomFile>& roms, std::string& error) override;
     void reset() override;
@@ -35,7 +38,7 @@ public:
     double refreshRate() const override { return 60.0; }
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
-    // bits 0-5: ENT, UP, CL, LEFT, RIGHT, DOWN
+    // bits 0-5: ENT, UP, CL, LEFT, RIGHT, DOWN; Berlin also bit 6: NEW GAME
     void setInputs(uint32_t pressed) override { m_keys = uint8_t(pressed); }
     void keyEvent(int code, bool down) override { if (down) chessBoardKey(m_s.board, code); }
     bool saveState(std::vector<uint8_t>& out) override;
@@ -57,6 +60,9 @@ private:
     uint8_t boardInput() const;
 
     bool m_is32;
+    bool m_berlin;
+    int m_hz;
+    int m_irqLevel;
     std::string m_romEven, m_romOdd;
     std::vector<uint8_t> m_rom;     // 128 KB, big-endian
     std::vector<uint8_t> m_ram;     // 512 KB / 1 MB

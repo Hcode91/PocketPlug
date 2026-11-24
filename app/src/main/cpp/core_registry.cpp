@@ -31,6 +31,7 @@
 #include "cores/chess/arb.h"
 #include "cores/chess/vcc.h"
 #include "cores/bbcbc/bbcbc.h"
+#include "cores/chess/beluga.h"
 #include "cores/chess/bkc.h"
 #include "cores/xavix/xavix.h"
 #include "cores/xavix2/xavix2.h"
@@ -373,6 +374,14 @@ Core* createCore(const std::string& id)
         return new AvrMaxCore("avrmax_cc2_en-v1.0.bin", true);
     if (id == "amsterd")      // Mephisto Amsterdam (68000)
         return new MephMod1Core(false, "amsterda-u.bin", "amsterda-l.bin");
+    if (id == "berl16")       // Mephisto Berlin 68000 (v0.03)
+        return new AlmeriaCore(false, "berlin_68000_even.bin", "berlin_68000_odd_b003.bin", true);
+    if (id == "berl16a")      // Mephisto Berlin 68000 (v0.02)
+        return new AlmeriaCore(false, "berlin_68000_even.bin", "berlin_68000_odd_b002.bin", true);
+    if (id == "berlinp")      // Mephisto Berlin Professional 68020
+        return new AlmeriaCore(true, "berlin_020_v400.u2", "", true);
+    if (id == "berlinpl")     // Mephisto Berlin Professional 68020 (London upgrade)
+        return new AlmeriaCore(true, "berlin_020_london.u2", "", true);
     if (id == "alm32")        // Mephisto Almeria 32 Bit (68020)
         return new AlmeriaCore(true, "alm32.bin", "");
     if (id == "alm16")        // Mephisto Almeria 16 Bit v0.13 (68000)
@@ -469,6 +478,8 @@ Core* createCore(const std::string& id)
         return new ArchiCore(id);
     if (BbcCore::known(id))   // Acorn BBC Micro family (B-em)
         return new BbcCore(id);
+    if (id == "beluga")        // Novag Beluga
+        return new BelugaCore();
     if (id == "bbcbc")         // Unicard Bridge Companion
         return new BbcbcCore();
     if (id == "a7000")        // Acorn A7000 (RPCEmu), RISC OS 3.60

@@ -1006,6 +1006,103 @@ object Machines {
             badge = "modular1",
         ),
         MachineDef(
+            id = "beluga",
+            title = "Beluga Chess Computer",
+            subtitle = "1990 button-board chess computer with rank and file LEDs and a small LCD for the moves; "
+                + "David Kittinger's program (Novag Beluga; MAME set: beluga)",
+            chip = "Hitachi HD6301Y0 @ 16 MHz",
+            region = "Hong Kong",
+            year = "1990",
+            roms = listOf(
+                RomSpec("novag_903_31y0rm59p.u1", 0x4000L, 0x16fc6bfcL),
+                RomSpec("nvip.svg", 36256L, 0x3373e0d5L),
+            ),
+            skin = Skin.CHESS,
+            badge = "beluga",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move shows on the LCD (e.g. E7 E5) and on the rank and file lights: move its piece the same way.",
+                "GO makes the computer move, NEW GAME starts again; the top row picks levels, sound and the like (and the piece when promoting or setting up).",
+            ),
+        ),
+        MachineDef(
+            id = "berl16",
+            title = "Berlin 68000 Chess Computer",
+            subtitle = "1992 wooden button-board chess computer with an LED in every square and a 2-line LCD, Richard Lang's program on a 68000. "
+                + "Import the berl16 zip and MAME's hd44780 zip (the LCD's character ROM) (Hegener + Glaser Mephisto Berlin 68000 v0.03; MAME set: berl16)",
+            chip = "Motorola 68000 @ 12.288 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1992",
+            roms = listOf(
+                RomSpec("berlin_68000_even.bin", 0x10000L, 0x31337f15L),
+                RomSpec("berlin_68000_odd_b003.bin", 0x10000L, 0xcc146819L),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "berlin",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
+                "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. NEW GAME starts again.",
+            ),
+        ),
+        MachineDef(
+            id = "berl16a",
+            title = "Berlin 68000 Chess Computer (v0.02)",
+            subtitle = "The earlier program version. Import the berl16a zip, the berl16 zip (the shared even ROM) and MAME's hd44780 zip "
+                + "(Hegener + Glaser Mephisto Berlin 68000 v0.02; MAME set: berl16a)",
+            chip = "Motorola 68000 @ 12.288 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1992",
+            roms = listOf(
+                RomSpec("berlin_68000_even.bin", 0x10000L, 0x31337f15L),
+                RomSpec("berlin_68000_odd_b002.bin", 0x10000L, 0x513a95f2L),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "berlin",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
+                "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. NEW GAME starts again.",
+            ),
+        ),
+        MachineDef(
+            id = "berlinp",
+            title = "Berlin Professional Chess Computer",
+            subtitle = "1994 Berlin with the stronger Genius engine on a 68020 at 24 MHz. Import the berlinp zip and MAME's hd44780 zip "
+                + "(Hegener + Glaser Mephisto Berlin Professional 68020; MAME set: berlinp)",
+            chip = "Motorola 68EC020 @ 24.576 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1994",
+            roms = listOf(
+                RomSpec("berlin_020_v400.u2", 0x40000L, 0x82fbaf6eL),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "berlin",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
+                "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. NEW GAME starts again.",
+            ),
+        ),
+        MachineDef(
+            id = "berlinpl",
+            title = "Berlin Professional Chess Computer (London)",
+            subtitle = "The Berlin Professional with Richard Lang's London upgrade. Import the berlinpl zip and MAME's hd44780 zip "
+                + "(Mephisto Berlin Professional 68020, London upgrade; MAME set: berlinpl)",
+            chip = "Motorola 68EC020 @ 24.576 MHz + HD44780 LCD",
+            region = "Germany",
+            year = "1996",
+            roms = listOf(
+                RomSpec("berlin_020_london.u2", 0x40000L, 0xd75e170fL),
+                RomSpec("hd44780_a00.bin", 0x1000L, 0xe459877cL),
+            ),
+            skin = Skin.CHESS,
+            badge = "berlin",
+            setup = listOf(
+                "Move your piece by tapping its square, then the square it goes to. The computer's move lights two squares: move its piece the same way.",
+                "ENT starts the computer thinking, CL clears; the arrow keys step through the menus on the LCD. NEW GAME starts again.",
+            ),
+        ),
+        MachineDef(
             id = "alm32",
             title = "Almeria 32 Bit Chess Module",
             subtitle = "1988 world microcomputer chess champion program on a 68020, in the plug-in display module "

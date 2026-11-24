@@ -25,10 +25,16 @@ public:
         virtual ~Ports() = default;
         virtual u8 portIn(int port) { (void)port; return 0xff; }       // 1-7
         virtual void portOut(int port, u8 data, u8 ddr) { (void)port; (void)data; (void)ddr; }
+        // expanded modes: memory outside the chip
+        virtual u8 extRead(u16 a) { (void)a; return 0xff; }
+        virtual void extWrite(u16 a, u8 d) { (void)a; (void)d; }
     };
 
     explicit Hd6301(Ports* ports) : m_ports(ports) { m_st = State(); }
-    void setRom(const u8* rom) { m_rom = rom; }     // 4 KB, mapped at F000
+    void setRom(const u8* rom) { m_rom = rom; }     // 4 KB, mapped at F000 (Y0: 16 KB at C000)
+    // HD6301Y0: 16 KB ROM at C000, 256 bytes of RAM, ports 5 (with DDR) and 6 (with CSR);
+    // expanded: the rest of the address space goes to Ports::extRead / extWrite
+    void setY0(bool y0, bool expanded) { m_y0 = y0; m_expanded = expanded; }
     void reset();
     int run(int cycles);                            // returns cycles run
     void setNmi(bool on) { if (!m_nmi_state && on) m_nmi_pending = 1; m_nmi_state = on; }
@@ -45,6 +51,8 @@ public:
         u8 latch09, ramCtrl, rmcr, trcsr, port2Written;
         PAIR counter, oc[2], timerOver;
         u32 timerNext;
+        u8 ramY[64];                       // Y0: the RAM at 0100-013F
+        u8 p6csr;
     };
     State* state() { return &m_st; }
     void afterLoad() {}
@@ -59,6 +67,7 @@ private:
 
     Ports* m_ports;
     const u8* m_rom = nullptr;
+    bool m_y0 = false, m_expanded = false;
     int m_icount = 0;
     State m_st;
     // the names the MAME op handlers use
