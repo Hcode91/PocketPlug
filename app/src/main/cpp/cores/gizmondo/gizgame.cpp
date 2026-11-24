@@ -607,16 +607,26 @@ void GizGameCore::keyEvent(uint8_t vk, bool down)
 
 void GizGameCore::setInputs(uint32_t pressed)
 {
-    // the Gizmondo's keys as the games see them
-    static const struct { uint32_t bit; uint8_t vk; } map[] = {
-        { 1u << 0, 0x26 }, { 1u << 1, 0x28 }, { 1u << 2, 0x25 }, { 1u << 3, 0x27 },     // D-pad: arrows
-        { 1u << 4, 0x0d }, { 1u << 5, 0x22 }, { 1u << 6, 0x21 }, { 1u << 7, 0x1b },     // play, forward, rewind, stop
-        { 1u << 8, 0x51 }, { 1u << 9, 0x45 },                                           // L, R
-        { 1u << 10, 0x70 }, { 1u << 11, 0x71 }, { 1u << 12, 0x72 }, { 1u << 13, 0x73 }, { 1u << 14, 0x74 },   // F1-F5
+    // The Gizmondo's keys as Windows CE reports them (Tiger's OEM header, eCursor's key table and
+    // GizVideo's source; Agaju checks exactly these): the four media buttons are Enter, Shift, Space
+    // and Ctrl, the shoulders Tab and Esc, and the top keys F1-F4 plus F11 for power.
+    static const struct { uint32_t bit; uint8_t vk, vk2; } map[] = {
+        { 1u << 0, 0x26, 0 }, { 1u << 1, 0x28, 0 }, { 1u << 2, 0x25, 0 }, { 1u << 3, 0x27, 0 },   // D-pad: arrows
+        { 1u << 4, 0x0d, 0 },        // Play: Enter
+        { 1u << 5, 0x10, 0xa0 },     // Fast forward: Shift (some programs look for left Shift)
+        { 1u << 6, 0x20, 0 },        // Rewind: Space
+        { 1u << 7, 0x11, 0xa2 },     // Stop: Ctrl
+        { 1u << 8, 0x09, 0 }, { 1u << 9, 0x1b, 0 },                                               // L: Tab, R: Esc
+        { 1u << 10, 0x70, 0 }, { 1u << 11, 0x71, 0 }, { 1u << 12, 0x72, 0 }, { 1u << 13, 0x73, 0 },  // Home, Volume, Brightness, Alarm
+        { 1u << 14, 0x7a, 0 },       // Power
     };
     uint32_t changed = pressed ^ m_keys;
     m_keys = pressed;
-    for (auto& m : map) if (changed & m.bit) keyEvent(m.vk, (pressed & m.bit) != 0);
+    for (auto& m : map) if (changed & m.bit) {
+        bool down = (pressed & m.bit) != 0;
+        keyEvent(m.vk, down);
+        if (m.vk2) { m_vkPressed[m.vk2] |= down && !m_vkDown[m.vk2]; m_vkDown[m.vk2] = down; }   // state only, no second message
+    }
 }
 
 void GizGameCore::mixAudio(size_t samples)
