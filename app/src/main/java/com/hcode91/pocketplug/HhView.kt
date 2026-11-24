@@ -1152,37 +1152,60 @@ class HhSkin(
             },
         )
 
-        /** Bandai System Control Car: Cheetah (1979): the buggy seen from above with its motors lit
-         *  (left / drive / right) and the program keys on its back; PROGRAM / RUN slide. */
+        /** Bandai System Control Car: Cheetah / Incredible Brain Buggy (1979), from a photo, seen from
+         *  above: the black buggy with the grey-white stripe over the roof, orange cab, grey wheels and
+         *  bumper, the program keys (white) on the rear deck between the red tail lights, two grey jerry
+         *  cans and the orange flag. Three lights on the bonnet show the motors (steer left / drive /
+         *  steer right); the PROGRAM / RUN slide sits beside the keys. */
         private fun cheetahCar(): HhSkin {
-            fun key(x: Float, y: Float, bit: Int, label: String, color: Int = 0xFF2A2A2E.toInt()) = Control(Kind.BUTTON, x, y, 40f, color = color,
-                bit = bit, bw = 130f, bh = 90f, face = label, faceColor = 0xFFF2F2F2.toInt(), faceSize = 36f)
+            fun key(x: Float, y: Float, bit: Int, label: String, color: Int = 0xFFF2F2EE.toInt(), ink: Int = 0xFF1A1A1A.toInt()) =
+                Control(Kind.BUTTON, x, y, 40f, color = color, bit = bit, bw = 120f, bh = 84f, face = label, faceColor = ink, faceSize = 34f, shine = false)
             return HhSkin(
-                1000f, 1320f, 0xFF1A2418.toInt(),
+                1000f, 1400f, 0xFF3A3A38.toInt(),
                 screen = RectF(), bezel = 0, bezelPad = 0f,
-                menu = PointF(500f, 1290f),
+                menu = PointF(500f, 1370f),
                 controls = listOf(
-                    key(330f, 700f, 1 shl 4, "◀"), key(500f, 620f, 1 shl 5, "▲"), key(670f, 700f, 1 shl 6, "▶"),
-                    key(500f, 780f, 1 shl 8, "STOP", 0xFFB8302A.toInt()),
-                    key(260f, 920f, 1 shl 9, "1"), key(420f, 920f, 1 shl 10, "2"), key(580f, 920f, 1 shl 11, "3"), key(740f, 920f, 1 shl 12, "4"),
-                    key(500f, 1060f, 1 shl 7, "GO", 0xFF2E9A44.toInt()),
-                    Control(Kind.SWITCH, 500f, 1180f, 26f, color = 0xFF2A2A2A.toInt(), option = 0, positions = listOf("PROGRAM", "RUN"),
-                        labelColor = 0xFFF2F2F2.toInt(), labelSize = 24f),
+                    key(330f, 800f, 1 shl 4, "◀"), key(500f, 740f, 1 shl 5, "▲"), key(670f, 800f, 1 shl 6, "▶"),
+                    key(500f, 860f, 1 shl 8, "STOP"),
+                    key(260f, 975f, 1 shl 9, "1"), key(420f, 975f, 1 shl 10, "2"), key(580f, 975f, 1 shl 11, "3"), key(740f, 975f, 1 shl 12, "4"),
+                    key(500f, 1090f, 1 shl 7, "GO", 0xFFE8E8E2.toInt(), 0xFF2E8A3E.toInt()),
+                    Control(Kind.SWITCH, 790f, 1090f, 24f, color = 0xFFD8D8D2.toInt(), option = 0, vertical = true, positions = listOf("PROG", "RUN"),
+                        labelColor = 0xFFF2F2F2.toInt(), labelSize = 22f),
                 ),
                 leds = listOf(
-                    Led(LedKind.ROUND, 0, 0, 230f, 230f, 34f, 0xFFF2C230.toInt(), "◀", 0xFF1A1A1A.toInt()),
-                    Led(LedKind.ROUND, 0, 1, 500f, 470f, 40f, 0xFF3AD25A.toInt(), "▲", 0xFF1A1A1A.toInt()),
-                    Led(LedKind.ROUND, 0, 2, 770f, 230f, 34f, 0xFFF2C230.toInt(), "▶", 0xFF1A1A1A.toInt()),
+                    Led(LedKind.ROUND, 0, 0, 330f, 170f, 30f, 0xFFF2C230.toInt(), "◀", 0xFF1A1A1A.toInt()),
+                    Led(LedKind.ROUND, 0, 1, 500f, 150f, 36f, 0xFF3AD25A.toInt(), "▲", 0xFF1A1A1A.toInt()),
+                    Led(LedKind.ROUND, 0, 2, 670f, 170f, 30f, 0xFFF2C230.toInt(), "▶", 0xFF1A1A1A.toInt()),
                 ),
-                drawBody = { c, p, _ ->
-                    // wheels, the body and the windscreen
-                    p.color = 0xFF141414.toInt()
-                    for ((x, y) in listOf(170f to 260f, 830f to 260f, 150f to 980f, 850f to 980f)) c.drawRoundRect(x - 70f, y - 120f, x + 70f, y + 120f, 30f, 30f, p)
-                    p.color = 0xFFE2C23A.toInt(); c.drawRoundRect(200f, 80f, 800f, 1240f, 120f, 120f, p)
-                    p.color = 0xFF2A3A48.toInt(); c.drawRoundRect(300f, 300f, 700f, 420f, 30f, 30f, p)
-                    p.color = 0xFF3A3A3E.toInt(); c.drawRoundRect(220f, 560f, 780f, 1220f, 40f, 40f, p)
-                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF1A1A1A.toInt(); textSize = 26f }
-                    c.drawText("MOTORS", 500f, 150f, t)
+                drawBody = { c, p, s ->
+                    // wheels: dark tyres with grey hubs
+                    for ((x, y) in listOf(150f to 300f, 850f to 300f, 150f to 1060f, 850f to 1060f)) {
+                        p.color = 0xFF111111.toInt(); c.drawRoundRect(x - 80f, y - 130f, x + 80f, y + 130f, 36f, 36f, p)
+                        p.color = 0xFF2A2A2A.toInt(); for (i in 0 until 7) c.drawRect(x - 80f, y - 120f + i * 36f, x + 80f, y - 108f + i * 36f, p)
+                        p.color = 0xFFB8BAB8.toInt(); c.drawRoundRect(if (x < 500f) x + 50f else x - 80f, y - 60f, if (x < 500f) x + 80f else x - 50f, y + 60f, 10f, 10f, p)
+                    }
+                    // grey front bumper and the black body
+                    p.color = 0xFFB8BAB6.toInt(); c.drawRoundRect(230f, 40f, 770f, 100f, 20f, 20f, p)
+                    p.color = 0xFF1C1C1E.toInt(); c.drawRoundRect(210f, 70f, 790f, 1260f, 70f, 70f, p)
+                    // bonnet
+                    p.color = 0xFF262628.toInt(); c.drawRoundRect(240f, 90f, 760f, 300f, 40f, 40f, p)
+                    // roof with the grey-white stripe over the orange cab
+                    p.color = 0xFFE85A1E.toInt(); c.drawRoundRect(250f, 300f, 750f, 640f, 24f, 24f, p)
+                    p.color = 0xFF2A2A2C.toInt(); c.drawRoundRect(240f, 330f, 760f, 470f, 20f, 20f, p)
+                    p.color = 0xFFE6E6E2.toInt(); c.drawRect(420f, 330f, 580f, 470f, p)
+                    p.color = 0xFFC0C0BC.toInt(); c.drawRect(380f, 330f, 420f, 470f, p); c.drawRect(580f, 330f, 620f, 470f, p)
+                    p.color = 0xFFF47A2E.toInt(); c.drawRoundRect(290f, 500f, 470f, 620f, 18f, 18f, p); c.drawRoundRect(530f, 500f, 710f, 620f, 18f, 18f, p)
+                    // the rear deck with the keys, red tail lights and grey back bumper
+                    p.color = 0xFF151516.toInt(); c.drawRoundRect(230f, 680f, 770f, 1170f, 20f, 20f, p)
+                    p.color = 0xFFD8302A.toInt(); c.drawRoundRect(212f, 1150f, 262f, 1250f, 8f, 8f, p); c.drawRoundRect(738f, 1150f, 788f, 1250f, 8f, 8f, p)
+                    p.color = 0xFFB8BAB6.toInt(); c.drawRoundRect(230f, 1250f, 770f, 1300f, 18f, 18f, p)
+                    // two grey jerry cans on the tail
+                    p.color = 0xFF9EA2A0.toInt(); c.drawRoundRect(330f, 1180f, 460f, 1260f, 10f, 10f, p); c.drawRoundRect(540f, 1180f, 670f, 1260f, 10f, 10f, p)
+                    s.color = 0xFF7A7E7C.toInt(); s.strokeWidth = 4f
+                    c.drawLine(350f, 1200f, 440f, 1240f, s); c.drawLine(560f, 1200f, 650f, 1240f, s)
+                    // the orange flag on its whip
+                    s.color = 0xFFDADADA.toInt(); s.strokeWidth = 4f; c.drawLine(735f, 700f, 735f, 560f, s)
+                    p.color = 0xFFF05A1E.toInt(); c.drawPath(Path().apply { moveTo(737f, 560f); lineTo(830f, 590f); lineTo(737f, 625f); close() }, p)
                 },
             )
         }
