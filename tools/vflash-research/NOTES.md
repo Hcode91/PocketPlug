@@ -130,10 +130,44 @@ good reference. Differences found so far are marked V.Flash below.
 
 0xF8000000: 8 KB RAM cleared at boot with a flag at 0xF8001FFE (settings memory?).
 
+## Drive model in vf.cpp (works up to the TOC and pause)
+
+- Pickup radius is the master state: sled moves ($22 out / $23 in, 4 mm/s), track jumps ($28/$2C
+  single kicks; $4 auto sequence 1/10/2N/M jumps with the $7 count = (cmd >> 4) & 0xFFFF) and normal
+  play (one frame further out per 1/75 s). LBA from radius with CD geometry: 1.6 um pitch, 1.3 m/s,
+  LBA -150 at 25 mm, lead-in 23..25 mm, inner limit switch at 22.5 mm.
+- Subcode Q at 75 Hz while CLV runs and tracking is on ($24/$25): 0x64 bit 5 on IRQ 14, bytes in
+  0x54 (bit 16 = CRC ok, ctrl/adr, track), 0x58 (index, min, sec, frame), 0x5C (0, amin, asec,
+  aframe). Lead-in carries the TOC pointers A0/A1/A2/01.
+- 0x14 bit 1 asks for a completion flag (0x64 bit 1); bit 2 means "select SENS only" (the command
+  is not executed). Readback value in 0x10. $39xx is a monitor readout: $391F must read -103..-89 in
+  its low byte for the offset sweep at 0x1005B540 to finish.
+- SENS: $3x = inner limit switch, $38 = auto gain done, $Ex while braking ($EA) drops after 0.3 s.
+- 0x40 reads 0x65 when spinning (bits 0, 2, 5, 6 set; 3-4 clear): the ISR's "servo good" test.
+- 0x4C = data header (bit 31 valid, MSF in 23..0). 0x64 bit 15 (monitor, enabled through 0x60's top
+  byte = 0xC8 and mask 0x8000) is an error/abort event: raising it makes the state machine abort and
+  restart the spin-up, so a healthy drive never raises it.
+- Read setup routines: 0x10062608 (target MSF in 0x1C, count in 0x20 or bit 24 = endless, buffer
+  0x24, ring 0x28/0x2C and 0x34/0x38) and 0x10062BE0 (0x1C, 0x20 = 4, 0x24 = 0x10355780).
+- Idle task 0x10010994 is a counting loop; the harness halts the CPU there (10x faster runs).
+
+### Boot flow with GPIOD = 0 (retail)
+
+- VTech logo, then the second display layer (0xB8000164 = 0x10BC8000, 352x288 RGB555) shows the
+  V.Smile Pro splash (boot-splash.png). The main task (0x10011040) waits for 0x101E7F40 == 1 and
+  then calls the loader 0x10012788(7).
+- The disc-check task (0x100145B0) registers callback 0x10013670 (job 0x202) and starts detection
+  (job 0x201 -> 0x10068198 -> 0x100704BC posts handler 0x1007095C to the device manager queue).
+  The callback needs event 0x10 (sets 0x1024C580), which 0x1007095C posts via 0x10067AB8 at its end.
+- With the model above the drive spins up, calibrates, reads the TOC from the lead-in and parks in
+  pause (repeated $49 1-track kicks) near LBA 0..40, but 0x1007095C is never started: it sits as
+  the current device-manager operation (0x103561B8) without being run. Next: find what starts it
+  (dispatcher around 0x1006FC60, busy flag 0x10354620).
+
 ## Status
 
-The boot reaches the MORE OS scheduler with a working 100 Hz tick, sets up the display (320x240),
-DMA and CD controller, homes the drive's sled and calibrates, then queues the TOC read and goes idle.
+The boot reaches the MORE OS scheduler, shows the VTech logo and the V.Smile Pro splash, spins the
+disc up, calibrates, reads the TOC and parks the pickup. No sector has been read yet.
 
 ## Next steps
 
