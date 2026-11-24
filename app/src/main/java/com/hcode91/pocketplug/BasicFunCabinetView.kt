@@ -18,10 +18,10 @@ import kotlin.math.min
  *
  * Styles: MAZE (blue cabinet, pink and yellow stripes; stick then START), SWARM (green front,
  * black sides, purple streaks on starfield strips; START, stick, FIRE), DIG (black cabinet,
- * white side panel, yellow / purple strips; stick, START, PUMP). CHASE, SPY and BLOCKS use the DIG
- * layout in their own colours (placeholders until photos of those cabinets): CHASE (yellow;
- * stick, START, BUTTON), SPY (charcoal and blue; stick, START, GUNS, MISSILES) and BLOCKS (red and
- * navy; stick, START, A, B).
+ * white side panel, yellow / purple strips; stick, START, PUMP), CHASE (yellow cabinet, olive sign,
+ * black side strips; MODE, stick, START GAME), SPY (black cabinet, silver sides with red / yellow
+ * stripes; stick, a small START, GUNS, MISSILES) and BLOCKS (red cabinet, black sign, yellow side
+ * strips; MOVE stick, START, rotate left, rotate right).
  * Tap the marquee for the menu; ON/OFF resets, the sound key steps the volume.
  * Input bits as gpl951: A 0x01, B 0x02, Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80.
  */
@@ -58,7 +58,7 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
     private val power = RectF(205f, 735f, 285f, 805f)
     private val sound = RectF(315f, 735f, 395f, 805f)
     private val stick = PointF(); private val stickR = 42f
-    private class Btn(val bit: Int, val x: Float, val y: Float, val label: String)
+    private class Btn(val bit: Int, val x: Float, val y: Float, val label: String, val r: Float = 34f)
     private val buttons: List<Btn>
     private var sc = 1f; private var ox = 0f; private var oy = 0f
 
@@ -70,9 +70,9 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
         when (style) {
             MAZE -> { stick.set(250f, 540f); buttons = listOf(Btn(START, 470f, 540f, "START GAME")) }
             SWARM -> { stick.set(300f, 540f); buttons = listOf(Btn(START, 120f, 540f, "START"), Btn(A, 480f, 540f, "FIRE")) }
-            CHASE -> { stick.set(150f, 540f); buttons = listOf(Btn(START, 330f, 545f, "START"), Btn(A, 470f, 545f, "BUTTON")) }
-            SPY -> { stick.set(110f, 540f); buttons = listOf(Btn(START, 250f, 545f, "START"), Btn(A, 370f, 545f, "GUNS"), Btn(B, 490f, 545f, "MISSILES")) }
-            BLOCKS -> { stick.set(110f, 540f); buttons = listOf(Btn(START, 250f, 545f, "START"), Btn(A, 370f, 545f, "A"), Btn(B, 490f, 545f, "B")) }
+            CHASE -> { stick.set(300f, 540f); buttons = listOf(Btn(A, 110f, 545f, "MODE"), Btn(START, 490f, 545f, "START GAME")) }
+            SPY -> { stick.set(130f, 540f); buttons = listOf(Btn(START, 260f, 552f, "START", 22f), Btn(A, 370f, 545f, "GUNS"), Btn(B, 490f, 545f, "MISSILES")) }
+            BLOCKS -> { stick.set(100f, 540f); buttons = listOf(Btn(START, 230f, 545f, "START"), Btn(A, 360f, 545f, "↺"), Btn(B, 490f, 545f, "↻")) }
             else -> { stick.set(110f, 540f); buttons = listOf(Btn(START, 300f, 545f, "START"), Btn(A, 470f, 545f, "PUMP")) }
         }
     }
@@ -80,9 +80,9 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
     /** the DIG-layout colours: cabinet, its shade, then the strip / shelf colours (outer band, inner band, fill, dots) */
     private class Pal(val body: Int, val dark: Int, val c1: Int, val c2: Int, val c3: Int, val c4: Int)
     private val pal = when (style) {
-        CHASE -> Pal(0xFFF2C81E.toInt(), 0xFFC89A10.toInt(), 0xFF1A1A1A.toInt(), 0xFF2050C8.toInt(), 0xFFF6F2E4.toInt(), 0xFFE4202A.toInt())
-        SPY -> Pal(0xFF2A2C30.toInt(), 0xFF16171A.toInt(), 0xFF1E4FA8.toInt(), 0xFF8A8E96.toInt(), 0xFFE8E8E8.toInt(), 0xFFD8352A.toInt())
-        BLOCKS -> Pal(0xFFB41E24.toInt(), 0xFF7E1218.toInt(), 0xFF14204A.toInt(), 0xFF2A9AD8.toInt(), 0xFFF5DC2A.toInt(), 0xFF3FA04A.toInt())
+        CHASE -> Pal(0xFFF4CC1A.toInt(), 0xFFCFA210.toInt(), 0xFF0E0E0E.toInt(), 0xFF2E8A4A.toInt(), 0xFFF2D43A.toInt(), 0xFFE4202A.toInt())
+        SPY -> Pal(0xFF161616.toInt(), 0xFF0A0A0A.toInt(), 0xFF0E0E0E.toInt(), 0xFFC8C8C6.toInt(), 0xFFF2B21E.toInt(), 0xFFE0302A.toInt())
+        BLOCKS -> Pal(0xFFC22A2A.toInt(), 0xFF8E1C1E.toInt(), 0xFF0E0E0E.toInt(), 0xFFF2E21E.toInt(), 0xFFE88A1E.toInt(), 0xFF2A5AD8.toInt())
         else -> Pal(0xFF161616.toInt(), 0xFF0A0A0A.toInt(), 0xFF6A4CA8.toInt(), 0xFF3FA04A.toInt(), 0xFFF5DC2A.toInt(), 0xFFD8352A.toInt())
     }
 
@@ -99,7 +99,8 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
 
     private val body get() = when (style) { MAZE -> 0xFF1F5FC8.toInt(); SWARM -> 0xFF4CC84A.toInt(); else -> pal.body }
     private val bodyDark get() = when (style) { MAZE -> 0xFF17489A.toInt(); SWARM -> 0xFF33A033.toInt(); else -> pal.dark }
-    private val darkText get() = style == SWARM || style == CHASE
+    private val darkText get() = style == SWARM
+    private val blackPlate get() = style == DIG || style == SPY || style == CHASE || style == BLOCKS
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF15161A.toInt())
@@ -116,6 +117,15 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
         if (style == DIG) {     // white side panel edge on the right
             p.color = 0xFFF4F2EC.toInt(); c.drawRect(560f, 20f, 580f, 880f, p)
         }
+        if (style == SPY) {     // silver side panels with the red / yellow stripes on the base
+            for (x in listOf(20f, 548f)) {
+                p.color = pal.c2; c.drawRect(x, 30f, x + 32f, 880f, p)
+                p.color = 0xFF2A3A6A.toInt(); for (i in 0 until 4) c.drawRect(x, 640f + i * 12f, x + 32f, 645f + i * 12f, p)
+                p.color = pal.c3; c.drawRect(x, 720f, x + 32f, 730f, p)
+                p.color = pal.c4; c.drawRect(x, 732f, x + 32f, 750f, p)
+                p.color = 0xFF2A3A6A.toInt(); for (i in 0 until 4) c.drawRect(x, 800f + i * 12f, x + 32f, 805f + i * 12f, p)
+            }
+        }
         drawMarquee(c)
         drawStrips(c)
         // screen bezel and picture
@@ -126,9 +136,19 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
         c.drawBitmap(frame, null, screen, smooth)
         drawPanel(c)
         // lower front: speaker grilles and the two red keys
-        p.color = bodyDark
-        for (gx in listOf(110f, 490f)) for (i in 0 until 7) c.drawRoundRect(gx - 70f, 680f + i * 18f, gx + 70f, 689f + i * 18f, 5f, 5f, p)
-        p.color = if (style == DIG || style == SPY) 0xFF222222.toInt() else bodyDark
+        if (style == SPY || style == BLOCKS) {   // round grilles
+            p.color = if (style == SPY) 0xFF050505.toInt() else bodyDark
+            for (gx in listOf(105f, 495f)) {
+                c.drawCircle(gx, 770f, 62f, p)
+                p.color = if (style == SPY) 0xFF2A2A2A.toInt() else body
+                for (i in -3..3) { val hw = kotlin.math.sqrt(3600f - (i * 15f) * (i * 15f)); c.drawRect(gx - hw, 768f + i * 15f, gx + hw, 772f + i * 15f, p) }
+                p.color = if (style == SPY) 0xFF050505.toInt() else bodyDark
+            }
+        } else {
+            p.color = bodyDark
+            for (gx in listOf(110f, 490f)) for (i in 0 until 7) c.drawRoundRect(gx - 70f, 680f + i * 18f, gx + 70f, 689f + i * 18f, 5f, 5f, p)
+        }
+        p.color = if (blackPlate) 0xFF1E1E1E.toInt() else bodyDark
         c.drawRoundRect(185f, 715f, 415f, 860f, 14f, 14f, p)
         for (r in listOf(power, sound)) {
             p.color = 0xFF8E1A14.toInt(); c.drawRoundRect(r.left, r.top + 6f, r.right, r.bottom + 6f, 10f, 10f, p)
@@ -166,11 +186,27 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
                 p.color = 0xFFF5DC2A.toInt(); c.drawRect(66f, 46f, 534f, 124f, p)
                 p.color = 0xFFF4F4F4.toInt(); c.drawRect(220f, 55f, 380f, 115f, p)
             }
-            else -> {   // an empty sign in the style's colours
-                p.color = pal.c1; c.drawRect(marquee, p)
-                p.color = pal.c4; c.drawRect(60f, 40f, 540f, 130f, p)
-                p.color = pal.c3; c.drawRect(66f, 46f, 534f, 124f, p)
-                p.color = pal.c2; c.drawRect(200f, 58f, 400f, 112f, p)
+            CHASE -> {   // the empty olive-gold sign
+                p.shader = LinearGradient(0f, marquee.top, 0f, marquee.bottom, intArrayOf(0xFF7A7426.toInt(), 0xFF4A4614.toInt(), 0xFF6A6420.toInt()), null, Shader.TileMode.CLAMP)
+                c.drawRect(marquee, p); p.shader = null
+                p.color = 0xFF2E2C0C.toInt(); c.drawRect(marquee.left, marquee.bottom - 10f, marquee.right, marquee.bottom, p)
+            }
+            SPY -> {     // black sign with the red / orange / yellow speed stripes
+                p.color = 0xFF080808.toInt(); c.drawRect(marquee, p)
+                p.color = 0xFF2A2A2A.toInt(); c.drawRect(marquee.left + 6f, marquee.top + 6f, marquee.right - 6f, marquee.bottom - 6f, p)
+                p.color = 0xFF0C0C0C.toInt(); c.drawRect(marquee.left + 10f, marquee.top + 10f, marquee.right - 10f, marquee.bottom - 10f, p)
+                p.color = pal.c4; c.drawRect(200f, 50f, 545f, 60f, p)
+                p.color = 0xFFE86A1E.toInt(); c.drawRect(230f, 64f, 545f, 72f, p)
+                p.color = pal.c3; c.drawRect(260f, 76f, 545f, 82f, p)
+                p.color = pal.c4; c.drawRect(200f, 112f, 545f, 118f, p)
+            }
+            else -> {    // BLOCKS: black sign between the red uprights, a few blocks in the corners
+                p.color = 0xFF0C0C0C.toInt(); c.drawRect(marquee, p)
+                p.color = 0xFF1C1C1C.toInt(); c.drawRect(marquee.left + 8f, marquee.top + 8f, marquee.right - 8f, marquee.bottom - 8f, p)
+                val cols = intArrayOf(0xFF2A5AD8.toInt(), 0xFFE0302A.toInt(), 0xFFF2E21E.toInt(), 0xFF3FA04A.toInt(), 0xFF8A3AC8.toInt())
+                for (k in 0 until 5) { p.color = cols[k]
+                    c.drawRect(62f + (k % 3) * 18f, 92f - (k / 3) * 18f, 78f + (k % 3) * 18f, 108f - (k / 3) * 18f, p)
+                    c.drawRect(522f - (k % 3) * 18f, 92f - (k / 3) * 18f, 538f - (k % 3) * 18f, 108f - (k / 3) * 18f, p) }
             }
         }
         t.color = if (style == MAZE) 0xFFE8EEFA.toInt() else 0xFF8C8C8C.toInt(); t.textSize = 18f
@@ -197,12 +233,37 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
                 for (i in 0 until 9) c.drawCircle(r.left + ((i * 37) % 70) + 3f, r.top + 12f + i * 25f, 2f, p)
                 p.color = 0xFFE6C23A.toInt(); c.drawCircle(r.centerX(), r.top + 25f, 14f, p)
             }
-            else -> {
+            DIG -> {
                 p.color = pal.c1; c.drawRect(r, p)
                 p.color = pal.c2; c.drawRect(r.left + 6f, r.top + 6f, r.right - 6f, r.bottom - 6f, p)
                 p.color = pal.c3; c.drawRect(r.left + 12f, r.top + 12f, r.right - 12f, r.bottom - 12f, p)
                 p.color = pal.c4
                 for (i in 0 until 4) c.drawCircle(r.centerX(), r.top + 40f + i * 50f, 12f, p)
+            }
+            CHASE -> {   // black strips: dotted yellow edge, green maze outlines, a gold card at the foot
+                p.color = 0xFF0E0E0E.toInt(); c.drawRect(r, p)
+                p.color = pal.c3; var y = r.top + 6f
+                while (y < r.bottom - 4f) { c.drawCircle(r.left + 6f, y, 2f, p); c.drawCircle(r.right - 6f, y, 2f, p); y += 10f }
+                val g = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; color = pal.c2 }
+                c.drawRect(r.left + 18f, r.top + 70f, r.right - 30f, r.top + 110f, g); c.drawRect(r.left + 30f, r.top + 82f, r.right - 18f, r.top + 122f, g)
+                p.color = 0xFF8A7A2A.toInt(); c.drawRect(r.left + 16f, r.bottom - 70f, r.right - 16f, r.bottom - 12f, p)
+                p.color = 0xFF3A3410.toInt(); for (i in 0 until 4) c.drawRect(r.left + 22f, r.bottom - 62f + i * 12f, r.right - 22f, r.bottom - 58f + i * 12f, p)
+            }
+            SPY -> {     // black pillars with a red / yellow stripe
+                p.color = 0xFF0C0C0C.toInt(); c.drawRect(r, p)
+                p.color = 0xFF222222.toInt(); c.drawRect(r.left + 4f, r.top, r.left + 8f, r.bottom, p)
+                p.color = pal.c4; c.drawRect(r.left, r.top + 110f, r.right, r.top + 116f, p)
+                p.color = pal.c3; c.drawRect(r.left, r.top + 118f, r.right, r.top + 122f, p)
+            }
+            else -> {    // BLOCKS: yellow strips with a stack of coloured blocks at the bottom
+                p.color = pal.c2; c.drawRect(r, p)
+                val cols = intArrayOf(0xFF2A5AD8.toInt(), 0xFFE0302A.toInt(), 0xFF3FA04A.toInt(), 0xFF8A3AC8.toInt(), 0xFFE88A1E.toInt())
+                for (row in 0 until 4) for (col in 0 until 4) {
+                    if ((row * 3 + col) % 5 == 4) continue
+                    p.color = cols[(row + col * 2) % 5]
+                    val x = r.left + 4f + col * 17f; val yy = r.bottom - 22f - row * 17f
+                    c.drawRect(x, yy, x + 15f, yy + 15f, p)
+                }
             }
         }
     }
@@ -229,9 +290,23 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
                 p.color = pal.c3; c.drawRect(45f, 505f, 555f, 512f, p); c.drawRect(45f, 573f, 555f, 580f, p)
                 p.color = pal.c4; c.drawRect(220f, 512f, 400f, 573f, p)
             }
-            else -> {
-                p.color = pal.c1; c.drawRect(45f, 495f, 555f, 590f, p)
-                p.color = pal.c3; c.drawRect(45f, 505f, 555f, 512f, p); c.drawRect(45f, 573f, 555f, 580f, p)
+            CHASE -> {   // black panel inside a dotted yellow border
+                p.color = 0xFF0E0E0E.toInt(); c.drawRect(45f, 488f, 555f, 595f, p)
+                p.color = pal.c3; var x = 52f
+                while (x < 550f) { c.drawCircle(x, 494f, 2f, p); c.drawCircle(x, 589f, 2f, p); x += 10f }
+                val g = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; color = pal.c2 }
+                c.drawRect(250f, 500f, 350f, 584f, g)
+            }
+            SPY -> {
+                p.color = 0xFF0A0A0A.toInt(); c.drawRect(45f, 490f, 555f, 595f, p)
+                p.color = 0xFF14301C.toInt(); c.drawRect(300f, 500f, 545f, 504f, p); c.drawRect(300f, 582f, 545f, 586f, p)
+            }
+            else -> {    // BLOCKS: black panel with an orange line and blocks between the keys
+                p.color = 0xFF0E0E0E.toInt(); c.drawRect(45f, 488f, 555f, 595f, p)
+                val g = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; color = pal.c3 }
+                c.drawRect(55f, 496f, 545f, 588f, g)
+                val cols = intArrayOf(0xFFE88A1E.toInt(), 0xFF3FA04A.toInt(), 0xFF8A3AC8.toInt(), 0xFF2A5AD8.toInt())
+                for ((k, bx) in listOf(165f, 295f, 425f).withIndex()) { p.color = cols[k]; c.drawRect(bx - 10f, 530f, bx + 2f, 542f, p); c.drawRect(bx + 2f, 530f, bx + 14f, 542f, p); p.color = cols[k + 1]; c.drawRect(bx - 4f, 542f, bx + 8f, 554f, p) }
             }
         }
         val m = mask or externalMask
@@ -244,13 +319,14 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
         p.shader = RadialGradient(bx - 10f, by - 10f, 40f, 0xFFF26050.toInt(), 0xFFA01810.toInt(), Shader.TileMode.CLAMP)
         c.drawCircle(bx, by, 30f, p); p.shader = null
         t.color = if (style == SWARM) 0xFF1A2A3A.toInt() else 0xFFF2E04A.toInt(); t.textSize = 18f
-        c.drawText("◀  ▶", stick.x, stick.y + 40f, t)
+        c.drawText(if (style == BLOCKS) "MOVE" else "◀  ▶", stick.x, stick.y + 40f, t)
         for (b in buttons) {
             val down = m and b.bit != 0
-            p.color = 0xFF9A9A9A.toInt(); c.drawCircle(b.x, b.y + 8f, 36f, p)
-            p.color = if (down) 0xFFC8C8C0.toInt() else 0xFFF6F4EE.toInt(); c.drawCircle(b.x, b.y + (if (down) 6f else 0f), 34f, p)
+            p.color = 0xFF9A9A9A.toInt(); c.drawCircle(b.x, b.y + 8f, b.r + 2f, p)
+            p.color = if (down) 0xFFC8C8C0.toInt() else 0xFFF6F4EE.toInt(); c.drawCircle(b.x, b.y + (if (down) 6f else 0f), b.r, p)
             t.color = if (style == SWARM) 0xFF1A2A3A.toInt() else 0xFFF4F4F4.toInt(); t.textSize = 16f
-            c.drawText(b.label, b.x, b.y + 58f, t)
+            t.textSize = if (b.label.length == 1) 30f else 16f
+            c.drawText(b.label, b.x, b.y + b.r + 24f + (if (b.label.length == 1) 8f else 0f), t)
         }
     }
 
@@ -263,7 +339,7 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
             if (abs(ddy) > abs(ddx) * 0.5f) b = b or (if (ddy < 0) UP else DOWN)
             return b
         }
-        for (bt in buttons) if (hypot(x - bt.x, y - bt.y) < 55f) return bt.bit
+        for (bt in buttons) if (hypot(x - bt.x, y - bt.y) < bt.r + 21f) return bt.bit
         return 0
     }
 

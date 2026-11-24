@@ -1509,7 +1509,7 @@ object Machines {
             id = "bfriskyt",
             title = "Plumber Tom VFD Game",
             subtitle = "1981 wide tabletop with a colour VFD: fix the pipes to bring water to the shower, "
-                + "climbing the ladders with the stick, ACTION to grab and START to begin (Bandai Frisky Tom; MAME set: bfriskyt)",
+                + "climbing the ladders with the stick; the ATTACK : START key starts and attacks, the slide turns the sound off (Bandai Frisky Tom; MAME set: bfriskyt)",
             chip = "Hitachi HD38800 (HMCS44)",
             region = "Japan",
             year = "1981",
@@ -2928,7 +2928,7 @@ object Machines {
         MachineDef(
             id = "bftetris",
             title = "Mini Arcade: Falling Blocks",
-            subtitle = "The falling-blocks puzzle in a mini cabinet. Stick, two buttons and START on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
+            subtitle = "The falling-blocks puzzle in a mini cabinet. MOVE stick, START and the two rotate buttons on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
                 + "(Basic Fun Tetris mini arcade; MAME sets: bftetris + the chip's boot ROM, gpl951.bin)",
             chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with SPU, 2 MB encrypted SPI flash; the game draws straight to the LCD controller",
             region = "USA",

@@ -1044,33 +1044,71 @@ class HhSkin(
          *  the VFD tower between printed skyscrapers (white outlines on black), a blank name strip, the
          *  black ribbed band, then the L.HAND and R.HAND levers in outlined boxes (UP / DOWN arrows)
          *  either side of the POWER light, the ON / OFF slide and START. */
-        /** Placeholder until a photo: a wide white tabletop with a green trim round the VFD window, the
-         *  4-way stick on the right and START / ACTION on the left; POWER slide in the middle. */
-        private fun plumberTom() = HhSkin(
-            1280f, 720f, 0xFF121418.toInt(),
-            screen = RectF(240f, 150f, 1040f, 431f), bezel = 0xFF060606.toInt(), bezelPad = 10f,
-            menu = PointF(640f, 690f),
-            landscape = true,
-            controls = listOf(
-                Control(Kind.STICK, 1120f, 570f, 70f, color = 0xFF1E1E1E.toInt(), base = 0xFFE6E4DC.toInt(), arrows = true, eightWay = false),
-                Control(Kind.BUTTON, 170f, 575f, 40f, color = 0xFF2A9A4A.toInt(), bit = 1 shl 5, bw = 110f, bh = 56f,
-                    label = "START", labelAbove = true, labelColor = 0xFF1E5A2E.toInt(), labelSize = 24f),
-                Control(Kind.BUTTON, 380f, 575f, 58f, color = 0xFFE0302A.toInt(), base = 0xFF8A1A14.toInt(), bit = 1 shl 4,
-                    label = "ACTION", labelAbove = true, labelColor = 0xFF1E5A2E.toInt(), labelSize = 24f),
-                Control(Kind.SWITCH, 640f, 590f, 22f, color = 0xFF2A9A4A.toInt(), option = 6, vertical = true, positions = listOf("", ""),
-                    sets = listOf(listOf(7 to 0), listOf(7 to 1))),
-            ),
-            drawBody = { c, p, _ ->
-                p.color = 0xFFC9C6BE.toInt(); c.drawRoundRect(22f, 60f, 1262f, 706f, 34f, 34f, p)
-                p.color = 0xFFF3F2EC.toInt(); c.drawRoundRect(20f, 50f, 1260f, 690f, 34f, 34f, p)
-                p.color = 0xFF2A9A4A.toInt(); c.drawRoundRect(205f, 115f, 1075f, 466f, 18f, 18f, p)
-                p.color = 0xFF141414.toInt(); c.drawRoundRect(222f, 132f, 1058f, 449f, 10f, 10f, p)
-                p.color = 0xFFDCDAD2.toInt()
-                for (i in 0 until 7) { c.drawRoundRect(50f, 130f + i * 40f, 170f, 146f + i * 40f, 8f, 8f, p); c.drawRoundRect(1110f, 130f + i * 40f, 1230f, 146f + i * 40f, 8f, 8f, p) }
-                val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF1E5A2E.toInt(); textSize = 22f }
-                c.drawText("POWER", 640f, 540f, t); t.textSize = 18f; c.drawText("ON", 680f, 572f, t); c.drawText("OFF", 684f, 622f, t)
-            },
-        )
+        /** Bandai Frisky Tom (1981), from a photo, without the name: the black case with a brushed cream
+         *  face, teal stripes above and below the teal-framed VFD window, on the left the SOUND OFF slide,
+         *  the orange TIME / GAME 1-2 slide (drawn; the emulation has no clock mode), the ACL hole and the
+         *  ATTACK : START key (it sends both, as one key on the real one), and on the right the black
+         *  stick in a cream disc with a teal compass star. */
+        private fun plumberTom(): HhSkin {
+            val teal = 0xFF1E8C8A.toInt()
+            return HhSkin(
+                1260f, 840f, 0xFF121418.toInt(),
+                screen = RectF(345f, 240f, 835f, 413f), bezel = 0xFF0A0A0A.toInt(), bezelPad = 10f,
+                menu = PointF(630f, 815f),
+                landscape = true,
+                controls = listOf(
+                    Control(Kind.STICK, 1010f, 470f, 70f, color = 0xFF1A1A1A.toInt(), base = 0xFF0E0E0E.toInt(), arrows = false, eightWay = false),
+                    Control(Kind.SWITCH, 210f, 218f, 30f, color = 0xFF1E1E1E.toInt(), option = 4, positions = listOf("", ""),
+                        sets = listOf(listOf(5 to 0), listOf(5 to 1))),
+                    Control(Kind.BUTTON, 210f, 548f, 40f, color = 0xFF1C1C1C.toInt(), base = 0xFF080808.toInt(), bit = (1 shl 4) or (1 shl 5), bw = 120f, bh = 56f),
+                ),
+                drawBody = { c, p, s ->
+                    // the black case and its lower lip
+                    p.color = 0xFF0C0C0C.toInt(); c.drawRoundRect(60f, 80f, 1200f, 790f, 26f, 26f, p)
+                    p.color = 0xFF1A1A1A.toInt(); c.drawRect(70f, 700f, 1190f, 780f, p)
+                    // the brushed cream face (the disc sits on the black at its lower right)
+                    p.shader = LinearGradient(90f, 100f, 1130f, 660f, intArrayOf(0xFFEEE8D2.toInt(), 0xFFE2DBC2.toInt(), 0xFFEAE4CC.toInt()), null, Shader.TileMode.CLAMP)
+                    c.drawRoundRect(90f, 100f, 1140f, 670f, 14f, 14f, p); p.shader = null
+                    s.color = 0x14000000; s.strokeWidth = 1.5f
+                    var y = 108f; while (y < 664f) { c.drawLine(96f, y, 1134f, y, s); y += 6f }
+                    // teal stripes and the window frame
+                    p.color = teal
+                    for (i in 0 until 3) { c.drawRect(330f, 118f + i * 22f, 850f, 128f + i * 22f, p); c.drawRect(330f, 488f + i * 22f, 850f, 498f + i * 22f, p) }
+                    c.drawRoundRect(320f, 200f, 860f, 455f, 14f, 14f, p)
+                    p.color = 0xFF1A1A1A.toInt(); c.drawRoundRect(334f, 214f, 846f, 441f, 8f, 8f, p)
+                    // left column: teal plates
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = Color.WHITE; textSize = 24f }
+                    p.color = teal
+                    c.drawRoundRect(130f, 180f, 290f, 380f, 12f, 12f, p)
+                    c.drawRoundRect(130f, 500f, 290f, 630f, 12f, 12f, p)
+                    c.drawText("SOUND OFF", 210f, 282f, t)
+                    // the orange TIME / GAME 1-2 slide
+                    p.color = 0xFF151515.toInt(); c.drawRoundRect(145f, 300f, 275f, 340f, 8f, 8f, p)
+                    p.color = 0xFFEE6A4A.toInt(); c.drawRoundRect(150f, 304f, 270f, 336f, 6f, 6f, p)
+                    c.drawText("TIME:GAME 1.2", 210f, 370f, t)
+                    // ACL
+                    p.color = 0xFF2A2A2A.toInt(); c.drawCircle(210f, 425f, 24f, p)
+                    p.color = 0xFF0A0A0A.toInt(); c.drawCircle(210f, 425f, 18f, p)
+                    t.color = 0xFF1A1A1A.toInt(); c.drawText("ACL", 210f, 478f, t)
+                    t.color = Color.WHITE; c.drawText("ATTACK:START", 210f, 614f, t)
+                    // right: the black corner, the cream disc and the teal compass
+                    p.color = 0xFF0C0C0C.toInt(); c.drawRoundRect(860f, 520f, 1200f, 790f, 26f, 26f, p)
+                    p.color = 0xFF0C0C0C.toInt(); c.drawCircle(1010f, 470f, 168f, p)
+                    p.color = 0xFFEAE4CC.toInt(); c.drawCircle(1010f, 470f, 152f, p)
+                    s.color = teal; s.strokeWidth = 4f
+                    c.drawArc(1010f - 112f, 470f - 112f, 1010f + 112f, 470f + 112f, 15f, 60f, false, s)
+                    c.drawArc(1010f - 112f, 470f - 112f, 1010f + 112f, 470f + 112f, 105f, 60f, false, s)
+                    c.drawArc(1010f - 112f, 470f - 112f, 1010f + 112f, 470f + 112f, 195f, 60f, false, s)
+                    c.drawArc(1010f - 112f, 470f - 112f, 1010f + 112f, 470f + 112f, 285f, 60f, false, s)
+                    p.color = teal
+                    val star = Path().apply {
+                        moveTo(1010f, 470f - 145f); lineTo(1028f, 452f); lineTo(1010f + 145f, 470f); lineTo(1028f, 488f)
+                        lineTo(1010f, 470f + 145f); lineTo(992f, 488f); lineTo(1010f - 145f, 470f); lineTo(992f, 452f); close()
+                    }
+                    c.drawPath(star, p)
+                },
+            )
+        }
 
         /** Placeholder until a photo: a tall dark blue tabletop with the narrow VFD tower, a left / right
          *  lever and a big FIRE key, the SKILL 1 / 2 slide and the POWER slide. */
