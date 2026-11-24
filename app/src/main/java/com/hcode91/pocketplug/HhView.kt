@@ -1057,19 +1057,60 @@ class HhSkin(
             )
         }
 
-        /** Bandai Dokodemo Dorayaki (1983): wide VFD tabletop, joystick and one button. */
+        /** Bandai Dokodemo Dorayaki (1983), from a photo of the "Push Up" tabletop: white case with
+         *  the flip-up lid (its artwork left off), the wide screen in a dark surround, vents either
+         *  side, the decorative OPEN key, START, the POWER and SOUND slides and the ACTION stick,
+         *  all in blue outlines. START is the game's button. */
         private fun dorayaki() = HhSkin(
-            1200f, 1000f, 0xFF14181E.toInt(),
-            screen = RectF(150f, 160f, 1050f, 473f), bezel = 0xFF0A0A0C.toInt(), bezelPad = 14f,
-            menu = PointF(600f, 960f),
+            1280f, 720f, 0xFF121418.toInt(),
+            screen = RectF(300f, 160f, 896f, 395f), bezel = 0xFF140A0A.toInt(), bezelPad = 10f,
+            menu = PointF(640f, 690f),
+            landscape = true,
             controls = listOf(
-                Control(Kind.STICK, 380f, 720f, 120f, color = 0xFF2E7AD8.toInt(), base = 0xFF1C1C1C.toInt(), arrows = true, eightWay = false),
-                Control(Kind.BUTTON, 840f, 720f, 70f, color = 0xFFE23A2A.toInt(), bit = 1 shl 4, label = "A", labelColor = Color.WHITE),
+                Control(Kind.STICK, 1125f, 540f, 62f, color = 0xFFE0302A.toInt(), base = 0xFFF2F2EE.toInt(), arrows = false, eightWay = false),
+                Control(Kind.BUTTON, 297f, 593f, 40f, color = 0xFFE0302A.toInt(), bit = 1 shl 4, bw = 112f, bh = 54f),
+                Control(Kind.SWITCH, 472f, 590f, 22f, color = 0xFFE0302A.toInt(), option = 6, vertical = true, positions = listOf("", ""),
+                    sets = listOf(listOf(7 to 0), listOf(7 to 1))),
+                Control(Kind.SWITCH, 598f, 590f, 22f, color = 0xFFE0302A.toInt(), option = 4, vertical = true, positions = listOf("", ""),
+                    sets = listOf(listOf(5 to 0), listOf(5 to 1))),
             ),
-            drawBody = { c, p, _ ->
-                p.color = 0xFF3A8AD8.toInt(); c.drawRoundRect(60f, 60f, 1140f, 920f, 60f, 60f, p)
-                p.color = 0xFFF4F2EC.toInt(); c.drawRoundRect(100f, 560f, 1100f, 880f, 40f, 40f, p)
-                p.color = 0xFF1A1A1E.toInt(); c.drawRoundRect(120f, 120f, 1080f, 520f, 24f, 24f, p)
+            drawBody = { c, p, s ->
+                val blue = 0xFF1E5AC8.toInt()
+                // the case and its front edge
+                p.color = 0xFFC9C6BE.toInt(); c.drawRoundRect(22f, 104f, 1262f, 706f, 30f, 30f, p)
+                p.color = 0xFFF2F1EC.toInt(); c.drawRoundRect(20f, 95f, 1260f, 690f, 30f, 30f, p)
+                // the flip-up lid along the top
+                p.color = 0xFFD8D6CF.toInt(); c.drawRoundRect(140f, 48f, 1180f, 112f, 10f, 10f, p)
+                p.color = 0xFFF6F5F0.toInt(); c.drawRoundRect(140f, 38f, 1180f, 100f, 10f, 10f, p)
+                // vents
+                s.color = 0xFFCFCCC4.toInt(); s.strokeWidth = 6f
+                for (i in 0 until 6) { c.drawLine(45f, 130f + i * 22f, 185f, 130f + i * 22f, s); c.drawLine(1035f, 140f + i * 22f, 1220f, 140f + i * 22f, s) }
+                // the dark surround and glass
+                p.color = 0xFFDEDBD3.toInt(); c.drawRoundRect(250f, 100f, 1000f, 500f, 16f, 16f, p)
+                p.color = 0xFF2A2626.toInt(); c.drawRoundRect(268f, 100f, 982f, 470f, 12f, 12f, p)
+                p.color = 0xFF180C0C.toInt(); c.drawRoundRect(288f, 118f, 908f, 438f, 6f, 6f, p)
+                // the OPEN key (lifts the lid on the real one)
+                s.color = blue; s.strokeWidth = 3f
+                c.drawRoundRect(62f, 372f, 162f, 440f, 6f, 6f, s)
+                p.color = 0xFFE0302A.toInt(); c.drawRoundRect(78f, 386f, 146f, 424f, 4f, 4f, p)
+                val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = blue; textSize = 26f }
+                c.drawText("OPEN", 112f, 470f, t)
+                // START, POWER and SOUND frames
+                c.drawRoundRect(215f, 530f, 380f, 640f, 6f, 6f, s); c.drawText("START", 297f, 545f, t)
+                c.drawRoundRect(412f, 540f, 530f, 640f, 6f, 6f, s); c.drawText("POWER", 472f, 545f, t)
+                c.drawRoundRect(540f, 540f, 658f, 640f, 6f, 6f, s); c.drawText("SOUND", 598f, 545f, t)
+                t.textSize = 20f
+                c.drawText("ON", 428f, 575f, t); c.drawText("OFF", 428f, 625f, t)
+                c.drawText("ON", 640f, 575f, t); c.drawText("OFF", 640f, 625f, t)
+                // the ACTION square with its arrows
+                c.drawRoundRect(1060f, 475f, 1190f, 605f, 6f, 6f, s)
+                t.textSize = 26f; c.drawText("ACTION", 1125f, 440f, t)
+                p.color = blue
+                fun tri(x: Float, y: Float, dx: Float, dy: Float) {
+                    val path = Path(); path.moveTo(x + dx * 18f, y + dy * 18f)
+                    path.lineTo(x - dy * 14f, y + dx * 14f); path.lineTo(x + dy * 14f, y - dx * 14f); path.close(); c.drawPath(path, p)
+                }
+                tri(1125f, 462f, 0f, -1f); tri(1125f, 618f, 0f, 1f); tri(1046f, 540f, -1f, 0f); tri(1204f, 540f, 1f, 0f)
             },
         )
 
