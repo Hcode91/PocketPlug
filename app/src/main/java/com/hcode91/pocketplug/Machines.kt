@@ -1322,6 +1322,30 @@ object Machines {
             skin = Skin.HH,
         ),
         MachineDef(
+            id = "barbpet",
+            title = "Pet Rescue",
+            subtitle = "2005 TV game: find lost pets around the house and garden, wash, feed and play with them. "
+                + "Stick moves, A picks up and uses things (Mattel \"I Love Pets - Pet Rescue\"; MAME set: barbpet)",
+            chip = "Sunplus SPG2xx (unSP 16-bit)",
+            region = "USA",
+            year = "2005",
+            roms = listOf(RomSpec("barbiepetrescue.u3", 0x200000L, 0xa740b19dL)),
+            skin = Skin.ABL_TV,
+            badge = "backyard",
+        ),
+        MachineDef(
+            id = "bb6578",
+            title = "TV Games Baseball",
+            subtitle = "Baseball with a sensor bat: set up the match with the pad (START picks), then swing "
+                + "to hit. A is a full swing, B a medium one (DaiDaiXing; MAME set: bb6578)",
+            chip = "SH6578 NES-on-a-chip + security chip",
+            region = "China",
+            year = "200x",
+            roms = listOf(RomSpec("tv game baseball.bin", 0x80000L, 0xdec862b2L)),
+            skin = Skin.ABL_TV,
+            badge = "baseball",
+        ),
+        MachineDef(
             id = "astrocmd",
             title = "Astro Command Tabletop",
             subtitle = "1982 VFD shooter: fight off the invaders with MISSILE and BOMB, steer with the "

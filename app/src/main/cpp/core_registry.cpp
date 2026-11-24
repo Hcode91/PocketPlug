@@ -200,6 +200,14 @@ Core* createCore(const std::string& id)
         c.pal = false;
         return new Spg2xxCore(c);
     }
+    if (id == "barbpet") {    // Mattel Barbie: I Love Pets - Pet Rescue (SPG24x, 60 Hz, 2 MB)
+        Spg2xxConfig c;
+        c.romName = "barbiepetrescue.u3";
+        c.romSize = 0x200000;
+        c.board = 6;
+        c.pal = false;
+        return new Spg2xxCore(c);
+    }
     if (id == "ban_krkk") {   // Bandai Let's! TV Play Zunou Family Mattore (SPG24x, 60 Hz, mat)
         Spg2xxConfig c;
         c.romName = "quiz.bin";
@@ -326,7 +334,7 @@ Core* createCore(const std::string& id)
         return new GizGameCore();
     if (id == "arcadege")     // Millennium Arcade Genius (GeneralPlus GPL32600, work in progress)
         return new GplCore();
-    if (id == "bananlap" || id == "bananlapa" || id == "bandolap" || id == "bandplap" || id == "bandslap")
+    if (id == "bananlap" || id == "bananlapa" || id == "bandolap" || id == "bandplap" || id == "bandslap" || id == "banpear")
         return new GplCore();     // Bandai kids' laptops: GeneralPlus GPL32612, booting from SPI flash
     if (id == "atgame40")     // AtGames 40 Bonus Games in 1 (Firecore Mega Drive clone)
         return new FirecoreCore();
@@ -391,6 +399,14 @@ Core* createCore(const std::string& id)
         std::copy(scr, scr + 6, c.scramble8000);
         std::copy(order, order + 6, c.order2012);
         c.twoPads = true;
+        return new Vt369Core(c);
+    }
+    if (id == "bb6578") {     // DaiDaiXing TV Games Baseball (SH6578, NTSC, 512 KB)
+        Vt369Config c;
+        c.romName = "tv game baseball.bin";
+        c.romSize = 0x80000;
+        c.soc = 3;
+        c.extProt = true;
         return new Vt369Core(c);
     }
     if (id == "bandgpad" || id == "bancook") {   // Bandai SH6578 sets (NTSC, 1 MB)

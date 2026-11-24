@@ -15,6 +15,7 @@
 #include <vector>
 
 struct Vt369Config {
+    bool extProt = false;          // SH6578: TV Games Baseball's security chip on the EXT port (0x4026)
     std::string romName;
     uint32_t romSize = 0x400000;
     int crypt = -1;            // opcode bitswap (MAME which_crypt), -1 = none
@@ -98,6 +99,8 @@ private:
         uint8_t irqMask, timerVal, prevIo, ioLatch[2], extPlane[2], r4027;
         uint8_t cartBank;                           // ABL Wikid: which 1 MB half is mapped
         int32_t timerLines;                         // scanlines until the timer IRQ, -1 = off
+        uint8_t extOut, protIn, protEdge, protReply, protBit, protPhase;
+        int32_t timerCycles, timerCnt;              // free-running CPU-cycle timer (period, countdown), 0 = off
         uint32_t rng;
     } m_sh;
     // SD card controller (4310-4328; worked out from the A6Plus menu code)

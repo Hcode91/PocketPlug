@@ -107,9 +107,11 @@ void GplCore::reset()
         m_cpu->hle_user = this;
         m_cpu->hle_hook = [](didj::ARM926* c, uint32_t pc, void* u) -> bool {
             auto* self = static_cast<GplCore*>(u);
-            fprintf(stderr, "BRK %08x r0 %08x r1 %08x r2 %08x r3 %08x lr %08x :", pc, c->r[0], c->r[1], c->r[2], c->r[3], c->r[14]);
+            fprintf(stderr, "BRK %08x r0 %08x r1 %08x r2 %08x r3 %08x lr %08x i%llu :", pc, c->r[0], c->r[1], c->r[2], c->r[3], c->r[14], (unsigned long long)c->insn_count);
             uint32_t m = getenv("GPLBRKMEM") ? uint32_t(strtoul(getenv("GPLBRKMEM"), nullptr, 16)) : c->r[0];
             for (int i = 0; i < 32; i++) fprintf(stderr, " %02x", self->read8(m + uint32_t(i)));
+            fprintf(stderr, "\n  bt:");
+            for (uint32_t fp = c->r[11], i = 0; i < 8 && fp > 8 && fp < 0x1000000; i++) { fprintf(stderr, " %08x", self->read32(fp)); fp = self->read32(fp - 4); }
             fprintf(stderr, "\n");
             return false;
         };
@@ -134,8 +136,9 @@ uint8_t* GplCore::page_ptr(uint32_t pa)
 
 static bool rwatch(uint32_t pa)
 {
-    static const uint32_t a = getenv("GPLRWATCH") ? uint32_t(strtoul(getenv("GPLRWATCH"), nullptr, 16)) : 0xffffffffu;
-    return pa - a < 0x100u;
+    static const bool on = getenv("GPLRWATCH") != nullptr;
+    static const uint32_t a = on ? uint32_t(strtoul(getenv("GPLRWATCH"), nullptr, 16)) : 0;
+    return on && pa - a < 0x100u;
 }
 
 uint32_t GplCore::read32(uint32_t pa)
@@ -148,7 +151,7 @@ uint32_t GplCore::read32(uint32_t pa)
 
 void GplCore::write32(uint32_t pa, uint32_t v)
 {
-    if ((pa & ~3u) == (watchAddr() & ~3u) && v != m_lastWatch && (m_lastWatch = v, true)) fprintf(stderr, "WATCH w32 %08x = %08x pc %08x lr %08x\n", pa, v, m_cpu->r[15] - 8, m_cpu->r[14]);
+    if ((pa & ~3u) == (watchAddr() & ~3u) && v != m_lastWatch && (m_lastWatch = v, true)) fprintf(stderr, "WATCH w32 %08x = %08x pc %08x lr %08x i%llu\n", pa, v, m_cpu->r[15] - 8, m_cpu->r[14], (unsigned long long)m_cpu->insn_count);
     if (pa < RAM_SIZE) { std::memcpy(&m_ram[pa & ~3u], &v, 4); return; }
     if ((pa & 0xfff00000u) == 0xf8000000u) { std::memcpy(&m_sram[pa & 0xffffcu], &v, 4); return; }
     ioWrite(pa & ~3u, v, 0xffffffffu);
@@ -163,7 +166,7 @@ void GplCore::write16(uint32_t pa, uint16_t v)
 }
 void GplCore::write8(uint32_t pa, uint8_t v)
 {
-    if ((pa & ~3u) == (watchAddr() & ~3u)) fprintf(stderr, "WATCH w8 %08x = %02x pc %08x lr %08x\n", pa, v, m_cpu->r[15] - 8, m_cpu->r[14]);
+    if ((pa & ~3u) == (watchAddr() & ~3u)) fprintf(stderr, "WATCH w8 %08x = %02x pc %08x lr %08x i%llu\n", pa, v, m_cpu->r[15] - 8, m_cpu->r[14], (unsigned long long)m_cpu->insn_count);
     if (pa < RAM_SIZE) { m_ram[pa] = v; return; }
     if ((pa & 0xfff00000u) == 0xf8000000u) { m_sram[pa & 0xfffffu] = v; return; }
     int sh = (pa & 3) * 8;
@@ -576,6 +579,7 @@ void GplCore::debugDump()
     if (const char* f = getenv("GPLRAM")) { FILE* fp = fopen(f, "wb"); if (fp) { fwrite(m_ram.data(), 1, 0x1000000, fp); fclose(fp); } }
     if (dbg()) {
         fprintf(stderr, "pc %08x lr %08x sp %08x cpsr %08x insns %llu\n", m_cpu ? m_cpu->r[15] : 0, m_cpu ? m_cpu->r[14] : 0, m_cpu ? m_cpu->r[13] : 0, m_cpu ? m_cpu->cpsr : 0, m_cpu ? (unsigned long long)m_cpu->insn_count : 0ull);
+        if (m_cpu) fprintf(stderr, "cp15 ctrl %08x ttb %08x\n", m_cpu->cp15_control, m_cpu->cp15_ttb);
         { uint32_t v; std::memcpy(&v, &m_sram[0x20c], 4); fprintf(stderr, "irqvec %08x\n", v);
           for (int i = 0; i < 32; i++) { std::memcpy(&v, &m_ram[0x17eadc + i * 4], 4); if (v) fprintf(stderr, "irq%d -> %08x\n", i, v); } }
         for (auto& kv : ioReads) fprintf(stderr, "R %08x x%u = %08x\n", kv.first, kv.second, m_regs.count(kv.first) ? m_regs[kv.first] : 0);

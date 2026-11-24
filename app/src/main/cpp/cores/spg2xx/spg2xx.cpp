@@ -425,6 +425,7 @@ void Spg2xxCore::Eeprom93c66::clkWrite(int v)
 
 uint16_t Spg2xxCore::porta_r()
 {
+    if (m_cfg.board == 6) return 0;     // "P1" unused (active high)
     if (m_cfg.board == 4) return uint16_t(m_eeprom.doRead() << 3);
     if (m_cfg.board == 5) {
         // "P1", active low: mat buttons 1-4, select (bits 0-4); the rest are DIPs left high
@@ -460,6 +461,8 @@ uint16_t Spg2xxCore::porta_r()
 uint16_t Spg2xxCore::portb_r()
 {
     if (m_cfg.board == 3 || m_cfg.board == 5) return 0xffff;
+    // "P2", active high: up, down, left, right, buttons 1-3; bits 7-15 idle high
+    if (m_cfg.board == 6) return uint16_t(0xff80 | (m_inputs & 0x7f));
     if (m_cfg.board == 4) {
         // "P2", active low: up, down, left, right, A, X, Y, B (input bits 0-3, 4 A, 5 B, 6 X, 7 Y)
         uint32_t in = m_inputs; uint16_t v = 0xffff;
@@ -531,6 +534,7 @@ uint16_t Spg2xxCore::portc_r()
     if (m_cfg.board == 3) return uint16_t(0xffff & ~((m_inputs >> 7) & 3));
     if (m_cfg.board == 4) return uint16_t(0xffff & ~((m_inputs >> 8 & 1) << 2));   // pause / menu
     if (m_cfg.board == 5) return uint16_t(0xfeff & ~(m_inputs >> 9 & 0x1f));       // player 2's mat; bit 8 battery ok (low)
+    if (m_cfg.board == 6) return 0;
     return 0xffff;
 }
 

@@ -401,6 +401,7 @@ struct Spg2xxConfig {
                                   // 3 = JungleTac lexizeus/lexiseal pads (arcade3d),
                                   // 4 = Hasbro 93LC66 boards (backybbs: pad on port B, EEPROM on port A),
                                   // 5 = plain P1/P3 pads, active low (ban_krkk: two players' mat buttons)
+                                  // 6 = pad on P2, active high, buttons 1-3 (barbpet)
     bool pal = true;              // 50 Hz and the PAL flag; NTSC boards run at 60 Hz
     bool decryptAcFf = false;     // init_ablkickb: bitswap + xor 0xfafa on every word
     bool decryptZeus = false;     // init_zeus (spg2xx_lexibook.cpp)

@@ -19,6 +19,9 @@ import kotlin.math.hypot
  *                START and SELECT. NES pad bits.
  *  - "pingpong": a table-tennis bat; tap the rubber to swing (and to choose),
  *                arrows and cancel on the handle. NES pad bits.
+ *  - "baseball": a bat for the sensor baseball game: tap the barrel for a full
+ *                swing (A), the B button for a medium one, with arrows, SELECT and
+ *                START on the handle for the setup menu. NES pad bits.
  *  - "minijoy":  two teal-and-white mini joysticks with grey-green ball tops,
  *                one per player (player 2 in bits 8-15).
  *  - "tennis":   a racket (tap or swipe the strings to swing, the handle button
@@ -200,6 +203,18 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 circle(DOWN, "▼", l + bw * 0.24f, t + bh * 0.5f, bh * 0.07f)
                 circle(B, "✕", l + bw * 0.35f, t + bh * 0.5f, bh * 0.07f)
             }
+            "baseball" -> {
+                // the bat lies across: barrel on the right, handle and its buttons to the left
+                circle(A, "", l + bw * 0.7f, t + bh * 0.5f, bh * 0.38f)
+                val ax = l + bw * 0.14f; val ay = t + bh * 0.5f; val ar = bh * 0.07f
+                circle(UP, "▲", ax, ay - ar * 2.1f, ar)
+                circle(DOWN, "▼", ax, ay + ar * 2.1f, ar)
+                circle(LEFT, "◀", ax - ar * 2.1f, ay, ar)
+                circle(RIGHT, "▶", ax + ar * 2.1f, ay, ar)
+                circle(B, "B", l + bw * 0.36f, t + bh * 0.5f, bh * 0.075f)
+                rect(SELECT, "SELECT", l + bw * 0.04f, t + bh * 0.86f, l + bw * 0.17f, t + bh * 0.94f)
+                rect(START, "START", l + bw * 0.2f, t + bh * 0.86f, l + bw * 0.33f, t + bh * 0.94f)
+            }
             "minijoy" -> {
                 for (p in 0..1) {
                     val ox = l + bw * (if (p == 0) 0f else 0.5f)
@@ -304,6 +319,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         when (style) {
             "pinball" -> drawPinball(c, held)
             "pingpong" -> drawPingPong(c, held)
+            "baseball" -> drawBat(c, held)
             "minijoy" -> drawMiniJoy(c, held)
             "tennis" -> { drawReceiver(c, held); drawRacket(c, held) }
             "kickbox" -> { drawReceiver(c, held); drawKickBox(c, held) }
@@ -395,6 +411,31 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         while (y < blade.cy + r * 0.8f) { var x = blade.cx - r * 0.85f; while (x < blade.cx + r * 0.85f) { if (hypot((x - blade.cx) / 0.98f, (y - blade.cy) / 0.93f) < r * 0.85f) c.drawCircle(x, y, r * 0.018f, paint); x += r * 0.09f }; y += r * 0.09f }
         label(c, "TAP TO SWING / OK", blade.cx, blade.cy + r * 0.05f, bh * 0.055f, 0x99FFFFFF.toInt())
         drawButtons(c, held, 0xFF3A3A3A.toInt(), 0xFF101010.toInt(), 0xFFF2F2F2.toInt(), setOf(A))
+    }
+
+    private fun drawBat(c: Canvas, held: Int) {
+        val bw = body.width(); val bh = body.height()
+        val barrel = ctls.first { it.bit == A }
+        // a light wooden bat lying across, thick end on the right
+        val down = held and A != 0
+        val r = barrel.r * (if (down) 0.95f else 1f)
+        path.reset()
+        val gy = body.top + bh * 0.5f
+        path.moveTo(body.left + bw * 0.03f, gy - bh * 0.06f)
+        path.lineTo(barrel.cx - r * 0.2f, gy - r * 0.62f)
+        path.quadTo(barrel.cx + r * 1.25f, gy - r * 0.7f, barrel.cx + r * 1.25f, gy)
+        path.quadTo(barrel.cx + r * 1.25f, gy + r * 0.7f, barrel.cx - r * 0.2f, gy + r * 0.62f)
+        path.lineTo(body.left + bw * 0.03f, gy + bh * 0.06f)
+        path.close()
+        paint.shader = LinearGradient(0f, gy - r * 0.7f, 0f, gy + r * 0.7f, intArrayOf(0xFFF1D29C.toInt(), 0xFFD4A462.toInt(), 0xFF9C6B30.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawPath(path, paint); paint.shader = null
+        stroke.color = 0xFF6E4318.toInt(); stroke.strokeWidth = bw * 0.004f
+        c.drawPath(path, stroke)
+        // dark grip tape on the handle, under the buttons
+        paint.color = 0xFF2B2B33.toInt()
+        c.drawRoundRect(body.left + bw * 0.02f, gy - bh * 0.3f, body.left + bw * 0.42f, gy + bh * 0.3f, bh * 0.12f, bh * 0.12f, paint)
+        label(c, "TAP TO SWING", barrel.cx + r * 0.15f, gy, bh * 0.06f, 0x996E4318.toInt())
+        drawButtons(c, held, 0xFFE9E9EE.toInt(), 0xFF9A9AA6.toInt(), 0xFF202028.toInt(), setOf(A))
     }
 
     private fun drawMiniJoy(c: Canvas, held: Int) {

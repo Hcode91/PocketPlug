@@ -2275,6 +2275,7 @@ void Vt369Core::apuSample()
     acc += m_tndLut[m_s.tri.output][m_s.noi.output][m_s.dpcm.output];
     // sound CPU DACs: 0.2 each in MAME (our APU path is scaled by 0.6 below)
     acc += (m_s.dacOut[0] + m_s.dacOut[1]) * (0.2f / 0.6f / 32768.0f);
+    if (m_cfg.soc == 3) acc += m_sh.r4027 * (0.5f / 255.0f);     // SH6578 8-bit DAC
     if (m_cfg.board == 2) {
         // ABL Ping Pong's speech chip drains its buffer at a steady rate. Its data
         // format is unknown (not PCM or OKI/IMA ADPCM), so the voice stays silent.
@@ -2404,9 +2405,16 @@ void Vt369Core::runFrame()
             m_instStart = m_s.dot;
             m_access = 0;
             m_inInst = true;
+#ifdef XAVIX_DEBUG
+            { static const char* h = getenv("VTHIT"); static int f0 = 0; static uint16_t hist[8]; static int hi = 0; if (h && m_cpu.pc == strtol(h, nullptr, 16)) { fprintf(stderr, "hit %04x n%d from", m_cpu.pc, ++f0); for (int i = 0; i < 8; i++) fprintf(stderr, " %04x", hist[(hi + i) & 7]); fprintf(stderr, "\n"); } hist[hi++ & 7] = m_cpu.pc; }
+#endif
             int cyc = m_cpu.step();
             m_inInst = false;
             m_s.dot += cyc * (3 / m_s.clockMul);
+            if (m_cfg.soc == 3 && m_sh.timerCycles && (m_sh.timerCnt -= cyc) <= 0) {
+                m_sh.timerCnt += m_sh.timerCycles;
+                if (!(m_sh.irqMask & 0x80)) m_cpu.setIrq(true);
+            }
             spuRun();
         }
         while (!m_frameDone && nextEventDot() <= m_s.dot) fireEvent();
@@ -2496,7 +2504,17 @@ uint8_t Vt369Core::shCpuRead(uint16_t a)
     case 0x4015: apuSync(); return apuStatus();
     case 0x4016: { uint8_t r = m_sh.ioLatch[0] & 1; m_sh.ioLatch[0] >>= 1; return r; }
     case 0x4017: { uint8_t r = m_sh.ioLatch[1] & 1; m_sh.ioLatch[1] >>= 1; return r; }
-    case 0x4026: return shRand();            // EXT port: an unknown line, random as MAME
+    case 0x4026:                             // EXT port
+        if (m_cfg.extProt) {
+            // the security chip answers on bit 6 (handshake) and bit 5 (data)
+            // (the handshake follows bit 7 while a command comes in; once the last command bit
+            // is acknowledged it drops, and while the reply goes out it is bit 7 inverted)
+            bool hs = (m_sh.extOut & 0x80) != 0;
+            if (m_sh.protPhase >= 3) hs = !hs;
+            else if (m_sh.protPhase) m_sh.protPhase++;   // high for the two reads of the host's ack loop
+            return uint8_t((m_sh.extOut & 0x9f) | (hs ? 0x40 : 0) | (m_sh.protBit ? 0x20 : 0));
+        }
+        return shRand();                     // an unknown line on the Bandai boards, random as MAME
     case 0x4027: return m_sh.r4027;
     case 0x4033: return shRand();            // IRQ status
     }
@@ -2526,10 +2544,36 @@ void Vt369Core::shCpuWrite(uint16_t a, uint8_t d)
     }
     case 0x4016:
         // the pads are latched on the falling edge, ignoring the plain 0-3 writes
-        if ((d > 3 || m_cfg.board == 3) && ((m_sh.prevIo & 1) != (d & 1)) && !(d & 1)) { m_sh.ioLatch[0] = (uint8_t)m_inputs; m_sh.ioLatch[1] = 0; }
+        if ((d > 3 || m_cfg.board == 3) && ((m_sh.prevIo & 1) != (d & 1)) && !(d & 1)) {
+            if (m_cfg.extProt) {
+                // TV Games Baseball: the d-pad, Select and Start come in on 4017; 4016 is the
+                // bat, a swing (bit 1) with its strength (bit 5 hard, bit 4 medium) - A and B
+                m_sh.ioLatch[0] = uint8_t((m_inputs & 1) ? 0x22 : (m_inputs & 2) ? 0x12 : 0);
+                m_sh.ioLatch[1] = uint8_t(m_inputs & 0xfc);
+            } else { m_sh.ioLatch[0] = (uint8_t)m_inputs; m_sh.ioLatch[1] = 0; }
+        }
         m_sh.prevIo = d;
         // ABL Wikid Joystick: bit 1 picks which 1 MB half of the 2 MB flash is the cartridge
         if (m_cfg.board == 3 && m_rom.size() == 0x200000) m_sh.cartBank = (d >> 1) & 1;
+        return;
+    case 0x4026:
+        if (m_cfg.extProt) {
+            // TV Games Baseball's security chip: each exchange clocks 8 command bits out
+            // (bit 5, on bit 7 going low) then 5 reply bits back (MSB first). The game
+            // sends f9 f9 f9 28 03 b4 1d f5 and resets itself unless the last reply is 7.
+            if ((m_sh.extOut & 0x80) && !(d & 0x80)) {
+                if (m_sh.protEdge == 13) m_sh.protEdge = m_sh.protPhase = 0;   // the next exchange
+                if (m_sh.protEdge < 8) {
+                    m_sh.protIn = uint8_t(m_sh.protIn << 1 | ((d >> 5) & 1));
+                    if (++m_sh.protEdge == 8) m_sh.protReply = m_sh.protIn == 0xf5 ? 7 : 0;
+                } else {
+                    m_sh.protBit = (m_sh.protReply >> (12 - m_sh.protEdge)) & 1;
+                    m_sh.protEdge++;
+                }
+            }
+        }
+        if (m_cfg.extProt && !(m_sh.extOut & 0x80) && (d & 0x80) && m_sh.protEdge == 8 && !m_sh.protPhase) m_sh.protPhase = 1;
+        m_sh.extOut = d;
         return;
     case 0x4027: m_sh.r4027 = d; return;
     case 0x4032:
@@ -2538,6 +2582,10 @@ void Vt369Core::shCpuWrite(uint16_t a, uint8_t d)
         return;
     case 0x4034:                             // timer: IRQ after the set number of scanlines
         m_sh.timerLines = ((d & 0x80) && (d & 0x20)) ? m_sh.timerVal : -1;
+        // bit 5 clear: a free-running timer counting CPU cycles (TV Games Baseball plays
+        // its sampled speech off it, 0xdf cycles = ~8 kHz, through the 4027 DAC)
+        m_sh.timerCycles = ((d & 0x80) && !(d & 0x20)) ? std::max<int>(m_sh.timerVal, 16) : 0;
+        m_sh.timerCnt = m_sh.timerCycles;
         return;
     case 0x4035: m_sh.timerVal = d; return;
     }
