@@ -605,6 +605,7 @@ class MainActivity : Activity() {
         })
         c.addView(TextView(this).apply {
             text = if (carts.isEmpty() && m.builtInGame.isNotEmpty()) "○ Add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip) for more games"
+                   else if (carts.isEmpty() && m.cartDisc) "○ No games yet - add a game disc (.zip of its .cue and .bin, or a .bin / .iso)"
                    else if (carts.isEmpty() && m.cartWholeZip) "○ No games yet - add a game as a .zip of its files (its .exe and data folder)"
                    else if (carts.isEmpty()) "○ No games yet - add cartridge dumps (.bin, .zip, .7z or a MAME software-list zip)"
                    else "● ${carts.size} game${if (carts.size == 1) "" else "s"} · tap to play, hold to remove"
@@ -647,7 +648,7 @@ class MainActivity : Activity() {
                 }
                 setOnLongClickListener {
                     AlertDialog.Builder(this@MainActivity).setMessage("Remove ${cart.title}?")
-                        .setPositiveButton("Remove") { _, _ -> cart.file.delete(); rebuild() }
+                        .setPositiveButton("Remove") { _, _ -> cart.file.delete(); java.io.File(cart.file.path + ".d").deleteRecursively(); rebuild() }
                         .setNegativeButton("Cancel", null).show()
                     true
                 }

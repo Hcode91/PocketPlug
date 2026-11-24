@@ -143,7 +143,7 @@ object RomStore {
     fun listCarts(ctx: Context, m: MachineDef): List<Cart> =
         (cartDir(ctx, m).listFiles() ?: emptyArray()).filter { it.isFile }.map { f ->
             // whole-game zips are big: tell them apart by size instead of reading them through
-            val crc = if (m.cartWholeZip) f.length() else crc32(f)
+            val crc = if (m.cartWholeZip || m.cartDisc) f.length() else crc32(f)
             val title = m.knownCarts[crc]
             Cart(f, title ?: f.nameWithoutExtension, crc, title != null)
         }.sortedBy { it.title.lowercase() }
@@ -209,6 +209,26 @@ object RomStore {
             val magic = ByteArray(6)
             tmp.inputStream().use { it.read(magic) }
             when {
+                m.cartDisc -> {
+                    // a CD image: kept as it is (a zip of .cue + .bin, a .bin or an .iso)
+                    val name = queryName(ctx, uri) ?: "game.bin"
+                    val ext = name.substringAfterLast('.', "").lowercase().let { e ->
+                        if (isZip(magic)) "zip" else if (e == "iso" || e == "img") e else "bin"
+                    }
+                    val size = tmp.length()
+                    when {
+                        size > m.cartMaxSize || size < 2048 * 16 -> rejected++
+                        size in have -> dup++
+                        else -> {
+                            var base = name.substringBeforeLast('.').replace(Regex("[^A-Za-z0-9 _().-]"), "_").ifBlank { "game" }
+                            var f = File(dir, "$base.$ext")
+                            var n = 2
+                            while (f.exists()) { f = File(dir, "$base ($n).$ext"); n++ }
+                            if (!tmp.renameTo(f)) { tmp.copyTo(f); tmp.delete() }
+                            added += m.knownCarts[size] ?: base
+                        }
+                    }
+                }
                 m.cartWholeZip -> {
                     // the archive is the game: keep it as it is (it can be far bigger than memory allows to read)
                     val crc = tmp.length()

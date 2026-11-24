@@ -60,6 +60,7 @@ class EmulatorActivity : Activity() {
     private var genius: ArcadeGeniusView? = null
     private var giz: GizmondoView? = null
     private var zod: ZodiacView? = null
+    private var hsPad: HyperScanPadView? = null
     private var backgammon: BackgammonView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -437,6 +438,24 @@ class EmulatorActivity : Activity() {
                 }
                 giz = v
                 setContentView(v)
+            }
+            Skin.HYPERSCAN -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val pad = HyperScanPadView(this).apply {
+                    onInput = { setTouch(1, it) }
+                    onAnalog = { stick, x, y -> synchronized(coreLock) { Native.setAnalog(handle, stick, x, y) } }
+                }
+                hsPad = pad
+                val console = HyperScanConsoleView(this).apply {
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    onPower = { powerCycle() }
+                }
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0B0E.toInt())
+                    add(tv, 0.85f)
+                    add(console, 0.3f)
+                    add(pad, 0.65f)
+                })
             }
             Skin.ZODIAC -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -1711,6 +1730,7 @@ class EmulatorActivity : Activity() {
         Skin.ARCADE_GENIUS -> GeniusBits.keyBit(code)
         Skin.GIZMONDO -> GizBits.keyBit(code)
         Skin.ZODIAC -> ZodBits.keyBit(code)
+        Skin.HYPERSCAN -> HsBits.keyBit(code)
         Skin.BACKGAMMON -> when (code) {
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> 1 shl 0
             KeyEvent.KEYCODE_DEL -> 1 shl 4
@@ -1836,6 +1856,15 @@ class EmulatorActivity : Activity() {
             if (x < -0.5f) m = m or 0x40
             if (x > 0.5f) m = m or 0x80
             if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m }
+            return true
+        }
+        if (machine.skin == Skin.HYPERSCAN && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            // a real stick is the controller's analog stick; the hat moves it all the way
+            var x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            var y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            x = x.coerceIn(-1f, 1f); y = y.coerceIn(-1f, 1f)
+            synchronized(coreLock) { Native.setAnalog(handle, 0, x, y) }
             return true
         }
         if (machine.skin == Skin.GIZMONDO && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -2223,6 +2252,7 @@ class EmulatorActivity : Activity() {
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask
         zod?.externalMask = keyInputs or stickMask
+        hsPad?.externalMask = keyInputs or stickMask
         backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
@@ -2294,6 +2324,7 @@ class EmulatorActivity : Activity() {
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask
         zod?.externalMask = keyInputs or stickMask
+        hsPad?.externalMask = keyInputs or stickMask
         backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }

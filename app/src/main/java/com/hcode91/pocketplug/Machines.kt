@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -42,6 +42,8 @@ data class MachineDef(
     val cartJoin: Boolean = false,
     /** A game is a whole .zip (a folder of files): keep the archive as one cartridge, unopened. */
     val cartWholeZip: Boolean = false,
+    /** Games are CD images (.zip of .cue/.bin, .bin, .iso): kept as they are, never read whole. */
+    val cartDisc: Boolean = false,
     /** Getting-started steps, shown in a bubble over the machine (empty: none needed). */
     val setup: List<String> = emptyList(),
 )
@@ -52,7 +54,7 @@ val MachineDef.category: String
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.LETS_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC -> "Handhelds"
         Skin.EGG_PET -> "Pets"
-        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE -> "Consoles"
+        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK, Skin.BACKGAMMON -> "Chess & clocks"
         else -> "Computers"
     }
@@ -1110,6 +1112,25 @@ object Machines {
             year = "2003",
             roms = listOf(RomSpec("zodiac_1.1_update.prc", 4981855, 0x1ef2d2b9)),
             skin = Skin.ZODIAC,
+        ),
+        MachineDef(
+            id = "hyperscan",
+            title = "HyperScan",
+            subtitle = "Mattel's 2006 CD console with an RFID card scanner. Import the console's BIOS zip (hyperscan.bin "
+                + "and spg290.bin), then add a game disc as a .zip of its .cue and .bin (or a lone .bin or .iso). The "
+                + "console boots its BIOS, loads the game from the CD at the real drive's speed (loading screens take a "
+                + "while) and plays streamed sound; scanning cards isn't supported yet (MAME set: hyprscan)",
+            chip = "Sunplus SPG290 (S+core 7 @ 108 MHz) with 2D PPU, CD servo, 16 MB SDRAM",
+            region = "USA",
+            year = "2006",
+            roms = listOf(
+                RomSpec("hyperscan.bin", 0x100000L, 0xce346a14L),
+                RomSpec("spg290.bin", 0x8000L, 0x41aad748L),
+            ),
+            skin = Skin.HYPERSCAN,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 1L shl 30,
+            cartDisc = true,
         ),
         MachineDef(
             id = "gizgame",
