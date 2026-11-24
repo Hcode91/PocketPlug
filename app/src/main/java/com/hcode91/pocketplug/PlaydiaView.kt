@@ -4,14 +4,13 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.min
 
 /** Button bits for the Playdia core (see playdia.h). B is the disc's "pick" button. */
@@ -34,91 +33,75 @@ object PdBits {
 }
 
 /**
- * The infrared pad: a rounded indigo-and-white body with a dark IR window along its top edge,
- * a cross pad on the left, round B and A keys on the right, and Select / Start between them.
+ * The infrared pad: a royal-blue slab with a black IR window on its top edge, four round
+ * direction keys in a diamond on the left (purple up, blue left, green right, red down) and the
+ * yellow A and white B keys on the right. The real pad has no Start or Select.
  */
 class PlaydiaPadView(ctx: Context) : View(ctx) {
     var onInput: ((Int) -> Unit)? = null
     var externalMask = 0
         set(v) { field = v; postInvalidate() }
 
-    private val body = RectF()
-    private val cross = RectF()
-    private val keyB = RectF(); private val keyA = RectF()
-    private val sel = RectF(); private val start = RectF()
+    private class Key(val bit: Int, val color: Int, val label: String) { var x = 0f; var y = 0f; var r = 0f }
+    private val keys = listOf(
+        Key(PdBits.UP, 0xFF8B3FC8.toInt(), ""), Key(PdBits.LEFT, 0xFF1F86E0.toInt(), ""),
+        Key(PdBits.RIGHT, 0xFF18A860.toInt(), ""), Key(PdBits.DOWN, 0xFFE0243A.toInt(), ""),
+        Key(PdBits.A, 0xFFF5D21C.toInt(), "A"), Key(PdBits.B, 0xFFF4F4F0.toInt(), "B"),
+    )
+    private val body = RectF(); private val ir = RectF()
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true }
     private val down = HashMap<Int, Int>()
     private var mask = 0
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        val bw = min(w * 0.96f, h * 2.1f)
-        body.set((w - bw) / 2, h * 0.08f, (w + bw) / 2, h * 0.94f)
+        val bw = min(w * 0.96f, h * 2.3f)
+        body.set((w - bw) / 2, h * 0.1f, (w + bw) / 2, h * 0.92f)
         val bh = body.height()
-        val cs = bh * 0.56f
-        val cx = body.left + bw * 0.24f; val cy = body.top + bh * 0.56f
-        cross.set(cx - cs / 2, cy - cs / 2, cx + cs / 2, cy + cs / 2)
-        val kr = bh * 0.13f
-        val rx = body.left + bw * 0.76f
-        keyB.set(rx - bw * 0.07f - kr, cy + bh * 0.06f - kr, rx - bw * 0.07f + kr, cy + bh * 0.06f + kr)
-        keyA.set(rx + bw * 0.07f - kr, cy - bh * 0.1f - kr, rx + bw * 0.07f + kr, cy - bh * 0.1f + kr)
-        val mw = bw * 0.1f; val mh = bh * 0.08f; val my = body.top + bh * 0.72f
-        sel.set(body.centerX() - mw * 1.15f, my, body.centerX() - mw * 0.15f, my + mh)
-        start.set(body.centerX() + mw * 0.15f, my, body.centerX() + mw * 1.15f, my + mh)
+        ir.set(body.centerX() - bw * 0.09f, body.top - bh * 0.02f, body.centerX() + bw * 0.09f, body.top + bh * 0.1f)
+        val cx = body.left + bw * 0.25f; val cy = body.top + bh * 0.56f
+        val d = bh * 0.23f; val r = bh * 0.115f
+        val pos = listOf(0f to -d, -d to 0f, d to 0f, 0f to d)
+        for (k in 0 until 4) { keys[k].x = cx + pos[k].first; keys[k].y = cy + pos[k].second; keys[k].r = r }
+        // A sits lower-left of B, as on the pad
+        keys[4].x = body.left + bw * 0.66f; keys[4].y = body.top + bh * 0.62f; keys[4].r = bh * 0.14f
+        keys[5].x = body.left + bw * 0.84f; keys[5].y = body.top + bh * 0.46f; keys[5].r = bh * 0.14f
     }
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF0D0E1A.toInt())
         val lit = mask or externalMask
-        val rad = body.height() * 0.42f
-        // white lower shell, indigo top, dark IR window
-        p.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFFF4F4F2.toInt(), 0xFFC9CBD2.toInt(), Shader.TileMode.CLAMP)
+        val rad = body.height() * 0.2f
+        // a shade underneath gives the slab its thickness
+        p.shader = null; p.color = 0xFF1E2A8C.toInt()
+        c.drawRoundRect(RectF(body.left, body.top + body.height() * 0.06f, body.right, body.bottom + body.height() * 0.04f), rad, rad, p)
+        p.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFF5A72F0.toInt(), 0xFF3448C8.toInt(), Shader.TileMode.CLAMP)
         c.drawRoundRect(body, rad, rad, p)
-        p.shader = LinearGradient(0f, body.top, 0f, body.top + body.height() * 0.3f, 0xFF4A4FC8.toInt(), 0xFF2B2E8E.toInt(), Shader.TileMode.CLAMP)
-        c.save(); c.clipRect(body.left, body.top, body.right, body.top + body.height() * 0.26f)
-        c.drawRoundRect(body, rad, rad, p); c.restore()
         p.shader = null
-        p.color = 0xFF3A1016.toInt()
-        val ir = RectF(body.centerX() - body.width() * 0.14f, body.top + body.height() * 0.05f, body.centerX() + body.width() * 0.14f, body.top + body.height() * 0.17f)
-        c.drawRoundRect(ir, ir.height() / 2, ir.height() / 2, p)
-        p.color = 0x55FF4050; c.drawRoundRect(RectF(ir.left + ir.width() * 0.1f, ir.top + ir.height() * 0.2f, ir.centerX(), ir.top + ir.height() * 0.45f), 8f, 8f, p)
-        // cross pad in a recess
-        p.color = 0xFFB4B7C2.toInt(); c.drawCircle(cross.centerX(), cross.centerY(), cross.width() * 0.6f, p)
-        val arm = cross.width() / 3
-        val path = Path().apply {
-            addRect(cross.left, cross.top + arm, cross.right, cross.bottom - arm, Path.Direction.CW)
-            addRect(cross.left + arm, cross.top, cross.right - arm, cross.bottom, Path.Direction.CW)
+        p.color = 0x22FFFFFF
+        c.drawRoundRect(RectF(body.left + body.width() * 0.02f, body.top + body.height() * 0.03f, body.right - body.width() * 0.02f, body.top + body.height() * 0.12f), rad, rad, p)
+        p.color = 0xFF101014.toInt(); c.drawRoundRect(ir, ir.height() * 0.25f, ir.height() * 0.25f, p)
+        p.color = 0x44FF3040; c.drawRect(ir.left + ir.width() * 0.1f, ir.top + ir.height() * 0.3f, ir.left + ir.width() * 0.45f, ir.top + ir.height() * 0.5f, p)
+        // little arrows beside the direction keys
+        t.color = 0xFFD8DEFF.toInt()
+        val k0 = keys[0]
+        t.textSize = k0.r * 0.7f
+        c.drawText("▲", k0.x, k0.y - k0.r * 1.35f, t)
+        c.drawText("▼", keys[3].x, keys[3].y + keys[3].r * 2.0f, t)
+        c.drawText("◀", keys[1].x - keys[1].r * 1.6f, keys[1].y + t.textSize * 0.35f, t)
+        c.drawText("▶", keys[2].x + keys[2].r * 1.6f, keys[2].y + t.textSize * 0.35f, t)
+        for (k in keys) {
+            val on = lit and k.bit != 0
+            p.color = 0x55000000; c.drawCircle(k.x, k.y + k.r * 0.14f, k.r, p)
+            p.shader = RadialGradient(k.x - k.r * 0.3f, k.y - k.r * 0.35f, k.r * 1.4f,
+                if (on) 0xFFFFFFFF.toInt() else lighten(k.color), if (on) lighten(k.color) else k.color, Shader.TileMode.CLAMP)
+            c.drawCircle(k.x, k.y, k.r, p)
+            p.shader = null
+            if (k.label.isNotEmpty()) {
+                t.color = 0xFFF4F4F0.toInt(); t.textSize = k.r * 0.62f
+                c.drawText(k.label, k.x, k.y - k.r * 1.3f, t)
+            }
         }
-        p.color = 0xFF23264F.toInt(); c.drawPath(path, p)
-        p.color = 0xFF6A70E8.toInt()
-        val half = arm / 2
-        if (lit and PdBits.UP != 0) c.drawRect(cross.left + arm, cross.top, cross.right - arm, cross.top + arm, p)
-        if (lit and PdBits.DOWN != 0) c.drawRect(cross.left + arm, cross.bottom - arm, cross.right - arm, cross.bottom, p)
-        if (lit and PdBits.LEFT != 0) c.drawRect(cross.left, cross.top + arm, cross.left + arm, cross.bottom - arm, p)
-        if (lit and PdBits.RIGHT != 0) c.drawRect(cross.right - arm, cross.top + arm, cross.right, cross.bottom - arm, p)
-        p.color = 0xFF181A3A.toInt(); c.drawCircle(cross.centerX(), cross.centerY(), half * 0.5f, p)
-        // round keys: B pink-red, A yellow
-        drawKey(c, keyB, 0xFFE2365A.toInt(), "B", lit and PdBits.B != 0)
-        drawKey(c, keyA, 0xFFF2BE1E.toInt(), "A", lit and PdBits.A != 0)
-        drawPill(c, sel, "SELECT", lit and PdBits.SELECT != 0)
-        drawPill(c, start, "START", lit and PdBits.START != 0)
-    }
-
-    private fun drawKey(c: Canvas, r: RectF, color: Int, label: String, on: Boolean) {
-        p.color = 0x33000000; c.drawCircle(r.centerX(), r.centerY() + r.height() * 0.06f, r.width() / 2, p)
-        p.shader = RadialGradient(r.centerX() - r.width() * 0.15f, r.centerY() - r.height() * 0.18f, r.width() * 0.7f,
-            if (on) 0xFFFFFFFF.toInt() else lighten(color), color, Shader.TileMode.CLAMP)
-        c.drawCircle(r.centerX(), r.centerY(), r.width() / 2, p)
-        p.shader = null
-        t.color = 0xFFFFFFFF.toInt(); t.textSize = r.height() * 0.45f
-        c.drawText(label, r.centerX(), r.centerY() + t.textSize * 0.36f, t)
-    }
-
-    private fun drawPill(c: Canvas, r: RectF, label: String, on: Boolean) {
-        p.color = if (on) 0xFF7A80F0.toInt() else 0xFF3B3F9E.toInt()
-        c.drawRoundRect(r, r.height() / 2, r.height() / 2, p)
-        t.color = 0xFF3B3F9E.toInt(); t.textSize = r.height() * 0.6f
-        c.drawText(label, r.centerX(), r.bottom + t.textSize * 1.15f, t)
     }
 
     private fun lighten(c: Int): Int {
@@ -127,20 +110,12 @@ class PlaydiaPadView(ctx: Context) : View(ctx) {
     }
 
     private fun hit(x: Float, y: Float): Int {
-        val grow = { r: RectF, f: Float -> RectF(r).apply { inset(-r.width() * f, -r.height() * f) } }
-        if (grow(keyB, 0.3f).contains(x, y)) return PdBits.B
-        if (grow(keyA, 0.3f).contains(x, y)) return PdBits.A
-        if (grow(sel, 0.4f).contains(x, y)) return PdBits.SELECT
-        if (grow(start, 0.4f).contains(x, y)) return PdBits.START
-        if (grow(cross, 0.25f).contains(x, y)) {
-            val dx = x - cross.centerX(); val dy = y - cross.centerY()
-            val dead = cross.width() * 0.1f
-            var m = 0
-            if (abs(dx) > dead && abs(dx) > abs(dy) * 0.5f) m = m or (if (dx < 0) PdBits.LEFT else PdBits.RIGHT)
-            if (abs(dy) > dead && abs(dy) > abs(dx) * 0.5f) m = m or (if (dy < 0) PdBits.UP else PdBits.DOWN)
-            return m
+        var best = 0; var bestD = Float.MAX_VALUE
+        for (k in keys) {
+            val d = hypot(x - k.x, y - k.y)
+            if (d < k.r * 1.6f && d < bestD) { bestD = d; best = k.bit }
         }
-        return 0
+        return best
     }
 
     private fun publish() {
@@ -171,53 +146,76 @@ class PlaydiaPadView(ctx: Context) : View(ctx) {
 }
 
 /**
- * The console as a strip above the pad: an indigo-blue top over a green base, the disc lid on
- * the left, the hollow where the pad rests at the front, and Open / Power keys on the right.
+ * The console as a strip above the pad: a royal-blue top on a green base, the big round disc lid
+ * with its ridges, two green keys (Reset, Power) on the left with a red power light, the yellow
+ * round Open button on the right, and the front hollow where the pad rests, with its black IR eye.
  */
 class PlaydiaConsoleView(ctx: Context) : View(ctx) {
     var onReset: (() -> Unit)? = null
     var onPower: (() -> Unit)? = null
-    private val body = RectF(); private val lid = RectF(); private val dock = RectF()
+    private val body = RectF(); private val top = RectF(); private val dock = RectF()
     private val reset = RectF(); private val power = RectF()
+    private var lidX = 0f; private var lidY = 0f; private var lidR = 0f
+    private var openX = 0f; private var openY = 0f; private var openR = 0f
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = 0xFFDDE0FF.toInt(); isFakeBoldText = true }
+    private val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = 0xFFDDE3FF.toInt(); isFakeBoldText = true }
     private var pressed = 0
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         val bw = min(w * 0.96f, h * 4.2f)
-        body.set((w - bw) / 2, h * 0.1f, (w + bw) / 2, h * 0.92f)
+        body.set((w - bw) / 2, h * 0.08f, (w + bw) / 2, h * 0.94f)
         val bh = body.height()
-        lid.set(body.left + bw * 0.05f, body.top + bh * 0.1f, body.left + bw * 0.5f, body.top + bh * 0.58f)
-        dock.set(body.left + bw * 0.12f, body.top + bh * 0.66f, body.left + bw * 0.5f, body.bottom - bh * 0.06f)
-        val kw = bw * 0.11f; val kh = bh * 0.2f
-        reset.set(body.right - bw * 0.3f, body.top + bh * 0.3f, body.right - bw * 0.3f + kw, body.top + bh * 0.3f + kh)
-        power.set(body.right - bw * 0.16f, body.top + bh * 0.3f, body.right - bw * 0.16f + kw, body.top + bh * 0.3f + kh)
-        t.textSize = kh * 0.6f
+        top.set(body.left, body.top, body.right, body.top + bh * 0.8f)
+        lidR = bh * 0.34f; lidX = body.left + bw * 0.55f; lidY = body.top + bh * 0.38f
+        val kw = bw * 0.085f; val kh = bh * 0.13f
+        reset.set(body.left + bw * 0.24f, body.top + bh * 0.14f, body.left + bw * 0.24f + kw, body.top + bh * 0.14f + kh)
+        power.set(body.left + bw * 0.2f, body.top + bh * 0.36f, body.left + bw * 0.2f + kw, body.top + bh * 0.36f + kh)
+        dock.set(body.left + bw * 0.12f, body.top + bh * 0.56f, body.left + bw * 0.46f, body.top + bh * 0.76f)
+        openR = bh * 0.1f; openX = body.left + bw * 0.86f; openY = body.top + bh * 0.58f
+        t.textSize = kh * 0.55f
     }
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF0D0E1A.toInt())
-        val rad = body.height() * 0.16f
+        val rad = body.height() * 0.14f
         p.shader = null
-        p.color = 0xFF2E9C5A.toInt(); c.drawRoundRect(body, rad, rad, p)               // green base
-        p.shader = LinearGradient(0f, body.top, 0f, body.top + body.height() * 0.62f, 0xFF5559D6.toInt(), 0xFF2D2F96.toInt(), Shader.TileMode.CLAMP)
-        c.drawRoundRect(RectF(body.left, body.top, body.right, body.top + body.height() * 0.62f), rad, rad, p)
+        p.color = 0xFF22A85C.toInt(); c.drawRoundRect(body, rad, rad, p)                  // green base
+        p.color = 0xFF1A8048.toInt(); c.drawRect(body.left + rad, body.bottom - body.height() * 0.06f, body.right - rad, body.bottom - body.height() * 0.03f, p)
+        p.shader = LinearGradient(0f, top.top, 0f, top.bottom, 0xFF5470EE.toInt(), 0xFF3047C6.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(top, rad, rad, p)
         p.shader = null
-        p.color = 0xFF24267A.toInt(); c.drawRoundRect(lid, rad * 0.6f, rad * 0.6f, p)
-        p.style = Paint.Style.STROKE; p.strokeWidth = body.height() * 0.02f; p.color = 0xFF7A7EEA.toInt()
-        c.drawCircle(lid.centerX(), lid.centerY(), lid.height() * 0.32f, p)
-        p.style = Paint.Style.FILL
-        p.color = 0xFF1F6E3E.toInt(); c.drawRoundRect(dock, dock.height() * 0.4f, dock.height() * 0.4f, p)
-        for ((r, label, bit) in listOf(Triple(reset, "RESET", 1), Triple(power, "POWER", 2))) {
-            p.color = if (pressed and bit != 0) 0xFFFFFFFF.toInt() else 0xFFE9E6DA.toInt()
-            c.drawRoundRect(r, r.height() * 0.3f, r.height() * 0.3f, p)
-            c.drawText(label, r.centerX(), r.top - t.textSize * 0.4f, t)
+        // disc lid: a raised disc with curved ridges
+        p.color = 0xFF3A52D0.toInt(); c.drawCircle(lidX, lidY, lidR, p)
+        p.style = Paint.Style.STROKE; p.strokeWidth = body.height() * 0.012f
+        p.color = 0xFF2A3CA8.toInt(); c.drawCircle(lidX, lidY, lidR, p)
+        p.color = 0x55FFFFFF
+        for (k in 0 until 3) {
+            val off = lidR * (0.1f + k * 0.16f)
+            c.drawArc(RectF(lidX - lidR * 0.55f, lidY - off - lidR * 0.25f, lidX + lidR * 0.55f, lidY - off + lidR * 0.25f), 200f, 140f, false, p)
         }
-        p.color = 0xFFFF4A3C.toInt(); c.drawCircle(power.centerX(), power.bottom + body.height() * 0.12f, body.height() * 0.035f, p)
+        p.style = Paint.Style.FILL
+        // the hollow where the pad sits, with the receiver's black eye at its back
+        p.color = 0xFF2638A0.toInt(); c.drawRoundRect(dock, dock.height() * 0.3f, dock.height() * 0.3f, p)
+        p.color = 0xFF101014.toInt()
+        c.drawRect(dock.centerX() + dock.width() * 0.12f, dock.top + dock.height() * 0.1f, dock.centerX() + dock.width() * 0.22f, dock.bottom - dock.height() * 0.25f, p)
+        // green keys with labels, red light
+        for ((r, label, bit) in listOf(Triple(reset, "RESET", 1), Triple(power, "POWER", 2))) {
+            p.color = if (pressed and bit != 0) 0xFF8CFFC0.toInt() else 0xFF2FC878.toInt()
+            c.drawRoundRect(r, r.height() * 0.3f, r.height() * 0.3f, p)
+            p.color = 0x33000000; c.drawRect(r.left, r.bottom - r.height() * 0.25f, r.right, r.bottom, p)
+            c.drawText(label, r.right + t.textSize * 2.1f, r.centerY() + t.textSize * 0.35f, t)
+        }
+        p.color = 0xFFFF3A2C.toInt(); c.drawCircle(power.left - power.width() * 0.35f, power.centerY(), body.height() * 0.025f, p)
+        // yellow Open button
+        p.shader = RadialGradient(openX - openR * 0.3f, openY - openR * 0.35f, openR * 1.4f, 0xFFFFF07A.toInt(), 0xFFE8B800.toInt(), Shader.TileMode.CLAMP)
+        c.drawCircle(openX, openY, openR, p)
+        p.shader = null
+        t.textSize = openR * 0.5f; c.drawText("OPEN", openX, openY + openR * 1.75f, t)
+        t.textSize = reset.height() * 0.55f
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
-        fun near(r: RectF) = RectF(r).apply { inset(-r.width() * 0.4f, -r.height() * 0.8f) }.contains(e.x, e.y)
+        fun near(r: RectF) = RectF(r).apply { inset(-r.width() * 0.4f, -r.height() * 0.6f) }.contains(e.x, e.y)
         val bit = when { near(reset) -> 1; near(power) -> 2; else -> 0 }
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> { pressed = bit; invalidate() }
