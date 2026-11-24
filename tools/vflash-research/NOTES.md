@@ -209,6 +209,21 @@ good reference. Differences found so far are marked V.Flash below.
   count) is advanced per sector (0x10065FF4 maps a ring address to a sector index) and why the
   first 20-sector read is redone.
 
+### Read request 0x10355260 (findings so far)
+
+- +0x08 buffer, +0x10 address of the newest sector, +0x14 start frame, +0x18 next frame,
+  +0x1C frame of the newest sector (0x10065FF4 maps a ring address to a frame), +0x34 sector count
+  (0x0E for the loader's first read), +0x40 mode (1 here). 0x10355960 = header limit (-1 = none),
+  0x10356240 = headers seen. The per-sector path (event 6 -> 0x10065D74 -> ECC -> event 0x0B) advances
+  +0x18 correctly from 0xA7 to 0xB9.
+- The read is open-ended and fills all 20 ring slots because nothing consumes the ring. At the
+  20th sector the transfer ends at the stop mark, event 7 takes the "buffer full" branch
+  (0x103550A0 set, 0x10355240 = -1, mode 1, 0x10354640 = 0 -> 0x10063F78) and restarts the read at
+  +0x1C, which by then maps back to the start frame 0xA6. Data consumers are notified through
+  0x10066568(code) -> callback pointer 0x101A2010 (the job layer, 0x10069708), which only ever
+  received code 5 (started). Next: find what should call 0x10066568 while data arrives (or why
+  it does not), so the file system copies the 14 sectors out and completes job 0x206.
+
 ## Status
 
 The boot reaches the MORE OS scheduler, shows the VTech logo and the V.Smile Pro splash, spins the
