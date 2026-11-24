@@ -11,6 +11,7 @@ controller.
 |---|---|---|---|
 | Retro Dance Mat (110 song Super StepMania + 9-in-1 games) (PAL) | `110dance` | VT1682 | Boots, menus, songs and mini-games playable, sound working |
 | Radofin 1292 / 1392 Advanced Programmable Video System | `1292apvs`, `1392apvs` | VC 4000 family (Signetics 2650 + 2636) | All 37 software-list cartridges run; output matches MAME |
+| VC 4000 family: Interton VC 4000 and its clones (Grundig, Palson, Koerting, Acetronic, Audio Sonic, Fountain, Hanimex, Lansay, Prinztronic, Voltmace, Videomaster, Rowtron, Teleng, SOE, ITMC, TRQ) | `vc4000`, `spc4000`, `cx3000tc`, `tvc4000`, `mpu1000`, `mpu2000`, `pp1292`, `pp1392`, `f1392`, `fforce2`, `hmg1292`, `hmg1392`, `lnsy1392`, `vc6000`, `database`, `vmdtbase`, `rwtrntcs`, `telngtcs`, `krvnjvtv`, `oc2000`, `mpt05`, `h21` | The same hardware as the 1292 | Same as the 1292: all software-list cartridges run |
 | Egg Pet - Generation 1 (1996 keychain virtual pet) | `tama` | Epson E0C6S46 | Clock, egg, hatching and pet match MAME segment-for-segment over 10 min; lives in real time |
 | 168-in-1 Game Phone Case | `168pcase` | VT369 (NES-on-a-chip) | Menu and games match MAME pixel-for-pixel in every tested frame (Contra, Panda Adventure, Aether, 60+ others); NES APU sound |
 | 36-in-1 Classic Games Phone Case | `36pcase` | VT369 + sound CPU, scrambled opcodes, internal ROM, serial protection chip | Language select, menu and games match MAME pixel-for-pixel in every tested frame; sound matches MAME's level |
@@ -108,7 +109,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Machine | MAME set | File | Size | CRC32 |
 |---|---|---|---|---|
 | Retro Dance Mat | `110dance` | `110songdancemat.bin` | 32 MB (33,554,432 bytes) | `cd668e41` |
-| 1292 / 1392 APVS | `1292apvs`, `1392apvs` | No system ROM; cartridge dumps (up to 6 KB each) or MAME's `vc4000` software-list zip | - | Known carts get titles |
+| 1292 / 1392 APVS and the VC 4000 family | `1292apvs`, `1392apvs` and the 22 VC 4000 family sets | No system ROM; cartridge dumps (up to 6 KB each) or MAME's `vc4000` software-list zip | - | Known carts get titles |
 | Egg Pet - Generation 1 | `tama` | `tama.bin` | 12 KB (12,288 bytes) | `5c864cb1` |
 | Egg Pet - Angel | `tamaang` | `tamaang.bin` | 16 KB (16,384 bytes) | `87bcb59f` |
 | Egg Pet - Ocean (original) | - | Nothing (built in) | - | - |

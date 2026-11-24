@@ -62,7 +62,7 @@ Core* createCore(const std::string& id)
         return new Vt1682Core(c);
     }
     // Radofin 1292 / 1392 Advanced Programmable Video System (VC 4000 family, cartridges)
-    if (id == "1292apvs" || id == "1392apvs")   // 1392: same hardware, internal power supply
+    if (id == "1292apvs" || id == "1392apvs" || id == "vc4000" || id == "spc4000" || id == "cx3000tc" || id == "tvc4000" || id == "mpu1000" || id == "mpu2000" || id == "pp1292" || id == "pp1392" || id == "f1392" || id == "fforce2" || id == "hmg1292" || id == "hmg1392" || id == "lnsy1392" || id == "vc6000" || id == "database" || id == "vmdtbase" || id == "rwtrntcs" || id == "telngtcs" || id == "krvnjvtv" || id == "oc2000" || id == "mpt05" || id == "h21")   // the VC 4000 family: same hardware   // 1392: same hardware, internal power supply
         return new Vc4000Core();
     // Epson E0C6S46 LCD pets
     if (id == "tama") {
