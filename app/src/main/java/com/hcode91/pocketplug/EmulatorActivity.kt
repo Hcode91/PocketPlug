@@ -556,7 +556,7 @@ class EmulatorActivity : Activity() {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val level = prefs.getInt("volume_${machine.id}", 0).coerceIn(0, BasicFunCabinetView.VOLUME_LEVELS - 1)
                 volume = VOLUME_STEPS[level]
-                val style = when (machine.id) { "bfgalaga" -> BasicFunCabinetView.SWARM; "bfdigdug" -> BasicFunCabinetView.DIG; else -> BasicFunCabinetView.MAZE }
+                val style = BasicFunCabinetView.styleFor(machine.id)
                 val v = BasicFunCabinetView(this, style).apply {
                     volumeLevel = level
                     onInput = { setTouch(0, it) }

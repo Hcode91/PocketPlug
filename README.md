@@ -50,11 +50,13 @@ controller.
 | Burger Time (Bandai, 1983) | `bbtime` | Hitachi HD38820 (own HMCS40 core) | VFD, joystick, two buttons |
 | Crazy Climber (Bandai, 1982) | `bcclimbr` | NEC uPD553C (own uCOM-4 core) | VFD, two levers |
 | Dokodemo Dorayaki Doraemon (Bandai, 1983) | `bdoramon` | Hitachi HD38800 (own HMCS40 core) | VFD, joystick, one button |
+| Frisky Tom (Bandai, 1981) | `bfriskyt` | Hitachi HD38800 (own HMCS40 core) | VFD, joystick, START and one button |
+| Galaxian (Bandai, 1981) | `bgalaxn` | NEC uPD553C (own uCOM-4 core) | VFD, left / right and FIRE, 2-level sound |
 | System Control Car: Cheetah (Bandai, 1979) | `bcheetah` | TI TMS1000 (own core) | Programmable buggy: its motors are shown as lights |
 | Bridge Companion (Unicard, 1985) | `bbcbc` | Z80 + Z80 PIO + TMS9129 (port of MAME's unicard/bbcbc.cpp) | Runs to its "plug in cartridge" screen; needs cartridge dumps to play |
 | Advanced Pico BEENA (Sega Toys, 2005) | `beena` | Big-endian ARM7TDMI on DidjDroid's ARM926 interpreter (word-invariant big-endian mode); port of MAME's sega_beena.cpp: tile layers with per-line palettes and scroll, sprites, direct bitmap, fades, AP2010 PCM FIFO, memory cache protocol, pen / page / pad sensors, RTC | BIOS and cartridges boot and play (tested: Futari wa Pretty Cure Max Heart) with speech and sound effects; no MIDI music (not emulated in MAME either), no card readers |
 | Beijue 220-in-1 16-bit handheld | `beijuehh` | GeneralPlus GPL16218B: u'nSP 2.0 (the shared u'nSP core gains the 1.2 / 2.0 instructions), port of MAME's GPL162xx SoC, video, renderer, DMA and timebase; the SPG2xx sound device with its control registers connected and the beat interrupt on IRQ4 (MAME leaves both off); ROM banking on ports B / D | Menu and games play with sound (tested: Table Tennis). The Beam Box (GPL16258VB + NAND) is in the same core but its NAND loader doesn't start yet (MAME doesn't run it either) |
-| Basic Fun mini arcades (Ms. Pac-Man, Galaga, Dig Dug) | `bfmpac`, `bfgalaga`, `bfdigdug` | GeneralPlus GPL951xx: port of MAME's SoC (SPI flash controller, timers, CHA/CHB DACs, RTC, DMA, timebase) on the GPL162xx video and the SPG2xx sound device; the chip's boot ROM runs, the flash is decrypted as MAME's init_fif | Title, attract mode and games play with sound (MAME marks them not working) |
+| Basic Fun mini arcades (Pac-Man, Ms. Pac-Man, Galaga, Dig Dug, Spy Hunter, Tetris) | `bfpacman`, `bfmpac`, `bfgalaga`, `bfdigdug`, `bfspyhnt`, `bftetris` | GeneralPlus GPL951xx: port of MAME's SoC (SPI flash controller, timers, CHA/CHB DACs, RTC, DMA, timebase) on the GPL162xx video and the SPG2xx sound device; the chip's boot ROM runs, the flash is decrypted as MAME's init_fif; Tetris draws through the LCD controller (port of unknown_bftetris_lcdc) | Title, attract mode and games play with sound (MAME marks them not working) |
 | Bingo Bear talking puppet (Hasbro / Tiger, 1986) | `bbear` | TI TMS1100 + TMS5110A speech and TMS6100 speech ROMs (ports of MAME's tms1k, tms5110, tms6100) | Greets you, then talks when the mouth sensor is worked, as in MAME (which marks its controls imperfect) |
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
 | Arcade Mania (Milton Bradley, 1983) | `arcmania` | TI TMS1100 (own core) | LEDs and sound match MAME with the same presses |
@@ -177,11 +179,15 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Burger Time (Bandai) | `bbtime` | `hd38820a65`, `bbtime.svg` | 4,352 / 461,598 bytes | `33611faf`, `297f30de` |
 | Crazy Climber (Bandai) | `bcclimbr` | `d553c_170`, `bcclimbr.svg` | 2,048 / 219,983 bytes | `fc2eabdb`, `776a80ad` |
 | Dokodemo Dorayaki Doraemon | `bdoramon` | `hd38800b43`, `bdoramon.svg` | 4,352 / 624,751 bytes | `9387ca42`, `fc6ae4e4` |
+| Frisky Tom (Bandai) | `bfriskyt` | `hd38800a77`, `bfriskyt.svg` | 4,352 / 413,553 bytes | `a2445c4f`, `8c7e96f9` |
+| Galaxian (Bandai) | `bgalaxn` | `d553c_103`, `bgalaxn.svg` | 2,048 / 153,620 bytes | `a6330519`, `6ef7249d` |
 | System Control Car: Cheetah | `bcheetah` | `mp0915`, `tms1000_common2_micro.pla`, `tms1000_bcheetah_output.pla` | 1,024 / 867 / 365 bytes | `2968c81e`, `d33da3cf`, `cc6d1ecd` |
 | Bridge Companion | `bbcbc` | `br_4_1.ic3`, `br_4_2.ic4` (plus your cartridge dumps, MAME software list `bbcbc`) | 8,192 / 8,192 bytes | `7c880d75`, `16a33aef` |
 | Advanced Pico BEENA | `beena` | `9h0-0008.bios.ic1`, `9h0-0008.midipcm.ic1` (plus your cartridge dumps, MAME software list `sega_beena_cart`) | 131,072 / 32,768 bytes | `5471aaf8`, `ed336d29` |
 | Beijue 220-in-1 handheld | `beijuehh` | `beijeu.bin` | 134,217,728 bytes | `e7b968af` |
 | Basic Fun mini arcades | `bfmpac`, `bfgalaga`, `bfdigdug` | `gpl951.bin` + `mspacman_25q80_c84014.bin` / `arcadeclassicsgalaga_25q80csig_c84014.bin` / `arcadeclassicsdigdug_25q80csig_c84014.bin` | 8,192 + 1,048,576 bytes | `2872d489` + `c0c3f8ce` / `69982c9d` / `4030bc46` |
+| Basic Fun mini arcades | `bfpacman` | `gpl951.bin` + `basicfunpacman_25q80_c84014.bin` | 8,192 + 1,048,576 bytes | `2872d489` + `dd39fc64` |
+| Basic Fun mini arcades | `bfspyhnt`, `bftetris` | `gpl951.bin` + `arcadeclassicsspyhunter_md25q16csig_c84015.bin` / `arcadeclassicstetris_25q16ct_c84015.bin` | 8,192 + 2,097,152 bytes | `2872d489` + `1f1eaabd` / `a97e1bab` |
 | Bingo Bear talking puppet | `bbear` | `e7cl04n2l`, `tms1100_common1_micro.pla`, `tms1100_bbear_output.pla`, `cm62056`, `cm62057` | 2,048 / 867 / 365 / 16,384 / 16,384 bytes | `e2e4ff07`, `62445fc9`, `5a0b8e88`, `550b40d1`, `383a8a9a` |
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |
 | Arcade Mania | `arcmania` | `m34078a`, `tms1100_common1_micro.pla`, `tms1100_arcmania_output.pla` | 2,048 / 867 / 365 bytes | `90ea0087`, `62445fc9`, `a1517b15` |

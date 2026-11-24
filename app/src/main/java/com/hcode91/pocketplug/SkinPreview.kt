@@ -76,7 +76,7 @@ object SkinPreview {
         Skin.TV_CONSOLE -> stack(ctx, tv(ctx) to 0.85f, Arcade3dConsoleView(ctx) to 0.42f, Arcade3dPadView(ctx) to 0.5f)
         Skin.EGG_PET -> EggPetView(ctx, if (m.badge == "angel" || m.badge == "umino") m.badge else "gen1")
         Skin.PHONE_CASE -> PhoneCaseView(ctx, m.id == "36pcase")
-        Skin.BASIC_FUN -> BasicFunCabinetView(ctx, when (m.id) { "bfgalaga" -> BasicFunCabinetView.SWARM; "bfdigdug" -> BasicFunCabinetView.DIG; else -> BasicFunCabinetView.MAZE })
+        Skin.BASIC_FUN -> BasicFunCabinetView(ctx, BasicFunCabinetView.styleFor(m.id))
         Skin.ARCADE_CABINET -> ArcadeCabinetView(ctx, a6 = m.id == "a6plus", fw = if (m.id.startsWith("bf")) 320 else 256)
         Skin.HANDHELD -> HandheldView(ctx)
         Skin.MINI_ARCADE -> MiniArcadeView(ctx)

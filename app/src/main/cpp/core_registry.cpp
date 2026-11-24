@@ -487,8 +487,9 @@ Core* createCore(const std::string& id)
         return new Gpl162xxCore(Gpl162xxCore::BEIJUEHH);
     if (id == "beambox")       // Rescue Bots Beam Box (GPL16258VB + NAND)
         return new Gpl162xxCore(Gpl162xxCore::BEAMBOX);
-    if (id == "bfmpac" || id == "bfgalaga" || id == "bfdigdug")   // Basic Fun mini arcades (GPL951xx)
-        return new Gpl951Core();
+    if (id == "bfmpac" || id == "bfgalaga" || id == "bfdigdug" || id == "bfpacman" ||
+        id == "bfspyhnt" || id == "bftetris")   // Basic Fun mini arcades (GPL951xx)
+        return new Gpl951Core(id);
     if (id == "beena")         // Sega Toys Advanced Pico BEENA
         return new BeenaCore();
     if (id == "bbcbc")         // Unicard Bridge Companion

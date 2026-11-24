@@ -20,6 +20,7 @@ private:
     uint64_t now() const override { return m_cpu.cycles(); }
     uint8_t input(int port) override;
     void output(int port, uint8_t data) override;
+    void inputsChanged() override;
 
     const struct Ucom4Game* m_g;
     UCOM4 m_cpu;

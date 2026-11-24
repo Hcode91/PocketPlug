@@ -18,14 +18,20 @@ import kotlin.math.min
  *
  * Styles: MAZE (blue cabinet, pink and yellow stripes; stick then START), SWARM (green front,
  * black sides, purple streaks on starfield strips; START, stick, FIRE), DIG (black cabinet,
- * white side panel, yellow / purple strips; stick, START, PUMP).
+ * white side panel, yellow / purple strips; stick, START, PUMP). CHASE, SPY and BLOCKS use the DIG
+ * layout in their own colours (placeholders until photos of those cabinets): CHASE (yellow;
+ * stick, START, BUTTON), SPY (charcoal and blue; stick, START, GUNS, MISSILES) and BLOCKS (red and
+ * navy; stick, START, A, B).
  * Tap the marquee for the menu; ON/OFF resets, the sound key steps the volume.
- * Input bits as gpl951: A 0x01, Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80.
+ * Input bits as gpl951: A 0x01, B 0x02, Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80.
  */
 class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
     companion object {
-        const val MAZE = 0; const val SWARM = 1; const val DIG = 2
-        const val A = 0x01; const val START = 0x08; const val UP = 0x10; const val DOWN = 0x20; const val LEFT = 0x40; const val RIGHT = 0x80
+        const val MAZE = 0; const val SWARM = 1; const val DIG = 2; const val CHASE = 3; const val SPY = 4; const val BLOCKS = 5
+        fun styleFor(id: String) = when (id) {
+            "bfgalaga" -> SWARM; "bfdigdug" -> DIG; "bfpacman" -> CHASE; "bfspyhnt" -> SPY; "bftetris" -> BLOCKS; else -> MAZE
+        }
+        const val A = 0x01; const val B = 0x02; const val START = 0x08; const val UP = 0x10; const val DOWN = 0x20; const val LEFT = 0x40; const val RIGHT = 0x80
         const val VOLUME_LEVELS = 4
     }
 
@@ -64,8 +70,20 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
         when (style) {
             MAZE -> { stick.set(250f, 540f); buttons = listOf(Btn(START, 470f, 540f, "START GAME")) }
             SWARM -> { stick.set(300f, 540f); buttons = listOf(Btn(START, 120f, 540f, "START"), Btn(A, 480f, 540f, "FIRE")) }
+            CHASE -> { stick.set(150f, 540f); buttons = listOf(Btn(START, 330f, 545f, "START"), Btn(A, 470f, 545f, "BUTTON")) }
+            SPY -> { stick.set(110f, 540f); buttons = listOf(Btn(START, 250f, 545f, "START"), Btn(A, 370f, 545f, "GUNS"), Btn(B, 490f, 545f, "MISSILES")) }
+            BLOCKS -> { stick.set(110f, 540f); buttons = listOf(Btn(START, 250f, 545f, "START"), Btn(A, 370f, 545f, "A"), Btn(B, 490f, 545f, "B")) }
             else -> { stick.set(110f, 540f); buttons = listOf(Btn(START, 300f, 545f, "START"), Btn(A, 470f, 545f, "PUMP")) }
         }
+    }
+
+    /** the DIG-layout colours: cabinet, its shade, then the strip / shelf colours (outer band, inner band, fill, dots) */
+    private class Pal(val body: Int, val dark: Int, val c1: Int, val c2: Int, val c3: Int, val c4: Int)
+    private val pal = when (style) {
+        CHASE -> Pal(0xFFF2C81E.toInt(), 0xFFC89A10.toInt(), 0xFF1A1A1A.toInt(), 0xFF2050C8.toInt(), 0xFFF6F2E4.toInt(), 0xFFE4202A.toInt())
+        SPY -> Pal(0xFF2A2C30.toInt(), 0xFF16171A.toInt(), 0xFF1E4FA8.toInt(), 0xFF8A8E96.toInt(), 0xFFE8E8E8.toInt(), 0xFFD8352A.toInt())
+        BLOCKS -> Pal(0xFFB41E24.toInt(), 0xFF7E1218.toInt(), 0xFF14204A.toInt(), 0xFF2A9AD8.toInt(), 0xFFF5DC2A.toInt(), 0xFF3FA04A.toInt())
+        else -> Pal(0xFF161616.toInt(), 0xFF0A0A0A.toInt(), 0xFF6A4CA8.toInt(), 0xFF3FA04A.toInt(), 0xFFF5DC2A.toInt(), 0xFFD8352A.toInt())
     }
 
     fun updateFrame(px: IntArray) {
@@ -79,8 +97,9 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
         ox = (w - 600f * sc) / 2; oy = (h - 900f * sc) / 2
     }
 
-    private val body get() = when (style) { MAZE -> 0xFF1F5FC8.toInt(); SWARM -> 0xFF4CC84A.toInt(); else -> 0xFF161616.toInt() }
-    private val bodyDark get() = when (style) { MAZE -> 0xFF17489A.toInt(); SWARM -> 0xFF33A033.toInt(); else -> 0xFF0A0A0A.toInt() }
+    private val body get() = when (style) { MAZE -> 0xFF1F5FC8.toInt(); SWARM -> 0xFF4CC84A.toInt(); else -> pal.body }
+    private val bodyDark get() = when (style) { MAZE -> 0xFF17489A.toInt(); SWARM -> 0xFF33A033.toInt(); else -> pal.dark }
+    private val darkText get() = style == SWARM || style == CHASE
 
     override fun onDraw(c: Canvas) {
         c.drawColor(0xFF15161A.toInt())
@@ -109,13 +128,13 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
         // lower front: speaker grilles and the two red keys
         p.color = bodyDark
         for (gx in listOf(110f, 490f)) for (i in 0 until 7) c.drawRoundRect(gx - 70f, 680f + i * 18f, gx + 70f, 689f + i * 18f, 5f, 5f, p)
-        p.color = if (style == DIG) 0xFF222222.toInt() else bodyDark
+        p.color = if (style == DIG || style == SPY) 0xFF222222.toInt() else bodyDark
         c.drawRoundRect(185f, 715f, 415f, 860f, 14f, 14f, p)
         for (r in listOf(power, sound)) {
             p.color = 0xFF8E1A14.toInt(); c.drawRoundRect(r.left, r.top + 6f, r.right, r.bottom + 6f, 10f, 10f, p)
             p.color = 0xFFD8352A.toInt(); c.drawRoundRect(r, 10f, 10f, p)
         }
-        t.color = if (style == SWARM) 0xFF102010.toInt() else 0xFFF4F4F4.toInt(); t.textSize = 22f
+        t.color = if (darkText) 0xFF102010.toInt() else 0xFFF4F4F4.toInt(); t.textSize = 22f
         c.drawText("ON/OFF", power.centerX(), power.bottom + 40f, t)
         c.drawText("◀))", sound.centerX(), sound.bottom + 40f, t)
         if (System.currentTimeMillis() - volumeShownAt < 1500) {
@@ -141,11 +160,17 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
                 p.color = 0xFF6FBF8F.toInt(); c.drawRoundRect(170f, 50f, 430f, 125f, 18f, 18f, p)
                 p.color = 0xFFEDEAD0.toInt(); c.drawRoundRect(182f, 60f, 418f, 115f, 12f, 12f, p)
             }
-            else -> {
+            DIG -> {
                 p.color = 0xFF0C0C0C.toInt(); c.drawRect(marquee, p)
                 p.color = 0xFFE4202A.toInt(); c.drawRect(60f, 40f, 540f, 130f, p)
                 p.color = 0xFFF5DC2A.toInt(); c.drawRect(66f, 46f, 534f, 124f, p)
                 p.color = 0xFFF4F4F4.toInt(); c.drawRect(220f, 55f, 380f, 115f, p)
+            }
+            else -> {   // an empty sign in the style's colours
+                p.color = pal.c1; c.drawRect(marquee, p)
+                p.color = pal.c4; c.drawRect(60f, 40f, 540f, 130f, p)
+                p.color = pal.c3; c.drawRect(66f, 46f, 534f, 124f, p)
+                p.color = pal.c2; c.drawRect(200f, 58f, 400f, 112f, p)
             }
         }
         t.color = if (style == MAZE) 0xFFE8EEFA.toInt() else 0xFF8C8C8C.toInt(); t.textSize = 18f
@@ -173,10 +198,10 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
                 p.color = 0xFFE6C23A.toInt(); c.drawCircle(r.centerX(), r.top + 25f, 14f, p)
             }
             else -> {
-                p.color = 0xFF6A4CA8.toInt(); c.drawRect(r, p)
-                p.color = 0xFF3FA04A.toInt(); c.drawRect(r.left + 6f, r.top + 6f, r.right - 6f, r.bottom - 6f, p)
-                p.color = 0xFFF5DC2A.toInt(); c.drawRect(r.left + 12f, r.top + 12f, r.right - 12f, r.bottom - 12f, p)
-                p.color = 0xFFD8352A.toInt()
+                p.color = pal.c1; c.drawRect(r, p)
+                p.color = pal.c2; c.drawRect(r.left + 6f, r.top + 6f, r.right - 6f, r.bottom - 6f, p)
+                p.color = pal.c3; c.drawRect(r.left + 12f, r.top + 12f, r.right - 12f, r.bottom - 12f, p)
+                p.color = pal.c4
                 for (i in 0 until 4) c.drawCircle(r.centerX(), r.top + 40f + i * 50f, 12f, p)
             }
         }
@@ -185,7 +210,7 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
     private fun drawPanel(c: Canvas) {
         // the slanted shelf
         val path = Path().apply { moveTo(40f, 465f); lineTo(560f, 465f); lineTo(575f, 605f); lineTo(25f, 605f); close() }
-        p.color = when (style) { MAZE -> 0xFF2563C8.toInt(); SWARM -> 0xFF0E0E0E.toInt(); else -> 0xFF101010.toInt() }
+        p.color = when (style) { MAZE -> 0xFF2563C8.toInt(); SWARM -> 0xFF0E0E0E.toInt(); DIG -> 0xFF101010.toInt(); else -> pal.dark }
         c.drawPath(path, p)
         when (style) {
             MAZE -> {   // pink and yellow corner bands
@@ -199,10 +224,14 @@ class BasicFunCabinetView(ctx: Context, private val style: Int) : View(ctx) {
                 p.color = 0xFF9ED8EC.toInt(); c.drawRoundRect(60f, 495f, 540f, 590f, 20f, 20f, p)
                 p.color = 0xFF5FB25A.toInt(); c.drawRect(60f, 495f, 540f, 505f, p)
             }
+            DIG -> {
+                p.color = pal.c1; c.drawRect(45f, 495f, 555f, 590f, p)
+                p.color = pal.c3; c.drawRect(45f, 505f, 555f, 512f, p); c.drawRect(45f, 573f, 555f, 580f, p)
+                p.color = pal.c4; c.drawRect(220f, 512f, 400f, 573f, p)
+            }
             else -> {
-                p.color = 0xFF6A4CA8.toInt(); c.drawRect(45f, 495f, 555f, 590f, p)
-                p.color = 0xFFF5DC2A.toInt(); c.drawRect(45f, 505f, 555f, 512f, p); c.drawRect(45f, 573f, 555f, 580f, p)
-                p.color = 0xFFD8352A.toInt(); c.drawRect(220f, 512f, 400f, 573f, p)
+                p.color = pal.c1; c.drawRect(45f, 495f, 555f, 590f, p)
+                p.color = pal.c3; c.drawRect(45f, 505f, 555f, 512f, p); c.drawRect(45f, 573f, 555f, 580f, p)
             }
         }
         val m = mask or externalMask

@@ -13,7 +13,7 @@ constexpr int OPT = 100;
 struct InBit { uint16_t mask; int src; };
 struct InRow { InBit bits[4]; };
 
-enum Kind { ALNATTCK, BAMBBALL, BBTIME, BDORAMON };
+enum Kind { ALNATTCK, BAMBBALL, BBTIME, BDORAMON, BFRISKYT };
 
 }
 
@@ -57,6 +57,10 @@ const Hmcs40Game kGames[] = {
     } },
     // Bandai Dokodemo Dorayaki Doraemon (1983): HD38800B43; LEFT is INT0, B1 INT1, up / right / down on D4-D6
     { "bdoramon", BDORAMON, HMCS40::HMCS44, false, 400000, "hd38800b43", "bdoramon.svg", 8, 20, 0, {} },
+    // Bandai Frisky Tom (1981): HD38800A77, D11-D15 select the inputs on INT1; START (B2) is INT0
+    { "bfriskyt", BFRISKYT, HMCS40::HMCS44, false, 400000, "hd38800a77", "bfriskyt.svg", 8, 22, 5, {
+        { { { 0x01, B1 } } }, { { { 0x01, DOWN } } }, { { { 0x01, RIGHT } } }, { { { 0x01, UP } } }, { { { 0x01, LEFT } } },
+    } },
 };
 
 const Hmcs40Game* find(const std::string& id)
@@ -129,6 +133,7 @@ void HhHmcs40Core::inputsChanged()
     switch (m_g->kind) {
     case BBTIME: setInterrupt(0, readInputs(5) != 0); setInterrupt(1, in(B1)); break;
     case BDORAMON: setInterrupt(0, in(LEFT)); setInterrupt(1, in(B1)); break;
+    case BFRISKYT: setInterrupt(0, in(B2)); setInterrupt(1, readInputs(5) != 0); break;
     default: break;
     }
 }
@@ -170,6 +175,7 @@ void HhHmcs40Core::writeR(int index, uint8_t data)
         }
         break;
     case BDORAMON:
+    case BFRISKYT:
         if (index < 4) {
             // R0x-R3x: vfd plate
             int shift = index * 4;
@@ -221,6 +227,14 @@ void HhHmcs40Core::writeD(uint16_t data, uint16_t mask)
         speaker(data >> 7 & 1);                     // D7: speaker
         m_s.grid = data >> 8 & 0xff;                // D8-D15: vfd grid
         m_s.plate = (m_s.plate & ~(uint64_t(0xf) << 16)) | (uint64_t(data & 0xf) << 16);   // D0-D3: plate
+        updateDisplay();
+        break;
+    case BFRISKYT:
+        speaker(data >> 6 & 1);                     // D6: speaker
+        m_s.inpMux = data >> 11 & 0x1f;             // D11-D15: input mux (INT1)
+        setInterrupt(1, readInputs(5) != 0);
+        m_s.grid = data >> 8 & 0xff;                // D8-D15: vfd grid
+        m_s.plate = (m_s.plate & 0xffff) | (uint64_t(data & 0x3f) << 16);   // D0-D5: plate
         updateDisplay();
         break;
     case BAMBBALL:

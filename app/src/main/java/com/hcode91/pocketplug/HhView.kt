@@ -432,6 +432,8 @@ class HhSkin(
             "bcclimbr" -> crazyClimber()
             "bdoramon" -> dorayaki()
             "bcheetah" -> cheetahCar()
+            "bfriskyt" -> plumberTom()
+            "bgalaxn" -> beamGalaxy()
             else -> null
         }
 
@@ -1042,6 +1044,66 @@ class HhSkin(
          *  the VFD tower between printed skyscrapers (white outlines on black), a blank name strip, the
          *  black ribbed band, then the L.HAND and R.HAND levers in outlined boxes (UP / DOWN arrows)
          *  either side of the POWER light, the ON / OFF slide and START. */
+        /** Placeholder until a photo: a wide white tabletop with a green trim round the VFD window, the
+         *  4-way stick on the right and START / ACTION on the left; POWER slide in the middle. */
+        private fun plumberTom() = HhSkin(
+            1280f, 720f, 0xFF121418.toInt(),
+            screen = RectF(240f, 150f, 1040f, 431f), bezel = 0xFF060606.toInt(), bezelPad = 10f,
+            menu = PointF(640f, 690f),
+            landscape = true,
+            controls = listOf(
+                Control(Kind.STICK, 1120f, 570f, 70f, color = 0xFF1E1E1E.toInt(), base = 0xFFE6E4DC.toInt(), arrows = true, eightWay = false),
+                Control(Kind.BUTTON, 170f, 575f, 40f, color = 0xFF2A9A4A.toInt(), bit = 1 shl 5, bw = 110f, bh = 56f,
+                    label = "START", labelAbove = true, labelColor = 0xFF1E5A2E.toInt(), labelSize = 24f),
+                Control(Kind.BUTTON, 380f, 575f, 58f, color = 0xFFE0302A.toInt(), base = 0xFF8A1A14.toInt(), bit = 1 shl 4,
+                    label = "ACTION", labelAbove = true, labelColor = 0xFF1E5A2E.toInt(), labelSize = 24f),
+                Control(Kind.SWITCH, 640f, 590f, 22f, color = 0xFF2A9A4A.toInt(), option = 6, vertical = true, positions = listOf("", ""),
+                    sets = listOf(listOf(7 to 0), listOf(7 to 1))),
+            ),
+            drawBody = { c, p, _ ->
+                p.color = 0xFFC9C6BE.toInt(); c.drawRoundRect(22f, 60f, 1262f, 706f, 34f, 34f, p)
+                p.color = 0xFFF3F2EC.toInt(); c.drawRoundRect(20f, 50f, 1260f, 690f, 34f, 34f, p)
+                p.color = 0xFF2A9A4A.toInt(); c.drawRoundRect(205f, 115f, 1075f, 466f, 18f, 18f, p)
+                p.color = 0xFF141414.toInt(); c.drawRoundRect(222f, 132f, 1058f, 449f, 10f, 10f, p)
+                p.color = 0xFFDCDAD2.toInt()
+                for (i in 0 until 7) { c.drawRoundRect(50f, 130f + i * 40f, 170f, 146f + i * 40f, 8f, 8f, p); c.drawRoundRect(1110f, 130f + i * 40f, 1230f, 146f + i * 40f, 8f, 8f, p) }
+                val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFF1E5A2E.toInt(); textSize = 22f }
+                c.drawText("POWER", 640f, 540f, t); t.textSize = 18f; c.drawText("ON", 680f, 572f, t); c.drawText("OFF", 684f, 622f, t)
+            },
+        )
+
+        /** Placeholder until a photo: a tall dark blue tabletop with the narrow VFD tower, a left / right
+         *  lever and a big FIRE key, the SKILL 1 / 2 slide and the POWER slide. */
+        private fun beamGalaxy() = HhSkin(
+            1000f, 2000f, 0xFF101418.toInt(),
+            screen = RectF(368f, 140f, 632f, 1086f), bezel = 0xFF050505.toInt(), bezelPad = 8f,
+            menu = PointF(500f, 1960f),
+            controls = listOf(
+                Control(Kind.STICK, 260f, 1640f, 95f, color = 0xFF1A1A1A.toInt(), base = 0xFFCFD6E6.toInt(), arrows = true, eightWay = false),
+                Control(Kind.BUTTON, 740f, 1640f, 85f, color = 0xFFE0302A.toInt(), base = 0xFF8A1A14.toInt(), bit = 1 shl 4,
+                    label = "FIRE", labelAbove = true, labelColor = Color.WHITE, labelSize = 34f),
+                Control(Kind.SWITCH, 400f, 1420f, 24f, color = 0xFFDADADA.toInt(), option = 4, positions = listOf("1", "2"), sideLabels = true,
+                    labelColor = Color.WHITE, labelSize = 24f, sets = listOf(listOf(0 to 0), listOf(0 to 1))),
+                Control(Kind.SWITCH, 600f, 1420f, 24f, color = 0xFFDADADA.toInt(), option = 6, positions = listOf("ON", "OFF"), sideLabels = true,
+                    labelColor = Color.WHITE, labelSize = 24f, sets = listOf(listOf(7 to 0), listOf(7 to 1))),
+            ),
+            drawBody = { c, p, s ->
+                p.color = 0xFF0C1A3A.toInt(); c.drawRoundRect(20f, 20f, 980f, 1940f, 40f, 40f, p)
+                p.color = 0xFF183070.toInt(); c.drawRoundRect(40f, 40f, 960f, 1920f, 32f, 32f, p)
+                // the window, with a starfield printed either side of the tube
+                p.color = 0xFF04060E.toInt(); c.drawRoundRect(70f, 90f, 930f, 1140f, 12f, 12f, p)
+                p.color = 0xFFE8ECF8.toInt()
+                for (i in 0 until 60) { val x = 90f + (i * 137) % 250; val x2 = 660f + (i * 89) % 250; val y = 110f + (i * 211) % 1010
+                    c.drawCircle(x, y, if (i % 5 == 0) 3f else 1.6f, p); c.drawCircle(x2, (y + 333f) % 1010f + 110f, if (i % 7 == 0) 3f else 1.6f, p) }
+                // the panel
+                p.color = 0xFF0E1A3A.toInt(); c.drawRoundRect(70f, 1300f, 930f, 1860f, 20f, 20f, p)
+                s.color = 0xFFE6C23A.toInt(); s.strokeWidth = 4f; c.drawRoundRect(85f, 1315f, 915f, 1845f, 16f, 16f, s)
+                val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFFE6C23A.toInt(); textSize = 28f }
+                c.drawText("SKILL", 400f, 1370f, t); c.drawText("POWER", 600f, 1370f, t)
+                c.drawText("◀  MOVE  ▶", 260f, 1790f, t)
+            },
+        )
+
         private fun crazyClimber(): HhSkin {
             val line = 0xFF3A3632.toInt()
             return HhSkin(

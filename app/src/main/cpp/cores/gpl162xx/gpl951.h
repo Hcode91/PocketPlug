@@ -4,10 +4,11 @@
 // Port of MAME's generalplus_gpl951xx_soc.cpp, generalplus_gpl_chx.cpp, generalplus_gpl951xx_rtc.cpp,
 // generic_spi_flash.cpp and the generalplus_gpl951xx.cpp driver (David Haywood), BSD-3-Clause, on the
 // GPL162xx video / renderer port and the shared u'nSP core and SPG2xx sound device.
-// Machines: Basic Fun's Ms. Pac-Man, Galaga and Dig Dug mini arcades (25Q80 SPI flash, encrypted
-// as init_fif) with the chip's 8 KB internal boot ROM (gpl951.bin).
+// Machines: Basic Fun's Pac-Man, Ms. Pac-Man, Galaga, Dig Dug, Spy Hunter and Tetris mini arcades (25Q80 /
+// 25Q16 SPI flash, encrypted as init_fif); Tetris drives its LCD controller by hand (unknown_bftetris_lcdc.cpp) with the chip's 8 KB internal boot ROM (gpl951.bin).
 //
-// Inputs (as the mini arcade cabinet skin): A 0x01, Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80.
+// Inputs (as the mini arcade cabinet skin): A 0x01, B 0x02 (Spy Hunter's and Tetris' second button; otherwise also A),
+// Start 0x08, Up 0x10, Down 0x20, Left 0x40, Right 0x80.
 
 #pragma once
 #include "gpl162xx.h"
@@ -15,7 +16,7 @@
 class Gpl951Core : public Core, public unsp_device::Bus, public SpgAudioHost
 {
 public:
-    Gpl951Core();
+    explicit Gpl951Core(const std::string& id = "bfmpac");
     bool load(const std::vector<RomFile>& roms, std::string& error) override;
     void reset() override;
     void runFrame() override;
@@ -129,8 +130,32 @@ public:
     void spi_reset() { m_flash.reset(); }
     void spi_out(u8 d) { m_flash.write(d); recieve_spi_fifo_data(m_flash.read()); }
     void spi_out_cmd(u8 d) { m_flash.write(d); }
-    void i80_cmd_out(u16) {}
-    void i80_data_out(u16) {}
+    // unknown_bftetris_lcdc_device (bftetris writes the panel itself)
+    struct Lcdc {
+        std::vector<u16> buf = std::vector<u16>(512 * 256, 0);
+        u16 posx = 0, posy = 0, minx = 0, maxx = 0, miny = 0, maxy = 0;
+        u8 cmd = 0, step = 0, on = 0, sleep = 1;
+        void command(u16 d) {
+            cmd = u8(d); step = 0;
+            if (cmd == 0x10) sleep = 1; else if (cmd == 0x11) sleep = 0; else if (cmd == 0x29) on = 1;
+        }
+        void data(u16 d) {
+            if (cmd == 0x2b) {
+                if (step == 0) miny = u16(d << 8 | (miny & 0xff)); else if (step == 1) miny = u16((miny & 0xff00) | d);
+                else if (step == 2) maxy = u16(d << 8 | (maxy & 0xff)); else if (step == 3) { maxy = u16((maxy & 0xff00) | d); posy = miny; }
+            } else if (cmd == 0x2a) {
+                if (step == 0) minx = u16(d << 8 | (minx & 0xff)); else if (step == 1) minx = u16((minx & 0xff00) | d);
+                else if (step == 2) maxx = u16(d << 8 | (maxx & 0xff)); else if (step == 3) { maxx = u16((maxx & 0xff00) | d); posx = minx; }
+            } else if (cmd == 0x2c) {
+                buf[(posx + posy * 0x200) & 0x1ffff] = d;
+                if (++posx > maxx) { posx = minx; if (++posy > maxy) posy = miny; }
+            }
+            step++;
+        }
+    } m_lcdc;
+    bool m_useLcdc = false, m_twoButtons = false;
+    void i80_cmd_out(u16 d) { m_lcdc.command(d); }
+    void i80_data_out(u16 d) { m_lcdc.data(d); }
     u16 port_in(int port);
     void port_out(int, u16) {}
     u16 adc_in(int) { return 0; }

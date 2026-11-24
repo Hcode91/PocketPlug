@@ -1506,6 +1506,34 @@ object Machines {
             skin = Skin.HH,
         ),
         MachineDef(
+            id = "bfriskyt",
+            title = "Plumber Tom VFD Game",
+            subtitle = "1981 wide tabletop with a colour VFD: fix the pipes to bring water to the shower, "
+                + "climbing the ladders with the stick, ACTION to grab and START to begin (Bandai Frisky Tom; MAME set: bfriskyt)",
+            chip = "Hitachi HD38800 (HMCS44)",
+            region = "Japan",
+            year = "1981",
+            roms = listOf(
+                RomSpec("hd38800a77", 0x1100L, 0xa2445c4fL),
+                RomSpec("bfriskyt.svg", 413553L, 0x8c7e96f9L),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "bgalaxn",
+            title = "Beam Galaxy VFD Game",
+            subtitle = "1981 tall tabletop with a colour VFD: the alien formation dives at you; move left / right "
+                + "and FIRE (which also starts a game); the slide sets skill 1 or 2 (Bandai Galaxian; MAME set: bgalaxn)",
+            chip = "NEC uPD553C (uCOM-43)",
+            region = "Japan",
+            year = "1981",
+            roms = listOf(
+                RomSpec("d553c_103", 0x800L, 0xa6330519L),
+                RomSpec("bgalaxn.svg", 153620L, 0x6ef7249dL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
             id = "bcclimbr",
             title = "Building Climber VFD Game",
             subtitle = "1982 tall tabletop with a colour VFD: climb the skyscraper with a lever for each hand, "
@@ -2866,6 +2894,48 @@ object Machines {
             roms = listOf(
                 RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
                 RomSpec("arcadeclassicsdigdug_25q80csig_c84014.bin", 0x100000L, 0x4030bc46L),
+            ),
+            skin = Skin.BASIC_FUN,
+        ),
+        MachineDef(
+            id = "bfpacman",
+            title = "Mini Arcade: Dot Muncher",
+            subtitle = "The 1980 maze game in a mini cabinet. Stick, one button and START on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
+                + "(Basic Fun Pac-Man mini arcade; MAME sets: bfpacman + the chip's boot ROM, gpl951.bin)",
+            chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 1 MB encrypted SPI flash",
+            region = "USA",
+            year = "2018",
+            roms = listOf(
+                RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
+                RomSpec("basicfunpacman_25q80_c84014.bin", 0x100000L, 0xdd39fc64L),
+            ),
+            skin = Skin.BASIC_FUN,
+        ),
+        MachineDef(
+            id = "bfspyhnt",
+            title = "Mini Arcade: Road Agent",
+            subtitle = "The 1983 spy driving game in a mini cabinet. Stick, GUNS, MISSILES and START on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
+                + "(Basic Fun Spy Hunter mini arcade; MAME sets: bfspyhnt + the chip's boot ROM, gpl951.bin)",
+            chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with 2D PPU and SPU, 2 MB encrypted SPI flash",
+            region = "USA",
+            year = "2019",
+            roms = listOf(
+                RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
+                RomSpec("arcadeclassicsspyhunter_md25q16csig_c84015.bin", 0x200000L, 0x1f1eaabdL),
+            ),
+            skin = Skin.BASIC_FUN,
+        ),
+        MachineDef(
+            id = "bftetris",
+            title = "Mini Arcade: Falling Blocks",
+            subtitle = "The falling-blocks puzzle in a mini cabinet. Stick, two buttons and START on a palm-sized upright cabinet; ON/OFF resets, the sound key sets the volume "
+                + "(Basic Fun Tetris mini arcade; MAME sets: bftetris + the chip's boot ROM, gpl951.bin)",
+            chip = "GeneralPlus GPL951xx (u'nSP 2.0 @ 48 MHz) with SPU, 2 MB encrypted SPI flash; the game draws straight to the LCD controller",
+            region = "USA",
+            year = "2020",
+            roms = listOf(
+                RomSpec("gpl951.bin", 0x2000L, 0x2872d489L),
+                RomSpec("arcadeclassicstetris_25q16ct_c84015.bin", 0x200000L, 0xa97e1babL),
             ),
             skin = Skin.BASIC_FUN,
         ),

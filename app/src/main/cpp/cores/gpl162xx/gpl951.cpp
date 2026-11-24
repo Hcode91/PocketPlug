@@ -10,8 +10,10 @@
 
 static bool dbg951() { static int d = getenv("GPLDBG") ? 1 : 0; return d; }
 
-Gpl951Core::Gpl951Core()
+Gpl951Core::Gpl951Core(const std::string& id)
 {
+    m_useLcdc = id == "bftetris";
+    m_twoButtons = id == "bfspyhnt" || id == "bftetris";   // their second button is IN2 0x4000
     m_mainspace.c = this;
     m_chx.c = this;
     m_machine.m_icountptr = &m_cpu.m_core->m_icount;
@@ -58,6 +60,7 @@ bool Gpl951Core::load(const std::vector<RomFile>& roms, std::string& error)
     }
     m_spiregion = m_spi.data(); m_spisize = size;
     m_flash.ptr = m_spiregion; m_flash.len = size;
+    { u8 cap = 0x14; while ((1u << cap) < size && cap < 0x19) cap++; m_flash.id[2] = cap; }   // 25Q80 0x14, 25Q16 0x15
     startDevices();
     reset();
     return true;
@@ -147,7 +150,8 @@ u16 Gpl951Core::port_in(int port)
     if (m_inputs & 0x20) v |= 0x40;
     if (m_inputs & 0x40) v |= 0x20;
     if (m_inputs & 0x80) v |= 0x10;
-    if (m_inputs & 0x03) v |= 0x08;   // A (or B from a gamepad)
+    if (m_twoButtons) { if (m_inputs & 0x01) v |= 0x08; if (m_inputs & 0x02) v |= 0x4000; }
+    else if (m_inputs & 0x03) v |= 0x08;   // A (or B from a gamepad)
     if (m_inputs & 0x08) v |= 0x02;
     return v;
 }
@@ -277,7 +281,15 @@ void Gpl951Core::vblank_begin()
     m_screen.m_vblank_end_time = m_screen.m_vblank_start_time + attotime(0, m_screen.m_vblank_period);
     update_partial(m_screen.m_vis_bottom);
     for (int y = 0; y < 240; y++)
-        for (int x = 0; x < 320; x++) m_out[size_t(y) * 320 + x] = m_bitmap[size_t(y) * 640 + x] | 0xff000000u;
+        for (int x = 0; x < 320; x++) {
+            if (!m_useLcdc) { m_out[size_t(y) * 320 + x] = m_bitmap[size_t(y) * 640 + x] | 0xff000000u; continue; }
+            u32 px = 0;
+            if (m_lcdc.on && !m_lcdc.sleep) {
+                u16 d = m_lcdc.buf[size_t(y) * 0x200 + x];
+                px = u32(((d >> 11) & 0x1f) << 3) << 16 | u32(((d >> 5) & 0x3f) << 2) << 8 | u32((d & 0x1f) << 3);
+            }
+            m_out[size_t(y) * 320 + x] = px | 0xff000000u;
+        }
     m_frameDone = true;
     m_video.vblank(1);
     m_vblank_begin_timer->adjust(m_screen.time_until_vblank_start());
