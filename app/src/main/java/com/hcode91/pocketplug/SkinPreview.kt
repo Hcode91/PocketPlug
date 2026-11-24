@@ -83,6 +83,7 @@ object SkinPreview {
         Skin.ARCADE_GENIUS -> ArcadeGeniusView(ctx)
         Skin.GIZMONDO -> GizmondoView(ctx)
         Skin.ZODIAC -> ZodiacView(ctx)
+        Skin.GAME_WAVE -> stack(ctx, tv(ctx) to 0.75f, GameWaveConsoleView(ctx) to 0.22f, GameWaveRemoteView(ctx) to 1.0f)
         Skin.PLAYDIA -> stack(ctx, tv(ctx) to 0.85f, PlaydiaConsoleView(ctx) to 0.3f, PlaydiaPadView(ctx) to 0.65f)
         Skin.HYPERSCAN -> stack(ctx, tv(ctx) to 0.85f, HyperScanConsoleView(ctx) to 0.3f, HyperScanPadView(ctx) to 0.65f)
         Skin.BACKGAMMON -> BackgammonView(ctx)

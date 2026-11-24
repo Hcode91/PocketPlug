@@ -51,6 +51,14 @@ set_source_files_properties(${CHD_FLAC_SOURCES} PROPERTIES
     COMPILE_FLAGS "-std=gnu99 -O2 -w -DHAVE_CONFIG_H -I${CHD}/flac/include -I${CHD}/flac/src/include")
 set_source_files_properties(${CHD}/lzma/LzmaDec.c PROPERTIES COMPILE_FLAGS "-O2 -w")
 
+# Game Wave: the GameWaveFans Lua 5.0.2 fork (MIT, integer numbers) and libmpeg2 (GPL-2+), in C
+set(GWAVE ${CMAKE_CURRENT_SOURCE_DIR}/cores/gamewave)
+file(GLOB GWAVE_LUA_SOURCES CONFIGURE_DEPENDS ${GWAVE}/lua/*.c)
+file(GLOB GWAVE_MPEG2_SOURCES CONFIGURE_DEPENDS ${GWAVE}/mpeg2/*.c)
+set_source_files_properties(${GWAVE_LUA_SOURCES} PROPERTIES COMPILE_FLAGS "-std=gnu99 -O2 -w")
+set_source_files_properties(${GWAVE_MPEG2_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-std=gnu99 -O2 -w -I${GWAVE}/mpeg2 -include ${GWAVE}/mpeg2/config.h")
+
 # GeneralPlus GPL32600: DidjDroid's ARM926 interpreter reports memory aborts with C++ exceptions
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/cores/gpl32/arm926.cpp PROPERTIES COMPILE_FLAGS "-fexceptions -frtti")
 
@@ -63,6 +71,8 @@ add_library(pocketplug SHARED
     ${ACORN_C_SOURCES}
     ${ARCHI_C_SOURCES}
     ${CHD_FLAC_SOURCES}
+    ${GWAVE_LUA_SOURCES}
+    ${GWAVE_MPEG2_SOURCES}
     ${CHD}/lzma/LzmaDec.c)
 
 target_include_directories(pocketplug PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

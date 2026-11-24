@@ -62,6 +62,7 @@ class EmulatorActivity : Activity() {
     private var zod: ZodiacView? = null
     private var hsPad: HyperScanPadView? = null
     private var pdPad: PlaydiaPadView? = null
+    private var gwRemote: GameWaveRemoteView? = null
     private var backgammon: BackgammonView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -456,6 +457,21 @@ class EmulatorActivity : Activity() {
                     add(tv, 0.85f)
                     add(console, 0.3f)
                     add(pad, 0.65f)
+                })
+            }
+            Skin.GAME_WAVE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val remote = GameWaveRemoteView(this).apply { onInput = { setTouch(1, it) } }
+                gwRemote = remote
+                val console = GameWaveConsoleView(this).apply {
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                    onPower = { powerCycle() }
+                }
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF101114.toInt())
+                    add(tv, 0.75f)
+                    add(console, 0.22f)
+                    add(remote, 1.0f)
                 })
             }
             Skin.PLAYDIA -> {
@@ -1748,6 +1764,7 @@ class EmulatorActivity : Activity() {
         Skin.ZODIAC -> ZodBits.keyBit(code)
         Skin.HYPERSCAN -> HsBits.keyBit(code)
         Skin.PLAYDIA -> PdBits.keyBit(code)
+        Skin.GAME_WAVE -> GwBits.keyBit(code)
         Skin.BACKGAMMON -> when (code) {
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> 1 shl 0
             KeyEvent.KEYCODE_DEL -> 1 shl 4
@@ -1873,6 +1890,19 @@ class EmulatorActivity : Activity() {
             if (x < -0.5f) m = m or 0x40
             if (x > 0.5f) m = m or 0x80
             if (m != stickMask) { stickMask = m; setTouch(3, m); phone?.externalMask = keyInputs or m; arcade?.externalMask = keyInputs or m }
+            return true
+        }
+        if (machine.skin == Skin.GAME_WAVE && event.action == android.view.MotionEvent.ACTION_MOVE &&
+            (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
+            // left stick and hat both drive the remote's arrow keys
+            val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+            val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+            var m = 0
+            if (y < -0.5f) m = m or GwBits.UP
+            if (y > 0.5f) m = m or GwBits.DOWN
+            if (x < -0.5f) m = m or GwBits.LEFT
+            if (x > 0.5f) m = m or GwBits.RIGHT
+            if (m != stickMask) { stickMask = m; setTouch(3, m); gwRemote?.externalMask = keyInputs or m }
             return true
         }
         if (machine.skin == Skin.PLAYDIA && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -2284,6 +2314,7 @@ class EmulatorActivity : Activity() {
         zod?.externalMask = keyInputs or stickMask
         hsPad?.externalMask = keyInputs or stickMask
         pdPad?.externalMask = keyInputs or stickMask
+        gwRemote?.externalMask = keyInputs or stickMask
         backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
@@ -2357,6 +2388,7 @@ class EmulatorActivity : Activity() {
         zod?.externalMask = keyInputs or stickMask
         hsPad?.externalMask = keyInputs or stickMask
         pdPad?.externalMask = keyInputs or stickMask
+        gwRemote?.externalMask = keyInputs or stickMask
         backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
