@@ -1100,8 +1100,9 @@ object Machines {
             id = "zodiac",
             title = "Zodiac handheld",
             subtitle = "Full hardware emulation of the 2003 Palm OS game handheld: it runs the system ROM from "
-                + "the maker's official 1.1 update (zodiac_1.1_update.prc, or the zip it came in). Boots Palm OS "
-                + "to its first-start Welcome screen so far: touch, buttons, the SD card and sound are still to come "
+                + "the maker's official 1.1 update (zodiac_1.1_update.prc, or the zip it came in). Palm OS runs "
+                + "with touch (tap the screen), the analog stick, buttons and sound; its memory is kept between "
+                + "visits, so the first-start setup runs only once. Games from an SD card are still to come "
                 + "(Tapwave; MC9328MX1 + ATI Imageon W4200)",
             chip = "Motorola i.MX1 (ARM920T, 200 MHz), ATI Imageon W4200 2D graphics, Palm OS 5.2T",
             region = "USA / Europe",

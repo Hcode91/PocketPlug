@@ -447,6 +447,9 @@ class EmulatorActivity : Activity() {
                 }
                 zod = v
                 setContentView(v)
+                // Palm OS picks up its storage heap (apps, settings, calibration) where it was left
+                val live = liveFile()
+                if (live.exists()) synchronized(coreLock) { setZodiacClock(); Native.loadState(handle, live.absolutePath) }
             }
             Skin.UNIVERSITY_BOARD -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -667,7 +670,13 @@ class EmulatorActivity : Activity() {
     private fun realTime() = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("realtime_${machine.id}", true)
 
     /** LCD pets: remember the exact state and when we left it. */
+    private fun setZodiacClock() {
+        val now = System.currentTimeMillis()
+        Native.setWallClock(handle, (now + java.util.TimeZone.getDefault().getOffset(now)) / 1000)
+    }
+
     private fun saveLive() {
+        if (zod != null && handle != 0L) { synchronized(coreLock) { setZodiacClock(); Native.saveState(handle, liveFile().absolutePath) }; return }
         if (nixie != null && handle != 0L) { synchronized(coreLock) { Native.saveState(handle, liveFile().absolutePath) }; return }
         if (pet == null || handle == 0L) return
         if (synchronized(coreLock) { Native.saveState(handle, liveFile().absolutePath) }) {

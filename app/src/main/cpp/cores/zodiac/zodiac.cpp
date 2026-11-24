@@ -14,7 +14,7 @@ inline uint32_t le32(const uint8_t* p) { uint32_t v; std::memcpy(&v, p, 4); retu
 inline uint32_t be32(const uint8_t* p) { return uint32_t(p[0]) << 24 | p[1] << 16 | p[2] << 8 | p[3]; }
 inline uint16_t be16(const uint8_t* p) { return uint16_t(p[0] << 8 | p[1]); }
 
-enum { INT_GPIOA = 11, INT_GPIOB = 12, INT_GPIOC = 13, INT_RTC = 17, INT_TIM2 = 58, INT_TIM1 = 59, INT_GPIOD = 62 };
+enum { INT_GPIOA = 11, INT_GPIOB = 12, INT_GPIOC = 13, INT_RTC = 17, INT_TIM2 = 58, INT_TIM1 = 59, INT_DMA = 61, INT_GPIOD = 62 };
 
 bool gunzip(const uint8_t* src, size_t len, std::vector<uint8_t>& out)
 {
@@ -89,6 +89,15 @@ void ZodiacCore::reset()
 {
     std::fill(m_ram0.begin(), m_ram0.end(), 0);
     std::fill(m_ram1.begin(), m_ram1.end(), 0);
+    m_rtcSeconds = 0; m_rtcRtcctl = 0;
+    warmReset();
+    reg(0x0021b800) = 0;            // RSR: power-on reset
+}
+
+// Reset with the SDRAM kept, as a soft reset leaves it: Palm OS finds its storage heap (the
+// databases, preferences and calibration) and carries on with it.
+void ZodiacCore::warmReset()
+{
     std::fill(m_esram.begin(), m_esram.end(), 0);
     std::fill(m_vram.begin(), m_vram.end(), 0);
     m_regs.clear();
@@ -97,6 +106,9 @@ void ZodiacCore::reset()
     std::memset(m_niPrio, 0, sizeof m_niPrio);
     for (auto& t : m_tim) t = Timer();
     for (auto& p : m_gpio) p = Port();
+    for (auto& d : m_dma) d = DmaCh();
+    m_dmaDcr = 0; m_dmaDisr = 0; m_dmaDimr = 0x7ff; m_audio.clear();
+    for (int i = 0; i < 4; i++) m_gpio[i].last = gpioIn(i);
     // clocks at reset (i.MX1 manual defaults)
     reg(0x0021b000) = 0x2f00ac03;   // CSCR
     reg(0x0021b004) = 0x003f1437;   // MPCTL0
@@ -104,9 +116,9 @@ void ZodiacCore::reset()
     reg(0x0021b00c) = 0x07b32da5;   // SPCTL0
     reg(0x0021b010) = 0x00008000;   // SPCTL1 (locked)
     reg(0x0021b020) = 0x00000015;   // PCDR
-    reg(0x0021b800) = 0x00000000;   // RSR: power-on reset
+    reg(0x0021b800) = 0x00000001;   // RSR: external (reset button) reset
     reg(0x0021b804) = 0x0005d01d;   // SIDR: MC9328MX1 silicon id
-    m_rtcSeconds = 0; m_rtcRtcctl = 0; m_rtcIsr = 0; m_rtcIenr = 0; m_rtcAcc = 0;
+    m_rtcIsr = 0; m_rtcIenr = 0; m_rtcAcc = 0;   // the RTC itself runs on through a reset
     reg(W42_CIF + 0x10) = 1;           // W4200 CIF: chip present
     reg(W42_REG + 0x00) = 0x57441002;  // W4200 register 0: ATI vendor 0x1002, device 0x5744 (the ROM tells it from the W100, 0x5644, by this)
     serialLog.clear();
@@ -255,6 +267,7 @@ void ZodiacCore::tickTimers(uint64_t cycles)
         }
         setIrq(i ? INT_TIM2 : INT_TIM1, (t.tstat & 1) && (t.tctl & (1u << 4)));
     }
+    tickDma(sec);
     // RTC: seconds counter, 1 Hz and sampling interrupts
     m_rtcAcc += sec;
     while (m_rtcAcc >= 1.0) {
@@ -272,11 +285,41 @@ void ZodiacCore::tickTimers(uint64_t cycles)
 // battery fine).
 uint32_t ZodiacCore::gpioIn(int port)
 {
-    static const char* e[4] = { "ZODGPA", "ZODGPB", "ZODGPC", "ZODGPD" };
-    if (const char* v = getenv(e[port])) return strtoul(v, nullptr, 16);   // (debug)
     uint32_t v = 0xffffffffu;
     if (port == 1) v &= ~(1u << 14);
+    // Buttons pull their pins low. Pins found in the ROM's key scan:
+    // A10 power, A7 home (launch), A8/A9 triggers, D12 function, D7 nav select,
+    // D9 action A, D8 action B, D14 action C, D10 action D.
+    static const struct { uint32_t bit; int port, pin; } keyPins[] = {
+        {0x1000, 0, 10}, {0x800, 0, 7}, {0x100, 0, 8}, {0x200, 0, 9}, {0x400, 3, 12},
+        {0x10, 3, 9}, {0x20, 3, 8}, {0x40, 3, 14}, {0x80, 3, 10}, {0x2000, 3, 7},
+    };
+    for (auto& k : keyPins)
+        if (port == k.port && (m_keys & k.bit)) v &= ~(1u << k.pin);
     return v;
+}
+
+// Input pins that changed raise their port's interrupt per ICR (00 rising, 01 falling,
+// 10 high, 11 low) when unmasked in IMR.
+void ZodiacCore::gpioInputsChanged()
+{
+    for (int p = 0; p < 4; p++) {
+        uint32_t now = gpioIn(p), was = m_gpio[p].last;
+        m_gpio[p].last = now;
+        for (int b = 0; b < 32; b++) {
+            uint32_t m = 1u << b;
+            uint32_t mode = ((b < 16 ? m_gpio[p].icr1 >> (b * 2) : m_gpio[p].icr2 >> ((b - 16) * 2))) & 3;
+            bool hit = false;
+            switch (mode) {
+            case 0: hit = (now & m) && !(was & m); break;
+            case 1: hit = !(now & m) && (was & m); break;
+            case 2: hit = (now & m) != 0; break;
+            case 3: hit = !(now & m); break;
+            }
+            if (hit) m_gpio[p].isr |= m;
+        }
+    }
+    gpioUpdate();
 }
 
 void ZodiacCore::gpioUpdate()
@@ -363,7 +406,7 @@ uint32_t ZodiacCore::ioRead(uint32_t pa, int size)
             case 0x20: return p.gius;
             case 0x24: {                                                     // SSR
                 uint32_t v = (p.dr & p.ddir) | (gpioIn(port) & ~p.ddir);
-                if (dbg() > 1) { int& n = m_seen[0x60000000u | uint32_t(port) << 24 | (m_cpu->r[15] & 0xffffff)]; if (n++ < 2) fprintf(stderr, "gpio%c SSR = %08x (ddir %08x gius %08x) pc %08x\n", 'A' + port, v, p.ddir, p.gius, m_cpu->r[15]); }
+                if (dbg() > 1) { int& n = m_seen[0x60000000u | uint32_t(port) << 24 | (m_cpu->r[14] & 0xffffff)]; if (n++ < 2) fprintf(stderr, "gpio%c SSR = %08x (ddir %08x gius %08x) pc %08x lr %08x\n", 'A' + port, v, p.ddir, p.gius, m_cpu->current_pc(), m_cpu->r[14]); }
                 return v;
             }
             case 0x28: return p.icr1;
@@ -386,6 +429,10 @@ uint32_t ZodiacCore::ioRead(uint32_t pa, int size)
             return reg(pa);
         case 0x00217000:
             return i2cRead(off);
+        case 0x00209000:
+            return dmaRead(off);
+        case 0x00215000:
+            return aspRead(off);
         }
         uint32_t v = reg(pa);
         unknown("R", pa, v, size);
@@ -460,7 +507,7 @@ void ZodiacCore::cpPacket3(uint32_t op, const std::vector<uint32_t>& body)
 {
     if (dbg()) {
         int& n = m_seen[0xc0000000u | op];
-        if (n++ < (dbg() > 1 ? 12 : 3)) {
+        if (n++ < (dbg() > 1 ? 400 : 3)) {
             fprintf(stderr, "cp type3 op %02x len %zu:", op, body.size());
             for (size_t i = 0; i < body.size() && i < 12; i++) fprintf(stderr, " %08x", body[i]);
             fprintf(stderr, "  | dst %x/%x src %x/%x gmc %08x brush %08x srcfg %08x\n",
@@ -468,6 +515,7 @@ void ZodiacCore::cpPacket3(uint32_t op, const std::vector<uint32_t>& body)
                     reg(W42_REG + 0x106c), reg(W42_REG + 0x107c), reg(W42_REG + 0x11d8));
         }
     }
+    if (dbg() > 0) { static std::map<uint32_t, int> cnt; if (cnt[op]++ == 0) fprintf(stderr, "cp new op %02x\n", op); }
     uint32_t dOff = reg(W42_REG + 0x1004), dPitch = reg(W42_REG + 0x1008) & 0x3fff;
     uint32_t sOff = reg(W42_REG + 0x11ac), sPitch = reg(W42_REG + 0x11b0) & 0x3fff;
     switch (op) {
@@ -483,9 +531,24 @@ void ZodiacCore::cpPacket3(uint32_t op, const std::vector<uint32_t>& body)
     case 0x19: {
         if (body.size() < 2) break;
         int y0 = int(body[0] >> 16), x0 = int(body[0] & 0xffff), h = int(body[1] >> 16), w = int(body[1] & 0xffff);
-        bool coverage = (reg(W42_REG + 0x106c) & 0x80000000u) != 0;
+        uint32_t gmc = reg(W42_REG + 0x106c);
+        bool coverage = (gmc & 0x80000000u) != 0;
+        uint32_t dtype = (gmc >> 12) & 3;           // 3 colour, 0 mono with background, 1 mono transparent
         size_t n = 0, total = size_t(w) * size_t(h);
-        if (coverage) {
+        if (!coverage && dtype != 3) {
+            // 1 bit a pixel, most significant bit of each byte first, rows padded to 32 bits
+            uint16_t fg = uint16_t(reg(W42_REG + 0x1240)), bg = uint16_t(reg(W42_REG + 0x123c));   // source foreground / background colours
+            size_t rowWords = (size_t(w) + 31) / 32;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++) {
+                    size_t wi = 2 + size_t(y) * rowWords + size_t(x) / 32;
+                    if (wi >= body.size()) break;
+                    int bit = x % 32, byte = bit / 8;
+                    bool on = (body[wi] >> (byte * 8 + 7 - bit % 8)) & 1;
+                    if (!on && dtype == 1) continue;
+                    if (uint16_t* p = w42Pixel(dOff, dPitch, x0 + x, y0 + y)) *p = on ? fg : bg;
+                }
+        } else if (coverage) {
             uint16_t fg = uint16_t(reg(W42_REG + 0x11d8));
             int fr = fg >> 11, fgc = (fg >> 5) & 63, fb = fg & 31;
             for (size_t i = 2; i < body.size() && n < total; i++)
@@ -551,7 +614,6 @@ uint32_t ZodiacCore::w42Read(uint32_t off, int size)
         if (m_adcFifo.empty()) v = 0;
         else { v = m_adcFifo.front(); m_adcFifo.erase(m_adcFifo.begin()); }
         break;
-    case 0x220: v = reg(W42_REG + 0x21c); break;   // command read pointer caught up
     case 0x54c: {                              // display status: bit 10 = vertical blank
         uint64_t period = CPU_HZ / 60, ph = now() % period;
         v = (v & ~0x400u) | (ph >= period - period / 16 ? 0x400u : 0);
@@ -565,18 +627,35 @@ uint32_t ZodiacCore::w42Read(uint32_t off, int size)
 void ZodiacCore::w42Write(uint32_t off, uint32_t v, int size)
 {
     switch (off) {
+    case 0x220: {
+        // command ring write pointer (dwords): run the packets up to it at once. Ring base is
+        // CP_RB_BASE (0x214, internal address), size 8 << (CP_RB_CNTL & 0x3f) bytes; 0x21c is
+        // the read pointer.
+        reg(W42_REG + off) = v;
+        uint32_t base = reg(W42_REG + 0x214) & 0xffffff, words = (8u << (reg(W42_REG + 0x210) & 0x3f)) / 4;
+        uint32_t rp = reg(W42_REG + 0x21c);
+        if (dbg() > 1) { static int n = 0; if (n++ < 30) { uint32_t a = base - 0x100000 + rp * 4; fprintf(stderr, "ring wptr %x rptr %x base %x words %x first %08x %08x %08x\n", v, rp, base, words, a + 12 <= m_vram.size() ? le32(&m_vram[a]) : 0, a + 12 <= m_vram.size() ? le32(&m_vram[a + 4]) : 0, a + 12 <= m_vram.size() ? le32(&m_vram[a + 8]) : 0); } }
+        if (words < 4 || words > 0x100000 || base < 0x100000) { reg(W42_REG + 0x21c) = v; return; }
+        for (uint32_t guard = 0; rp != v % words && guard < words; guard++) {
+            uint32_t a = base - 0x100000 + rp * 4;
+            if (a + 4 <= m_vram.size()) cpWord(le32(&m_vram[a]));
+            rp = (rp + 1) % words;
+        }
+        reg(W42_REG + 0x21c) = rp;
+        return;
+    }
     case 0xd0c:
         if ((v & 0x400) && !(reg(W42_REG + off) & 0x400)) {
             m_adcFifo.clear();
             if (dbg()) { int& n = m_seen[0x70000000u | (reg(W42_REG + 0xd08) & 7)]; if (n++ < 3) fprintf(stderr, "adc start sel %u pc %08x lr %08x\n", reg(W42_REG + 0xd08) & 7, m_cpu->current_pc(), m_cpu->r[14]); }
             switch (reg(W42_REG + 0xd08) & 7) {
             case 0:
-                m_adcFifo.push_back(1u << 26 | uint32_t(m_stickX & 0x3ff));
-                m_adcFifo.push_back(2u << 26 | uint32_t(m_stickY & 0x3ff));
+                m_adcFifo.push_back(1u << 24 | uint32_t(m_stickX & 0x3ff));
+                m_adcFifo.push_back(2u << 24 | uint32_t(m_stickY & 0x3ff));
                 break;
-            case 1: m_adcFifo.push_back(9u << 26 | 512); break;
-            case 2: m_adcFifo.push_back(10u << 26 | 1000); break;     // battery: full
-            default: m_adcFifo.push_back((8u + (reg(W42_REG + 0xd08) & 7)) << 26 | 512); break;
+            case 1: m_adcFifo.push_back(9u << 24 | 512); break;
+            case 2: m_adcFifo.push_back(10u << 24 | 1000); break;     // battery: full
+            default: m_adcFifo.push_back((8u + (reg(W42_REG + 0xd08) & 7)) << 24 | 512); break;
             }
         }
         break;
@@ -691,8 +770,14 @@ void ZodiacCore::ioWrite(uint32_t pa, uint32_t v, int size)
         case 0x0021b000: case 0x00201000: case 0x00220000: case 0x00221000:
             reg(pa) = v;
             return;
+        case 0x00209000:
+            dmaWrite(off, v);
+            return;
         case 0x00217000:
             i2cWrite(off, v);
+            return;
+        case 0x00215000:
+            aspWrite(off, v);
             return;
         }
         reg(pa) = v;
@@ -704,9 +789,62 @@ void ZodiacCore::ioWrite(uint32_t pa, uint32_t v, int size)
         return;
     }
     if (pa - W42_REG < 0x10000) { w42Write(pa - W42_REG, v, size); return; }
-    if (pa - W42_WRAP < 0x80000) { if (size == 4) cpWord(v); else unknown("Wwrap", pa, v, size); return; }
+    if (pa - W42_WRAP < 0x80000) {
+        // the CIF wrap window: writes land in the command ring (wrapping at its size); they
+        // run when the driver moves the write pointer (0x220)
+        uint32_t base = reg(W42_REG + 0x214) & 0xffffff, bytes = 8u << (reg(W42_REG + 0x210) & 0x3f);
+        if (base >= 0x100000 && bytes >= 16 && bytes <= 0x400000) {
+            uint32_t a = base - 0x100000 + ((pa - W42_WRAP) & (bytes - 1) & ~3u);
+            if (a + 4 <= m_vram.size()) std::memcpy(&m_vram[a], &v, 4);
+        } else if (size == 4) cpWord(v);
+        return;
+    }
     m_regs[pa] = v;
     unknown("W", pa, v, size);
+}
+
+// ---------------------------------------------------------------------------
+// touch panel (i.MX1 ASP)
+// ---------------------------------------------------------------------------
+void ZodiacCore::aspUpdate()
+{
+    if (m_penDown != m_penWasDown) m_aspStat |= 0x400;      // pen interrupt on touch and on lift
+    m_penWasDown = m_penDown;
+    setIrq(46, (m_aspStat & 0x400) && (reg(0x00215018) & 0x10));
+    updateIrq();
+}
+
+uint32_t ZodiacCore::aspRead(uint32_t off)
+{
+    switch (off) {
+    case 0x00: {
+        uint32_t v;
+        int k = m_aspIdx++ % 4;                    // conversions come in fours: reference, x, y, spare
+        if (!m_penDown) v = (k == 1 || k == 2) ? 0xff80 : 0;   // lifted: no contact
+        else if (k == 0) v = 0;
+        // The panel is mounted portrait (its x reads up the landscape screen); the ROM's factory
+        // limits are x 36-366 (down the landscape screen), y 32-382 (across it).
+        else if (k == 1) v = uint32_t(36 + int((1 - m_penY) * 330)) << 7;
+        else if (k == 2) v = uint32_t(32 + int(m_penX * 350)) << 7;
+        else v = 0;
+        if (dbg() > 2) fprintf(stderr, "asp sample %d = %04x pc %08x\n", k, v, m_cpu->current_pc());
+        return v;
+    }
+    case 0x1c: return m_aspStat | (m_penDown ? 0 : 0x400);   // while lifted the pen bit stays up
+    case 0x34: return m_penDown ? 12u : 0u;
+    }
+    return reg(0x00215000 + off);
+}
+
+void ZodiacCore::aspWrite(uint32_t off, uint32_t v)
+{
+    switch (off) {
+    case 0x1c: m_aspStat &= ~v; break;
+    case 0x10: m_aspIdx = 0; reg(0x00215000 + off) = v; break;
+    default: reg(0x00215000 + off) = v;
+    }
+    if (dbg() > 1) fprintf(stderr, "asp W %02x = %08x pc %08x\n", off, v, m_cpu->current_pc());
+    aspUpdate();
 }
 
 // ---------------------------------------------------------------------------
@@ -800,11 +938,18 @@ void ZodiacCore::runFrame()
         uint64_t ran = m_cpu->insn_count - i0;
         if (ran < uint64_t(slice)) m_idle += uint64_t(slice) - ran;
         sync();
+        if (m_penDown != m_penWasDown) aspUpdate();
+        gpioInputsChanged();
     }
     m_frame++;
-    if (getenv("ZODSEENRESET") && m_frame == uint64_t(atoi(getenv("ZODSEENRESET")))) { m_seen.clear(); fprintf(stderr, "---- seen reset ----\n"); }
+    static const char* seenReset = getenv("ZODSEENRESET");   // (debug)
+    if (seenReset && m_frame == uint64_t(atoi(seenReset))) { m_seen.clear(); fprintf(stderr, "---- seen reset ----\n"); }
     renderScreen();
     m_audioPending = 735;
+    if (dbg() && m_frame == 1500)
+        for (int i = 0; i < 4; i++)
+            fprintf(stderr, "gpio%c ddir %08x gius %08x imr %08x icr1 %08x icr2 %08x puen %08x dr %08x ocr1 %08x ocr2 %08x\n", 'A' + i,
+                    m_gpio[i].ddir, m_gpio[i].gius, m_gpio[i].imr, m_gpio[i].icr1, m_gpio[i].icr2, m_gpio[i].puen, m_gpio[i].dr, m_gpio[i].ocr1, m_gpio[i].ocr2);
     if (dbg() && (m_frame % 60) == 0)
         fprintf(stderr, "[frame %llu pc %08x cpsr %08x src %016llx en %016llx type %016llx cntl %x nimask %x vec %08x]\n",
                 (unsigned long long)m_frame, m_cpu->r[15], m_cpu->cpsr,
@@ -817,7 +962,10 @@ void ZodiacCore::runFrame()
 // scan; how GRAPHIC_PITCH (0x280) relates to the landscape layout isn't known yet.
 void ZodiacCore::renderScreen()
 {
-    uint32_t off = reg(W42_REG + 0x418);
+    // In the rotated scan (GRAPHIC_PITCH 0x3c0) GRAPHIC_OFFSET points at the far end of the
+    // first landscape line.
+    uint32_t off = reg(W42_REG + 0x418), pitch = reg(W42_REG + 0x41c) & 0xffff;
+    if (pitch == 0x3c0) off -= 0x3bc;
     if (off < 0x100000) return;
     uint32_t base = off - 0x100000;
     if (base + 960 * 320 > m_vram.size()) return;
@@ -834,8 +982,171 @@ void ZodiacCore::renderScreen()
 
 size_t ZodiacCore::readAudio(int16_t* out, size_t maxSamples)
 {
+    // One frame's worth: what the SSI played, padded with silence when it played nothing.
     size_t n = std::min(maxSamples, m_audioPending);
-    std::memset(out, 0, n * sizeof(int16_t));
+    size_t i = 0;
+    for (; i < n && !m_audio.empty(); i++) { out[i] = m_audio.front(); m_audio.pop_front(); }
+    for (; i < n; i++) out[i] = 0;
     m_audioPending -= n;
+    if (m_audio.size() > 44100 / 4) m_audio.erase(m_audio.begin(), m_audio.end() - 44100 / 8);   // drift
     return n;
+}
+
+// ---------------------------------------------------------------------------
+// DMA (i.MX1: DCR 0x00, DISR 0x04, DIMR 0x08, ...; channel n at 0x80 + n * 0x40 with
+// SAR, DAR, CNTR, CCR, RSSR, BLR, RTOR/BUCR). Only transfers into the SSI transmit FIFO are
+// carried out: they're the sound output, paced at the sample rate.
+// ---------------------------------------------------------------------------
+static const uint32_t SSI_STX = 0x00218000;
+static const double SOUND_RATE = 44100.0;
+
+uint32_t ZodiacCore::dmaRead(uint32_t off)
+{
+    switch (off) {
+    case 0x00: return m_dmaDcr;
+    case 0x04: return m_dmaDisr;
+    case 0x08: return m_dmaDimr;
+    }
+    if (off >= 0x80 && off < 0x80 + 11 * 0x40) {
+        DmaCh& d = m_dma[(off - 0x80) / 0x40];
+        switch ((off - 0x80) % 0x40) {
+        case 0x00: return d.sar;
+        case 0x04: return d.dar;
+        case 0x08: return d.cntr;
+        case 0x0c: return d.ccr;
+        case 0x10: return d.rssr;
+        case 0x14: return d.blr;
+        case 0x18: return d.bucr;
+        case 0x1c: return d.active ? d.pos : d.curCnt;        // CCNR: bytes moved
+        }
+    }
+    return reg(0x00209000 + off);
+}
+
+void ZodiacCore::dmaWrite(uint32_t off, uint32_t v)
+{
+    if (dbg() > 2) fprintf(stderr, "dma W %03x = %08x pc %08x\n", off, v, m_cpu->current_pc());
+    switch (off) {
+    case 0x00: m_dmaDcr = v; if (v & 2) { for (auto& d : m_dma) d = DmaCh(); m_dmaDisr = 0; m_dmaDimr = 0x7ff; } dmaIrq(); return;
+    case 0x04: m_dmaDisr &= ~v; dmaIrq(); return;
+    case 0x08: m_dmaDimr = v; dmaIrq(); return;
+    }
+    if (off >= 0x80 && off < 0x80 + 11 * 0x40) {
+        int n = (off - 0x80) / 0x40;
+        DmaCh& d = m_dma[n];
+        switch ((off - 0x80) % 0x40) {
+        case 0x00: d.sar = v; return;
+        case 0x04: d.dar = v; return;
+        case 0x08: d.cntr = v & 0xffffff; return;
+        case 0x0c: {
+            sync();
+            bool was = d.ccr & 1;
+            d.ccr = v;
+            if ((v & 1) && !was) dmaStart(n);
+            else if (!(v & 1)) d.active = false;
+            return;
+        }
+        case 0x10: d.rssr = v; return;
+        case 0x14: d.blr = v; return;
+        case 0x18: d.bucr = v; return;
+        }
+    }
+    reg(0x00209000 + off) = v;
+}
+
+void ZodiacCore::dmaStart(int n)
+{
+    DmaCh& d = m_dma[n];
+    d.curSar = d.sar; d.curCnt = d.cntr; d.pos = 0; d.acc = 0;
+    d.active = d.dar == SSI_STX && d.curCnt != 0;
+}
+
+void ZodiacCore::dmaComplete(int n)
+{
+    DmaCh& d = m_dma[n];
+    // The buffer holds 16-bit stereo frames; the output is mono.
+    for (uint32_t i = 0; i + 4 <= d.curCnt; i += 4) {
+        int l = int16_t(read16(d.curSar + i)), r = int16_t(read16(d.curSar + i + 2));
+        m_audio.push_back(int16_t((l + r) / 2));
+    }
+    m_dmaDisr |= 1u << n;
+    if (d.ccr & 0x3000) dmaStart(n);                    // repeat: go again from the (new) registers
+    else { d.active = false; d.ccr &= ~1u; }
+    dmaIrq();
+}
+
+void ZodiacCore::tickDma(double sec)
+{
+    for (int n = 0; n < 11; n++) {
+        DmaCh& d = m_dma[n];
+        if (!d.active) continue;
+        d.acc += sec * SOUND_RATE * 4;                // bytes at 16-bit stereo
+        uint32_t step = uint32_t(d.acc);
+        d.acc -= step;
+        d.pos += step;
+        if (d.pos >= d.curCnt) dmaComplete(n);
+    }
+}
+
+void ZodiacCore::dmaIrq()
+{
+    setIrq(INT_DMA, (m_dmaDisr & ~m_dmaDimr & 0x7ff) != 0);
+    updateIrq();
+}
+
+// ---------------------------------------------------------------------------
+// saved state
+// ---------------------------------------------------------------------------
+static const char STATE_MAGIC[8] = { 'Z', 'O', 'D', 'R', 'A', 'M', '0', '1' };
+
+bool ZodiacCore::saveState(std::vector<uint8_t>& out)
+{
+    sync();
+    out.assign(STATE_MAGIC, STATE_MAGIC + 8);
+    auto put64 = [&](uint64_t v) { for (int i = 0; i < 8; i++) out.push_back(uint8_t(v >> (i * 8))); };
+    put64(uint64_t(m_rtcSeconds) | uint64_t(m_rtcRtcctl) << 32);
+    put64(uint64_t(m_wallClock));
+    z_stream z{};
+    if (deflateInit(&z, 1) != Z_OK) return false;
+    const std::vector<uint8_t>* parts[] = { &m_ram0, &m_ram1, &m_eeprom };
+    std::vector<uint8_t> buf(1 << 20);
+    for (int i = 0; i < 3; i++) {
+        z.next_in = const_cast<uint8_t*>(parts[i]->data());
+        z.avail_in = uInt(parts[i]->size());
+        int flush = i == 2 ? Z_FINISH : Z_NO_FLUSH;
+        int r;
+        do {
+            z.next_out = buf.data(); z.avail_out = uInt(buf.size());
+            r = deflate(&z, flush);
+            if (r == Z_STREAM_ERROR) { deflateEnd(&z); return false; }
+            out.insert(out.end(), buf.data(), buf.data() + (buf.size() - z.avail_out));
+        } while (z.avail_out == 0 || (flush == Z_FINISH && r != Z_STREAM_END));
+    }
+    deflateEnd(&z);
+    return true;
+}
+
+bool ZodiacCore::loadState(const std::vector<uint8_t>& in)
+{
+    if (in.size() < 24 || std::memcmp(in.data(), STATE_MAGIC, 8)) return false;
+    auto get64 = [&](size_t at) { uint64_t v = 0; for (int i = 0; i < 8; i++) v |= uint64_t(in[at + i]) << (i * 8); return v; };
+    uint64_t rtc = get64(8);
+    int64_t wall = int64_t(get64(16));
+    z_stream z{};
+    if (inflateInit(&z) != Z_OK) return false;
+    z.next_in = const_cast<uint8_t*>(in.data() + 24);
+    z.avail_in = uInt(in.size() - 24);
+    std::vector<uint8_t>* parts[] = { &m_ram0, &m_ram1, &m_eeprom };
+    for (int i = 0; i < 3; i++) {
+        z.next_out = parts[i]->data();
+        z.avail_out = uInt(parts[i]->size());
+        int r = inflate(&z, Z_SYNC_FLUSH);
+        if ((r != Z_OK && r != Z_STREAM_END) || z.avail_out) { inflateEnd(&z); reset(); return false; }
+    }
+    inflateEnd(&z);
+    warmReset();
+    // the clock carries on from where it was left, plus the time spent away
+    m_rtcRtcctl = uint32_t(rtc >> 32);
+    m_rtcSeconds = uint32_t(rtc) + uint32_t(m_wallClock > wall && wall ? m_wallClock - wall : 0);
+    return true;
 }

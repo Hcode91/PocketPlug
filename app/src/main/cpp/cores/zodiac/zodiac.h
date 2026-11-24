@@ -15,6 +15,7 @@
 #pragma once
 #include "../../core_api.h"
 #include "../gpl32/arm926.h"
+#include <deque>
 #include <map>
 #include <string>
 #include <vector>
@@ -25,6 +26,7 @@ public:
     ~ZodiacCore() override;
     bool load(const std::vector<RomFile>& roms, std::string& error) override;
     void reset() override;
+    void warmReset();
     void runFrame() override;
     const uint32_t* frameBuffer() const override { return m_fb.data(); }
     int frameWidth() const override { return 480; }
@@ -32,15 +34,25 @@ public:
     double refreshRate() const override { return 60.0; }
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
-    void setInputs(uint32_t pressed) override { m_keys = pressed; }
+    void setInputs(uint32_t pressed) override { m_keys = pressed; updateStick(); }
+    // The d-pad bits push the stick to full deflection when the analog stick is centred.
+    void updateStick() {
+        float x = m_anaX, y = m_anaY;
+        if (m_keys & 4) x = -1; else if (m_keys & 8) x = 1;
+        if (m_keys & 1) y = -1; else if (m_keys & 2) y = 1;
+        m_stickX = 512 - int(x * 511); m_stickY = 512 + int(y * 511);   // raw x falls to the right
+    }
+    float m_anaX = 0, m_anaY = 0;
     // stick 0: analog stick (-1..1); stick 2: stylus position on the screen (0..1, x < 0 = lifted)
     void setAnalog(int stick, float x, float y) override {
-        if (stick == 0) { m_stickX = 512 + int(x * 511); m_stickY = 512 + int(y * 511); }
+        if (stick == 0) { m_anaX = x; m_anaY = y; updateStick(); }
         else if (stick == 2) { m_penDown = x >= 0; if (m_penDown) { m_penX = x; m_penY = y; } }
     }
     void setWallClock(int64_t localSeconds) override { m_wallClock = localSeconds; }
-    bool saveState(std::vector<uint8_t>&) override { return false; }
-    bool loadState(const std::vector<uint8_t>&) override { return false; }
+    // The saved state is the SDRAM (Palm OS keeps its storage heap there), the EEPROM and the
+    // clock; loading it soft-resets onto that memory, as a real handheld comes back from a reset.
+    bool saveState(std::vector<uint8_t>& out) override;
+    bool loadState(const std::vector<uint8_t>& in) override;
 
     // didj::Bus
     uint8_t* page_ptr(uint32_t pa) override;
@@ -83,8 +95,16 @@ private:
     // (channel << 26 | 10-bit value)
     std::vector<uint32_t> m_adcFifo;
     int m_stickX = 512, m_stickY = 512;
-    bool m_penDown = false;            // (touch panel not hooked up yet)
+    bool m_penDown = false, m_penWasDown = false;
     float m_penX = 0, m_penY = 0;
+    // i.MX1 ASP touch panel: 0x00 sample FIFO, 0x10 control, 0x18 interrupt enables (bit 4 pen
+    // down), 0x1c status (bit 10 pen down, write 1 to clear), 0x34 FIFO count. Samples come in
+    // fours (reference, x, y, spare), value in bits 15-7.
+    uint32_t m_aspStat = 0;
+    int m_aspIdx = 0;
+    void aspUpdate();
+    uint32_t aspRead(uint32_t off);
+    void aspWrite(uint32_t off, uint32_t v);
     void cpWord(uint32_t w);
     uint32_t m_cpHeader = 0, m_cpLeft = 0, m_cpReg = 0, m_cpReg2 = 0, m_cpIndex = 0;
     std::vector<uint32_t> m_cpBody;
@@ -113,6 +133,7 @@ private:
     Port m_gpio[4];
     uint32_t gpioIn(int port);
     void gpioUpdate();
+    void gpioInputsChanged();
 
     // time: emulated CPU cycles (CPI per instruction plus idle time)
     static constexpr uint64_t CPU_HZ = 200000000, CPI = 2;
@@ -148,4 +169,16 @@ private:
     uint32_t m_keys = 0;
     uint64_t m_frame = 0;
     size_t m_audioPending = 0;
+    // DMA controller (11 channels) and the SSI it feeds for sound
+    struct DmaCh { uint32_t sar = 0, dar = 0, cntr = 0, ccr = 0, rssr = 0, blr = 0, bucr = 0;
+                   uint32_t curSar = 0, curCnt = 0, pos = 0; bool active = false; double acc = 0; };
+    DmaCh m_dma[11];
+    uint32_t m_dmaDcr = 0, m_dmaDisr = 0, m_dmaDimr = 0x7ff;
+    std::deque<int16_t> m_audio;
+    uint32_t dmaRead(uint32_t off);
+    void dmaWrite(uint32_t off, uint32_t v);
+    void dmaStart(int n);
+    void dmaComplete(int n);
+    void tickDma(double sec);
+    void dmaIrq();
 };
