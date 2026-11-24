@@ -165,7 +165,7 @@ class HhView(ctx: Context, private val skin: HhSkin, private val srcW: Int, priv
         text.textSize = k.labelSize
         when (k.kind) {
             HhSkin.Kind.STICK -> {
-                val dir = mask and 0xF
+                val dir = (mask shr k.stickShift) and 0xF
                 val dx = (if (dir and 8 != 0) 1 else 0) - (if (dir and 4 != 0) 1 else 0)
                 val dy = (if (dir and 2 != 0) 1 else 0) - (if (dir and 1 != 0) 1 else 0)
                 paint.color = k.base; c.drawCircle(k.x, k.y, k.r, paint)
@@ -290,7 +290,7 @@ class HhView(ctx: Context, private val skin: HhSkin, private val srcW: Int, priv
         var m = 0
         for ((p, i) in pointers) {
             val k = skin.controls[i]
-            m = m or if (k.kind == HhSkin.Kind.STICK) (stickDir[p] ?: 0) else k.bit
+            m = m or if (k.kind == HhSkin.Kind.STICK) ((stickDir[p] ?: 0) shl k.stickShift) else k.bit
         }
         if (m != touchMask) {
             if (m and touchMask.inv() != 0) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -406,6 +406,8 @@ class HhSkin(
         val sets: List<List<Pair<Int, Int>>> = emptyList(),
         val plate: Int = 0, val plateW: Float = 0f, val plateH: Float = 0f, val sideLabels: Boolean = false,
         val vertical: Boolean = false, val labelLeft: Boolean = false,
+        /** sticks: where their up / down / left / right bits go (12: the second stick) */
+        val stickShift: Int = 0,
         // text printed on the button itself
         val face: String = "", val faceColor: Int = Color.WHITE, val faceSize: Float = 30f, val shine: Boolean = true,
     )
@@ -1036,23 +1038,59 @@ class HhSkin(
             },
         )
 
-        /** Bandai Crazy Climber (1982): tall VFD tabletop, a left and a right lever (here as keys). */
+        /** Bandai Crazy Climber (1982), from a photo: the tall grey-beige case with black corner caps,
+         *  the VFD tower between printed skyscrapers (white outlines on black), a blank name strip, the
+         *  black ribbed band, then the L.HAND and R.HAND levers in outlined boxes (UP / DOWN arrows)
+         *  either side of the POWER light, the ON / OFF slide and START. */
         private fun crazyClimber(): HhSkin {
-            fun key(x: Float, y: Float, bit: Int, label: String) = Control(Kind.BUTTON, x, y, 40f, color = 0xFF2A2A2E.toInt(), bit = bit,
-                bw = 120f, bh = 84f, face = label, faceColor = 0xFFF2F2F2.toInt(), faceSize = 40f)
+            val line = 0xFF3A3632.toInt()
             return HhSkin(
-                1000f, 1320f, 0xFF101820.toInt(),
-                screen = RectF(380f, 70f, 620f, 906f), bezel = 0xFF0A0A0C.toInt(), bezelPad = 14f,
-                menu = PointF(500f, 1290f),
+                1000f, 2000f, 0xFF101418.toInt(),
+                screen = RectF(372f, 150f, 628f, 1040f), bezel = 0xFF050505.toInt(), bezelPad = 8f,
+                menu = PointF(500f, 1960f),
                 controls = listOf(
-                    key(180f, 990f, 1 shl 0, "▲"), key(110f, 1100f, 1 shl 2, "◀"), key(180f, 1200f, 1 shl 1, "▼"),
-                    key(820f, 990f, 1 shl 12, "▲"), key(890f, 1100f, 1 shl 15, "▶"), key(820f, 1200f, 1 shl 13, "▼"),
-                    Control(Kind.BUTTON, 500f, 1110f, 46f, color = 0xFFE23A2A.toInt(), bit = 1 shl 4, label = "START", labelColor = Color.WHITE, labelSize = 26f),
+                    Control(Kind.STICK, 245f, 1640f, 95f, color = 0xFF1A1A1A.toInt(), base = 0xFFCFC9BC.toInt(), eightWay = false),
+                    Control(Kind.STICK, 755f, 1640f, 95f, color = 0xFF1A1A1A.toInt(), base = 0xFFCFC9BC.toInt(), eightWay = false, stickShift = 12),
+                    Control(Kind.SWITCH, 500f, 1560f, 26f, color = 0xFF2A2A2A.toInt(), option = 6, vertical = true, positions = listOf("", ""),
+                        sets = listOf(listOf(7 to 0), listOf(7 to 1))),
+                    Control(Kind.BUTTON, 500f, 1745f, 40f, color = 0xFF3A3A3A.toInt(), bit = 1 shl 4, bw = 120f, bh = 90f),
                 ),
-                drawBody = { c, p, _ ->
-                    p.color = 0xFF2A62B8.toInt(); c.drawRoundRect(250f, 30f, 750f, 960f, 40f, 40f, p)
-                    p.color = 0xFFE8E4DA.toInt(); c.drawRoundRect(30f, 920f, 970f, 1260f, 50f, 50f, p)
-                    p.color = 0xFF1A1A1E.toInt(); c.drawRoundRect(330f, 50f, 670f, 940f, 24f, 24f, p)
+                drawBody = { c, p, s ->
+                    // case with black corner caps top and bottom
+                    p.color = 0xFF151515.toInt(); c.drawRoundRect(20f, 20f, 980f, 1940f, 40f, 40f, p)
+                    p.color = 0xFFD8D2C4.toInt(); c.drawRect(20f, 90f, 980f, 1870f, p)
+                    // the black window with the printed skyline either side of the tower
+                    p.color = 0xFF080808.toInt(); c.drawRoundRect(60f, 110f, 940f, 1090f, 10f, 10f, p)
+                    s.color = 0xFFDADADA.toInt(); s.strokeWidth = 4f
+                    fun tower(l: Float, t: Float, r: Float) {
+                        c.drawRect(l, t, r, 1080f, s)
+                        var y = t + 40f
+                        while (y < 1060f) { var x = l + 14f; while (x < r - 20f) { c.drawRect(x, y, x + 12f, y + 18f, s); x += 26f }; y += 44f }
+                    }
+                    tower(80f, 640f, 200f); tower(200f, 470f, 340f); tower(660f, 380f, 790f)
+                    c.drawLine(725f, 300f, 725f, 380f, s); tower(790f, 560f, 925f)
+                    // name strip (left blank) and the ribbed band
+                    p.color = 0xFFE2DCCF.toInt(); c.drawRect(60f, 1110f, 940f, 1230f, p)
+                    p.color = 0xFF1C1C1C.toInt(); c.drawRect(20f, 1260f, 980f, 1380f, p)
+                    s.color = 0xFF333333.toInt(); s.strokeWidth = 5f
+                    for (i in 0 until 5) c.drawLine(20f, 1280f + i * 22f, 980f, 1280f + i * 22f, s)
+                    // side ridges on the left
+                    s.color = 0xFFB8B2A4.toInt(); for (i in 0 until 4) c.drawLine(20f, 1000f + i * 30f, 70f, 1000f + i * 30f, s)
+                    // the control panel boxes
+                    s.color = line; s.strokeWidth = 4f
+                    c.drawRoundRect(85f, 1450f, 405f, 1830f, 10f, 10f, s); c.drawRoundRect(595f, 1450f, 915f, 1830f, 10f, 10f, s)
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = line; textSize = 34f }
+                    c.drawText("L.HAND", 245f, 1430f, t); c.drawText("R.HAND", 755f, 1430f, t)
+                    t.textSize = 30f
+                    for (x in listOf(245f, 755f)) { c.drawText("UP", x, 1495f, t); c.drawText("DOWN", x, 1810f, t) }
+                    p.color = line
+                    fun tri(x: Float, y: Float, up: Boolean) { val d = if (up) -1f else 1f
+                        c.drawPath(Path().apply { moveTo(x, y + d * 20f); lineTo(x - 18f, y - d * 6f); lineTo(x + 18f, y - d * 6f); close() }, p) }
+                    for (x in listOf(245f, 755f)) { tri(x, 1520f, true); tri(x, 1760f, false) }
+                    c.drawText("POWER", 500f, 1460f, t)
+                    p.color = 0xFFE8502A.toInt(); c.drawRoundRect(470f, 1480f, 530f, 1496f, 4f, 4f, p)
+                    t.textSize = 26f; c.drawText("ON", 445f, 1540f, t); c.drawText("OFF", 445f, 1600f, t)
+                    t.textSize = 30f; c.drawText("START", 500f, 1825f, t)
                 },
             )
         }
