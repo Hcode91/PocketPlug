@@ -30,6 +30,7 @@ struct VF : Bus {
     long discSectors = 271506;              // set from the image size
     int tracking = 0, clv = 0;              // $2x bits 3-2, $Ex low nibble
     int jumpCount = 0;                      // $7x
+    int traverseTarget = 0; double traverseFrom = 0;
     unsigned long long brakeAt = 0;
     unsigned long long sledAt = 0, subAt = 0;
     int leadInPtr = 0;
@@ -49,6 +50,26 @@ struct VF : Bus {
     static u8 bcd(int v) { return u8((v / 10) << 4 | (v % 10)); }
     static void msf(long lba, u8* m) { lba += 150; if (lba < 0) lba += 450000; m[0] = bcd(int(lba / 4500)); m[1] = bcd(int(lba / 75 % 60)); m[2] = bcd(int(lba % 75)); }
     bool spinning() { return clv != 0 && clv != 8 && tracking == 1; }
+    // ---- minimal command list interpreter: 2D space = RAM at VRAM_BASE, 2048 bytes per row, RGB555 ----
+    static constexpr u32 VRAM_BASE = 0x10048000;
+    u32 gfxReg[256] = {};
+    u16* vram_px(int x, int y) { u32 a = VRAM_BASE + u32(y) * 2048 + u32(x) * 2; if (x < 0 || y < 0 || x >= 1024 || a + 2 > 0x10000000 + sdram.size()) return nullptr; return (u16*)&sdram[a - 0x10000000]; }
+    u32 rd32(u32 a) { u32 w = 0; if (a >= 0x10000000 && a + 4 <= 0x10000000 + sdram.size()) memcpy(&w, &sdram[a - 0x10000000], 4); return w; }
+    u32 fillPos = 0, fillSize = 0, fillColour = 0;
+    void gfx_run(u32 la) {
+        for (int k = 1; k < 4096; k++) {
+            u32 w = rd32(la + 4 * k), op = w >> 24;
+            if ((w & 0xff0000ff) == 0x14000001) break;
+            if (op == 0x20) { u32 r = (w >> 16) & 0xff, n = w & 0xffff; for (u32 i = 0; i < n; i++) gfxReg[(r + i) & 0xff] = rd32(la + 4 * (k + 1 + i)); k += n; continue; }
+            if (op == 0xd3) { u32 n = w & 0xffff; fillPos = rd32(la + 4 * (k + 1)); fillSize = rd32(la + 4 * (k + 2)); fillColour = rd32(la + 4 * (k + 3)); k += n; continue; }
+            if (op == 0x96) {            // fill the rectangle set by D3
+                int x0 = fillPos & 0xffff, y0 = fillPos >> 16, w2 = fillSize & 0xffff, h2 = fillSize >> 16;
+                for (int y = y0; y < y0 + h2; y++) for (int x = x0; x < x0 + w2; x++) if (u16* p = vram_px(x, y)) *p = u16(fillColour);
+                continue;
+            }
+            if (op == 0x09) { k += 1; continue; }   // primitive record address follows
+        }
+    }
     void gfx_int() { int_set(8, (regs[0xa8000014] & 0x3f) && (regs[0xa8000010] & 1)); }
     void dma_int() { int_set(12, (regs[0xbc00001c] & regs[0xbc000004]) != 0); }
     void cd_int() { int_set(14, (regs[0xc4000064] & regs[0xc4000068]) != 0); }
@@ -143,7 +164,7 @@ struct VF : Bus {
         regs[0xc400005c] = u32(q[6]) << 24 | q[7] << 16 | q[8] << 8 | q[9];
         regs[0xc4000064] |= 1u << 5;
         if ((regs[0xc4000068] & 0x4000) && !mediaReported && !getenv("NOMEDIA")) { regs[0xc4000064] |= 1u << 14; mediaReported = true; }   // media monitor: disc found (once per insertion)
-        if ((regs[0xc4000060] >> 31) && lba >= 0 && lba < discSectors) {   // CD-ROM decoder: header of the sector passing by
+        if (lba >= 0 && lba < discSectors) {   // CD-ROM decoder: header of the sector passing by
             u8 m[3]; msf(lba, m);
             regs[0xc400004c] = 1u << 31 | m[0] << 16 | m[1] << 8 | m[2];
             static long long hdrFrom = getenv("HDRFROM") ? atoll(getenv("HDRFROM")) : -1;
@@ -165,6 +186,8 @@ struct VF : Bus {
             if (tracking == 2) jump(1); else if (tracking == 3) jump(-1);      // single track kicks
         }
         if (addr == 7) jumpCount = int(v >> 4) & 0xffff;
+        if (addr == 0xb) { sled_update(); traverseTarget = bits >= 24 ? int(v >> (bits - 20)) & 0xffff : 0; traverseFrom = rad;   // $Bx: traverse monitor count
+            if (getenv("VFSUB")) printf("traverse %d tracks from lba %.0f\n", traverseTarget, lba_at(rad)); }
         if (addr == 4 && bits >= 8) {                // auto sequence
             int op = int(v >> (bits - 8)) & 15;
             switch (op) {
@@ -191,6 +214,7 @@ struct VF : Bus {
         switch (servoLast) {
         case 3: return rad <= RLIMIT;               // inner limit switch
         case 0x38: return true;                     // auto gain done
+        case 0xb: return fabs(rad - traverseFrom) / PITCH < traverseTarget;    // COMP (active low): stays high until the count is reached
         case 0xe: return !(clv == 0xa && cycles - brakeAt > 45000000ull);   // braking: drops once the disc has slowed
         default: return sens;
         }
@@ -395,6 +419,7 @@ struct VF : Bus {
                         }
                         printf("\n");
                     }
+                    gfx_run(regs[0xa8000028]);
                     regs[0xa8000014] |= 0xfd08; gfx_int();   // the list's closing 0x1400FD01 packet: interrupt with ID 0xFD
                 }
                 regs[a] = 0; log("W", a, v); return;
@@ -458,6 +483,7 @@ int main(int argc, char** argv) {
         vf.cycles += 4578;
         vf.tick32k();
         vf.subcode_tick();
+        if (cpu.r[15] >= 0x10999d74 && cpu.r[15] <= 0x10999d84 && !getenv("NOIDLE")) cpu.halt();   // the game OS's idle task
         if (vf.resetPending) {
             vf.resetPending = false;
             printf("chip reset at t=%llu (0x8fff0004 = %x)\n", vf.cycles / 150000, vf.regs[0x8fff0004]);

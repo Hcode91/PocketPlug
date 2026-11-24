@@ -295,3 +295,18 @@ Nothing is drawn yet: the graphics engine is a stub.
    DMA into the 0x3C buffer with IRQ 14. Alternative: hook the boot ROM's CD driver API
    (high-level) with ARM926::hle_hook and serve sectors from the image directly.
 2. Once BOOT.BIN loads, find what it needs (graphics, ZSP400 DSP for sound / MJPEG).
+
+## Long seeks (game CD driver)
+
+The game's own driver seeks far with: brake `$EA000200`, sled `$22`/`$23`
+(forward/back), traverse count `$Bx` (track count in bits 19..4 of the
+payload, e.g. `$B1175080` = 4469 tracks), then polls sense `$B0`.
+SENS for `$B` is **active low**: it stays high while tracks are still being
+crossed and drops when the count is reached; the driver then stops the sled
+with `$20`, re-locks CLV and fine-seeks (`$Bx` again with a smaller count).
+With that, the game reaches AMAIN/MAIN.VFF (LBA 52231) and streams
+52231..55254 (~6 MB). The game's driver also does not set 0x60 bit 31, so the
+decoder must not be gated on it.
+
+Screen state after the load: framebuffer clears only; 09 primitive records
+(sprites/textured quads) are not drawn yet.
