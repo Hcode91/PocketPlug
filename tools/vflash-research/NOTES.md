@@ -252,6 +252,37 @@ good reference. Differences found so far are marked V.Flash below.
   Next: decode the graphics command stream and render it; then input (GPIO), sound and the
   game's own CD reads.
 
+### Graphics engine command packets (from the game's builders at 0x109E44D8..0x109E6300)
+
+Each queued list is `00000001`, packets, then `1400FD01` (interrupt ID 0xFD = list done). The
+engine works in one 12-bit (x, y) coordinate space; positions are packed as (y << 12) | x.
+
+| Packet | Meaning (evidence) |
+|---|---|
+| `20RRNNNN` + N words | write N registers starting at R (e.g. `20740001 0`, `20780002 a b`) |
+| `81yyyxxx` | origin / centre inside the target (0x109E44D8) |
+| `82yyyxxx`, `83yyyxxx` | clip rectangle top-left and bottom-right (x+w-1, y+h-1) (0x109E4520) |
+| `D3000003 pos size colour` + `96000000` | rectangle fill: pos (y<<16)\|x, size (h<<16)\|w; 96 = go |
+| `84000xxx` | render flags (bit 5, bit 1 from settings) (0x109E5F38) |
+| `85yyyxxx`, `87yyyxxx`, `8Eyyyxxx`, `8Fyyyxxx` | positions in the coordinate space (texture source etc.) |
+| `86` | (a << 15) \| (b << 11) \| c (0x109E5E9C) |
+| `88`, `8A`, `8B`, `8C` (16-bit arg), `8D` (24-bit colour, e.g. FCFCFC) | state |
+| `1C006760`, `1E00E230` | mode words (blend / texture modes?) |
+| `09000000 addr` | draw the primitive record at addr |
+
+Primitive records (28 bytes): `C8050005`, word, position as two signed 16-bit values, size
+(h << 16) \| w, 0, colour 0x00RRGGBB, `04000000`.
+
+Three 512x240 framebuffers sit at y = 0, 240 and 480 (clears at (0,0), (512,240) etc.); textures
+use x >= 512 (e.g. 0x8F2E6220 = (544, 742)). Where this coordinate space lives in memory is not
+known yet: RAM from 0x10048000 (0x98, the render target register) at 2048 bytes per row does not
+show textures there, and the only bitmap found in RAM (0x10230000, the upside-down V.Smile Pro logo)
+is left over from the boot ROM splash. The game has not read anything from the disc yet after
+starting, so its textures may simply not be loaded.
+
+The math unit at 0xA4000000: writing a float to 0x00 and reading it back gives the integer
+(modelled); 0x18 is used similarly with fixed-point values (still a pass-through).
+
 ## Status
 
 The boot reaches the MORE OS scheduler, shows the VTech logo and the V.Smile Pro splash, spins the

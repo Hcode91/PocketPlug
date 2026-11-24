@@ -315,6 +315,7 @@ struct VF : Bus {
         if (dev == 0x9001 || dev == 0x900c) { u32 v = timer_read(a); log("R", a, v); return v; }
         if (a == 0xc4000018) { u32 v = drive_sens() ? 3 : 0; log("R", a, v); return v; }
         if (a == 0xb8000000) { u32 v = lcdStatus; log("R", a, v); return v; }
+        if (a == 0xa4000000) { float f; u32 w = regs[a]; memcpy(&f, &w, 4); u32 v = u32(int32_t(f)); log("R", a, v); return v; }   // math unit: float -> integer
         // 0x40: bits 0 (decoder on), 2 (transfer on), 7-8 (mode) read back as written; bits 3-6 are
         // status (3-4 = error, 5-6 = locked) as the driver's health check 0x100629B4 expects
         if (a == 0xc4000040) { u32 v = (regs[a] & ~0x7du) | (spinning() ? 0x65 : 0); log("R", a, v); return v; }
@@ -385,7 +386,15 @@ struct VF : Bus {
             if (a == 0xa8000014) { regs[a] &= ~v; gfx_int(); log("W", a, v); return; }
             if (a == 0xa8000000) {                     // 1 = run the list at 0x28, 3 = reset; status code 3 = busy, 0 = idle
                 if ((v & 3) == 1) {
-                    if (getenv("VFGFX")) printf("gfx list %08x t=%llu\n", regs[0xa8000028], cycles / 150000);
+                    if (getenv("VFGFX")) {
+                        u32 la = regs[0xa8000028];
+                        printf("gfx list %08x t=%llu:", la, cycles / 150000);
+                        for (int k = 0; k < 256 && la + 4 * k + 4 <= 0x10000000 + sdram.size() && la >= 0x10000000; k++) {
+                            u32 w; memcpy(&w, &sdram[la + 4 * k - 0x10000000], 4); printf(" %08x", w);
+                            if ((w & 0xff0000ff) == 0x14000001) break;
+                        }
+                        printf("\n");
+                    }
                     regs[0xa8000014] |= 0xfd08; gfx_int();   // the list's closing 0x1400FD01 packet: interrupt with ID 0xFD
                 }
                 regs[a] = 0; log("W", a, v); return;
