@@ -185,19 +185,29 @@ good reference. Differences found so far are marked V.Flash below.
   single-track kicks cover 1.6 tracks so the pause loop converges.
 - 0x40: bits 0 (decoder on) and 2 (transfer on) are control; bits 3-6 read as status (3-4 = 0,
   5-6 = locked) and the driver writes them back. Bit 7 set = header-slot mode, clear = ring mode.
-- Header slots: 4 x 1 KB at 0x3C (8 status bytes, then the raw sector: mode byte at +0x17).
-  0x70 = count << 2 | read slot; 0x64 bits 4 + 12 (slot mode) or 12 (ring mode); 0x74 bit 0 or 1
-  releases one. The ISR posts event 6 per header (0x10063198 = count).
+- Header slots: 4 x 1 KB at 0x3C. Word 0 = status (1 = decoded OK), word 1 = address in the ring
+  where that sector's user data went, +0x08 sync and header (mode byte at +0x17), +0x18 the
+  sector's EDC and P/Q parity (raw bytes 2064..2351) for the software ECC 0x10072128 (GF(256)
+  tables at 0x101A2018/0x101A2118; returns 0 when the syndromes are clean). In slot mode (header
+  checks) the slot holds the raw sector start instead. 0x70 = count << 2 | read slot; 0x64 bit
+  12 per entry (+ bit 4 in slot mode); 0x74 bit 0 or 1 releases one; a new ring read (write to
+  0x24) empties the buffer and re-arms the address match. The ISR posts event 6 per entry.
 - Ring mode (0x10062608): 0x1C = start MSF (bit 24 = no match), 0x20 bit 24 = until stopped,
   0x24 = write pointer, 0x28/0x2C = ring (20 x 2048 bytes), 0x80 = mark: bit 16 (event 9) when the
   pointer reaches it; with 0x84 bit 0 the sector starting at the mark is the last one and the
   transfer ends with bits 16 + 4 (event 8). 2048 user bytes per sector.
-- Boot result: the disc check passes (callback event 0x10), the loader 0x10012788(7) opens
-  0SYSTEM\BOOT.BIN;1 (LBA 50, 2,007,756 bytes), and the file system reads LBA 16..35 correctly
-  (volume descriptor, root, 0SYSTEM directory). The read op 0x10070C60 is started once but the
-  CD events (6/8/9, posted by 0x100676DC) never reach it, so job 0x206 stays in state 2
-  (0x10358BC4) and the loader polls 0x1009B358 forever. Next: follow 0x100676DC's queue
-  (0x1006F9B4 with r1 = 1) to where op handlers receive events.
+- CD events (category 2 in the device manager queue) go through 0x100633C0 to the handler table
+  at 0x101A1FC4 (event n -> entry n). Event 6 -> 0x10063D1C (headers, 0x10065BFC), 7 -> 0x10063D40
+  (read finished: continues only if decoder state 0x10358380 is 3 = ended), 8 -> 0x100640B8
+  (transfer end), 0x0B -> 0x10064334 (ECC result for one sector, from task 0x100689CC).
+- Boot result: disc accepted, loader 0x10012788(7) opens 0SYSTEM\BOOT.BIN;1 (LBA 50), the file
+  system reads LBA 16..35 with per-sector ECC passing, re-reads from LBA 16 into the next ring
+  position, gets 2 sectors, posts event 7 while the decoder state is still <= 2, stops the decoder
+  and goes quiet. The loader's request (0x10358BC0, state at +4: 2 = busy, 4 = done) is completed
+  by 0x1009A26C via callback 0x1009AC88 (registered with the read at 0x10098EB0), which never runs.
+  Next: work out how the read request struct 0x10355260 (+0x14 start, +0x18 position, +0x34
+  count) is advanced per sector (0x10065FF4 maps a ring address to a sector index) and why the
+  first 20-sector read is redone.
 
 ## Status
 

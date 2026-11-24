@@ -53,7 +53,7 @@ struct VF : Bus {
     // ---- CD-ROM decoder: 4 slots of 1 KB at 0x3C (8 status bytes, then the raw sector start) ----
     FILE* disc = nullptr;
     int slotRd = 0, slotCount = 0;
-    bool ringStopped = false;
+    bool ringStopped = false, endPending = false;
     bool decoding = false, matched = false;
     void read_raw(long lba, u8* out) {
         memset(out, 0, 2352);
@@ -62,14 +62,15 @@ struct VF : Bus {
     void decoder_update() { regs[0xc4000070] = u32(slotCount) << 2 | u32(slotRd & 3); }
     // Ring mode: 2048 user bytes per sector at the write pointer 0x24, wrapping inside 0x28..0x2C;
     // 0x64 bit 16 once the pointer passes 0x80; 0x20 = sectors left (bit 24 = until stopped).
-    void ring_sector(long lba) {
+    u32 ring_sector(long lba) {   // returns where the sector's user data went (0 = not written)
         u32 cnt = regs[0xc4000020];
-        if (!(cnt & 0x1000000) && (cnt & 0xffffff) == 0) return;
-        if (ringStopped) return;                      // halted at the mark (0x84 bit 0)
+        if (!(cnt & 0x1000000) && (cnt & 0xffffff) == 0) return 0;
+        if (ringStopped) return 0;                    // halted at the mark (0x84 bit 0)
         u8 raw[2352]; read_raw(lba, raw);
         u32 wp = regs[0xc4000024], lo = regs[0xc4000028], hi = regs[0xc400002c] + 4, mark = regs[0xc4000080];
         if (wp >= hi) wp = lo;
         bool last = (regs[0xc4000084] & 1) && wp == mark;   // stop mark: the sector starting there is the last one
+        u32 start = wp;
         for (int i = 0; i < 2048; i += 4) {
             if (wp >= hi) wp = lo;
             if (wp >= 0x10000000 && wp + 4 <= 0x10000000 + sdram.size()) memcpy(&sdram[wp - 0x10000000], raw + 16 + i, 4);
@@ -81,8 +82,10 @@ struct VF : Bus {
         regs[0xc4000024] = wp;
         if (!(cnt & 0x1000000)) { regs[0xc4000020] = cnt - 1; if (((cnt - 1) & 0xffffff) == 0) regs[0xc4000064] |= 1u << 4; }
         if (getenv("VFSUB")) printf("ring lba %ld -> wp %08x\n", lba, wp);
+        return start;
     }
     void sector_arrived(long lba) {
+        if (endPending) { endPending = false; regs[0xc4000064] |= 1u << 4; }
         if ((regs[0xc4000040] & 5) != 5) { decoding = false; return; }
         if (!decoding) { decoding = true; matched = (regs[0xc400001c] >> 24) & 1; }
         if (!matched) {
@@ -91,14 +94,22 @@ struct VF : Bus {
             matched = true;
         }
         bool ring = !(regs[0xc4000040] & 0x80);      // bit 7 clear: user data by DMA into the ring
-        if (ring) { if (ringStopped) return; ring_sector(lba); }
+        u32 dataAt = 0;
+        if (ring) { if (ringStopped) return; dataAt = ring_sector(lba); if (!dataAt) return; }
         if (slotCount >= 4) return;                  // header buffer full: the entry is lost
         int slot = (slotRd + slotCount) & 3;
         u32 base = regs[0xc400003c] + u32(slot) * 0x400;
         u8 raw[2352]; read_raw(lba, raw);
         if (base >= 0x10000000 && base + 0x400 <= 0x10000000 + sdram.size()) {
             memset(&sdram[base - 0x10000000], 0, 8);
-            memcpy(&sdram[base - 0x10000000 + 8], raw, 0x400 - 8);
+            sdram[base - 0x10000000] = 1;                // status word: 1 = sector decoded without error
+            memcpy(&sdram[base - 0x10000000 + 4], &dataAt, 4);   // word 1: where the user data went (ring mode)
+            // slot: status, data address, sync + header (raw 0..15), then in ring mode the EDC and the
+            // P/Q parity (raw 2064..2351) that the software ECC (0x10072128) uses; slot mode keeps the sector start
+            u8* sl = &sdram[base - 0x10000000];
+            memset(sl + 8, 0, 0x400 - 8);
+            if (ring) { memcpy(sl + 8, raw, 16); memcpy(sl + 0x18, raw + 2064, 288); }
+            else memcpy(sl + 8, raw, 0x400 - 8);
         }
         slotCount++; decoder_update();
         regs[0xc4000064] |= (ring ? 0 : 1u << 4) | 1u << 12;
