@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -138,6 +138,20 @@ private val vc4000Titles: Map<Long, String> = mapOf(
 )
 
 /** Getting-started steps shared by the Archimedes family (Arculator). */
+private val BBC_SETUP = listOf(
+    "It starts in BASIC. Tap the disc drive, then \"Load a disc or tape\": a disc starts itself (SHIFT+BREAK), a tape is loaded with CHAIN\"\" (tapes take minutes, as they did).",
+    "Discs and tapes you've loaded stay in that menu for next time.",
+    "The pad presses Z X : / (left, right, up, down), the keys most games use; Menu switches it to the cursor keys. RETURN and SPACE are the red buttons.",
+    "SHIFT and CTRL stay down for the next key when tapped on their own. BREAK restarts the program, like the real key.",
+    "There are no save states on these computers.",
+)
+
+private val BBC_SETUP_NODISC = listOf(
+    "It starts in BASIC (the network filing system has no server here). Tap the drive for tapes (.uef .csw), loaded with CHAIN\"\".",
+    "The pad presses Z X : / (left, right, up, down); Menu switches it to the cursor keys. RETURN and SPACE are the red buttons.",
+    "SHIFT and CTRL stay down for the next key when tapped on their own. There are no save states on these computers.",
+)
+
 private val ARCHI_SETUP = listOf(
     "It starts RISC OS to the desktop: the icon bar along the bottom (Arthur, on the oldest machines, starts at its own simpler desktop).",
     "The screen is the mouse pad: drag to move the pointer, tap to click SELECT. Hold MENU on the mouse for RISC OS's menus (there are no menu bars), ADJUST for the right button.",
@@ -2403,6 +2417,179 @@ object Machines {
                 "Apps on the icon bar has the built-in applications (Draw, Paint, Edit, Maestro, ...).",
                 "Quit RISC OS programs before leaving: there are no save states on this machine.",
             ),
+        ),
+        MachineDef(
+            id = "bbca",
+            title = "Model A Microcomputer",
+            subtitle = "1981 British school computer, 16 KB, tapes only (.uef .csw). Import the bbca zip and saa5050.zip (MAME set: bbca)",
+            chip = "6502, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "UK",
+            year = "1981",
+            roms = listOf(
+                RomSpec("os12.rom", 0x4000L, 0x3c14fc70L),
+                RomSpec("basic2.rom", 0x4000L, 0x79434781L),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "a",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcb",
+            title = "Model B Microcomputer",
+            subtitle = "1981 British school computer, 32 KB with the disc system. Discs (.ssd .dsd) and tapes (.uef .csw). Import the bbcb zip, "
+                + "bbc_acorn8271.zip (the disc ROM) and saa5050.zip (MAME set: bbcb)",
+            chip = "6502, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "UK",
+            year = "1981",
+            roms = listOf(
+                RomSpec("os12.rom", 0x4000L, 0x3c14fc70L),
+                RomSpec("basic2.rom", 0x4000L, 0x79434781L),
+                RomSpec("dnfs120.rom", 0x4000L, 0x8ccd2157L),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "b",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcb_us",
+            title = "Model B Microcomputer (US)",
+            subtitle = "1983 American version (60 Hz) with a word processor in ROM. Discs (.ssd .dsd) and tapes. Import the bbcb_us zip and "
+                + "saa5050.zip (MAME set: bbcb_us)",
+            chip = "6502, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "USA",
+            year = "1983",
+            roms = listOf(
+                RomSpec("usmos10.rom", 0x4000L, 0xc8e946a9L),
+                RomSpec("usbasic3.rom", 0x4000L, 0x161b9539L),
+                RomSpec("usdnfs10.rom", 0x4000L, 0x7e367e8cL),
+                RomSpec("viewa210.rom", 0x4000L, 0x4345359fL),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "bus",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcbp",
+            title = "Model B+ 64K Microcomputer",
+            subtitle = "1985 update of the Model B with 64 KB and a double-density disc system. Discs (.ssd .dsd) and tapes. Import the bbcbp zip "
+                + "and saa5050.zip (MAME set: bbcbp)",
+            chip = "6502, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "UK",
+            year = "1985",
+            roms = listOf(
+                RomSpec("bpos2.ic71", 0x8000L, 0x9f356396L),
+                RomSpec("ddfs223.rom", 0x4000L, 0x7891f9b7L),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "bp",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcbp128",
+            title = "Model B+ 128K Microcomputer",
+            subtitle = "The B+ with 128 KB of sideways RAM. Discs (.ssd .dsd) and tapes. Import the bbcbp128 zip and saa5050.zip (MAME set: bbcbp128)",
+            chip = "6502, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "UK",
+            year = "1985",
+            roms = listOf(
+                RomSpec("bpos2.ic71", 0x8000L, 0x9f356396L),
+                RomSpec("ddfs223.rom", 0x4000L, 0x7891f9b7L),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "bp128",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcm",
+            title = "Master 128",
+            subtitle = "1986 successor with 128 KB, a 65C12 and a numeric keypad. DFS and ADFS discs (.ssd .dsd .adf .adl) and tapes. Import the bbcm zip and saa5050.zip "
+                + "(MAME set: bbcm)",
+            chip = "65SC12, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "UK",
+            year = "1986",
+            roms = listOf(
+                RomSpec("mos320.ic24", 0x20000L, 0x0f747ebeL),
+                RomSpec("mos320.cmos", 0x40L, 0xc7f9e85aL),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "m128",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcmt",
+            title = "Master Turbo",
+            subtitle = "The Master 128 with a 4 MHz 65C102 second processor. Import the bbcmt zip, bbc_tube_65c102.zip and saa5050.zip "
+                + "(MAME set: bbcmt)",
+            chip = "65SC12 + 65C102 second processor (B-em)",
+            region = "UK",
+            year = "1986",
+            roms = listOf(
+                RomSpec("mos320.ic24", 0x20000L, 0x0f747ebeL),
+                RomSpec("mos320.cmos", 0x40L, 0xc7f9e85aL),
+                RomSpec("65c102_boot_110.rom", 0x1000L, 0xad5b70ccL),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "mt",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcm512",
+            title = "Master 512",
+            subtitle = "The Master 128 with an 80186 second processor for DOS Plus and GEM: load the DOS Plus boot disc (.adl / .img). Import the bbcm512 zip, "
+                + "bbc_tube_80186.zip and saa5050.zip (MAME set: bbcm512)",
+            chip = "65SC12 + 80186 second processor (B-em)",
+            region = "UK",
+            year = "1986",
+            roms = listOf(
+                RomSpec("mos320.ic24", 0x20000L, 0x0f747ebeL),
+                RomSpec("mos320.cmos", 0x40L, 0xc7f9e85aL),
+                RomSpec("m512_lo_ic31.rom", 0x2000L, 0xc0df8707L),
+                RomSpec("m512_hi_ic32.rom", 0x2000L, 0xe47f10b2L),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "m512",
+            setup = BBC_SETUP,
+        ),
+        MachineDef(
+            id = "bbcmet",
+            title = "Master Econet Terminal",
+            subtitle = "1986 network station version of the Master, no disc drive: it starts in BASIC. Import the bbcmet zip and saa5050.zip "
+                + "(MAME set: bbcmet)",
+            chip = "65SC12, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "UK",
+            year = "1986",
+            roms = listOf(
+                RomSpec("mos400.ic24", 0x10000L, 0x81729034L),
+                RomSpec("mos400.cmos", 0x32L, 0xfff41cc5L),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "met",
+            setup = BBC_SETUP_NODISC,
+        ),
+        MachineDef(
+            id = "bbcmc",
+            title = "Master Compact",
+            subtitle = "1986 compact Master with a 3.5\" drive for ADFS discs (.adf .adl). Import the bbcmc zip and "
+                + "saa5050.zip (MAME set: bbcmc)",
+            chip = "65SC12, 6845 CRTC, teletext, SN76489 (B-em)",
+            region = "UK",
+            year = "1986",
+            roms = listOf(
+                RomSpec("mos510.ic49", 0x10000L, 0x9a2a6086L),
+                RomSpec("saa5050", 0x3c0L, 0x201490f3L),
+            ),
+            skin = Skin.BBC,
+            badge = "mc",
+            setup = BBC_SETUP,
         ),
         MachineDef(
             id = "500in1hh",

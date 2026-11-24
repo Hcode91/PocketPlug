@@ -103,6 +103,7 @@ controller.
 | 65XE / 800XE Home Computers (Atari) | `a65xe`, `a800xe` | Atari800, 64 KB | BASIC built in; loads disks, programs, cartridges and tapes |
 | Archimedes family (Acorn): 305, 310, 440, 410/1, 540, A3000, A3010 (UK / German), A3020, A4000, A5000, A4 laptop, A500 | `aa305`, `aa310`, `aa440`, `aa4101`, `aa540`, `aa3000`, `aa3010`, `aa3010_de`, `aa3020`, `aa4000`, `aa5000`, `aa4`, `aa500` | Arculator (ARM2 / ARM250 / ARM3, MEMC, VIDC, IOC, IOEB, 82C711, WD1772) | Arthur, RISC OS 2 and RISC OS 3 start to the desktop, chosen in the menu; floppies, HostFS, and MAME's RISC OS 3.11 hard disk on the IDE machines (MAME's drivers don't run) |
 | A7000 / A7000+ Desktop Computers (Acorn) | `a7000`, `a7000p` | RPCEmu (ARM7500 / ARM7500FE, IOMD, VIDC20), 32 MB | RISC OS 3.60 / 3.71 start to the desktop; mouse, keyboard, floppies (.adf) and HostFS |
+| BBC Microcomputer family (Acorn): Model A, Model B, US Model B, B+ 64K, B+ 128K, Master 128, Master Turbo, Master 512, Master Econet Terminal, Master Compact | `bbca`, `bbcb`, `bbcb_us`, `bbcbp`, `bbcbp128`, `bbcm`, `bbcmt`, `bbcm512`, `bbcmet`, `bbcmc` | B-em (6502 / 65SC12, 6845 CRTC, video ULA, SAA5050 teletext, SN76489, 8271 / 1770 disc controllers, 65C102 and 80186 second processors) | All start to BASIC; discs (.ssd .dsd, Masters also .adf .adl .img) start with SHIFT+BREAK and tapes (.uef .csw) load with CHAIN""; the Master 512 boots DOS Plus from its boot disc |
 | 400 Home Computer (Atari) | `a400`, `a400pal` | Atari800 (6502B, ANTIC, CTIA/GTIA, POKEY), 48 KB | Real OS rev. B (NTSC) / rev. A (PAL): Memo Pad; loads disks, programs, cartridges and tapes; optional BASIC cartridge |
 | 130XE Home Computer (Atari) | `a130xe` | Atari800, 128 KB banked RAM | BASIC built in; loads disks, programs, cartridges and tapes |
 | PC 7300 / 3B1 Desktop (AT&T UNIX PC) | `3b1` | Motorola 68010 + MMU, 720x348 bitmap, WD2797 floppy, WD2010 hard disk, keyboard + mouse (FreeBee) | Installs the 3.51 Foundation set from floppies onto the emulated 64 MB hard disk, boots from it to the window manager; mouse and full keyboard |
@@ -235,6 +236,33 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | | | `1203,102-01.bin` | 2 MB (2,097,152 bytes) | `6db87d21` |
 | A7000+ | `a7000p` | `1203,261-01.bin` | 2 MB (2,097,152 bytes) | `8e3c570a` |
 | | | `1203,262-01.bin` | 2 MB (2,097,152 bytes) | `cf4615b4` |
+| BBC Model A | `bbca` | `os12.rom` | 16 KB (16,384 bytes) | `3c14fc70` |
+| | | `basic2.rom` | 16 KB (16,384 bytes) | `79434781` |
+| | | `saa5050` (teletext characters, `saa5050.zip`) | 960 bytes | `201490f3` |
+| BBC Model B | `bbcb` | `os12.rom` | 16 KB (16,384 bytes) | `3c14fc70` |
+| | | `basic2.rom` | 16 KB (16,384 bytes) | `79434781` |
+| | | `dnfs120.rom` (disc system, `bbc_acorn8271.zip`) | 16 KB (16,384 bytes) | `8ccd2157` |
+| | | `saa5050` (teletext characters, `saa5050.zip`) | 960 bytes | `201490f3` |
+| BBC Model B (US) | `bbcb_us` | `usmos10.rom` | 16 KB (16,384 bytes) | `c8e946a9` |
+| | | `usbasic3.rom` | 16 KB (16,384 bytes) | `161b9539` |
+| | | `usdnfs10.rom` | 16 KB (16,384 bytes) | `7e367e8c` |
+| | | `viewa210.rom` | 16 KB (16,384 bytes) | `4345359f` |
+| | | `saa5050` (teletext characters, `saa5050.zip`) | 960 bytes | `201490f3` |
+| BBC B+ 64K / B+ 128K | `bbcbp`, `bbcbp128` | `bpos2.ic71` | 32 KB (32,768 bytes) | `9f356396` |
+| | | `ddfs223.rom` | 16 KB (16,384 bytes) | `7891f9b7` |
+| | | `saa5050` (teletext characters, `saa5050.zip`) | 960 bytes | `201490f3` |
+| BBC Master 128 / Turbo / 512 | `bbcm`, `bbcmt`, `bbcm512` | `mos320.ic24` | 128 KB (131,072 bytes) | `0f747ebe` |
+| | | `mos320.cmos` | 64 bytes | `c7f9e85a` |
+| | | Master Turbo: `65c102_boot_110.rom` (`bbc_tube_65c102.zip`) | 4 KB (4,096 bytes) | `ad5b70cc` |
+| | | Master 512: `m512_lo_ic31.rom` (`bbc_tube_80186.zip`) | 8 KB (8,192 bytes) | `c0df8707` |
+| | | Master 512: `m512_hi_ic32.rom` (`bbc_tube_80186.zip`) | 8 KB (8,192 bytes) | `e47f10b2` |
+| | | `saa5050` (teletext characters, `saa5050.zip`) | 960 bytes | `201490f3` |
+| BBC Master Econet Terminal | `bbcmet` | `mos400.ic24` | 64 KB (65,536 bytes) | `81729034` |
+| | | `mos400.cmos` | 50 bytes | `fff41cc5` |
+| | | `saa5050` (teletext characters, `saa5050.zip`) | 960 bytes | `201490f3` |
+| BBC Master Compact | `bbcmc` | `mos510.ic49` | 64 KB (65,536 bytes) | `9a2a6086` |
+| | | `saa5050` (teletext characters, `saa5050.zip`) | 960 bytes | `201490f3` |
+| | | Plus your own discs (`.ssd` `.dsd`; Masters also `.adf` `.adl` `.img`) and tapes (`.uef` `.csw`) | - | - |
 | 400 Home Computer | `a400` | `co12399b.rom` | 2 KB (2,048 bytes) | `6a5d766e` |
 | | | `co12499b.rom` | 4 KB (4,096 bytes) | `d818f3e8` |
 | | | `co14599b.rom` | 4 KB (4,096 bytes) | `c1690a9b` |
@@ -768,6 +796,36 @@ front:
   `` ` `` = Inverse, F1-F4, F5 = START, F6 = SELECT, F7 = OPTION, F8 = HELP,
   F9 / Break = BREAK, F10 = RESET. The arrow keys and Alt steer the joystick.
 
+### BBC Microcomputer family
+
+Import the machine's MAME zip and `saa5050.zip` (the teletext character ROM);
+the Model B also needs `bbc_acorn8271.zip` (its disc ROM), the Master Turbo
+`bbc_tube_65c102.zip` and the Master 512 `bbc_tube_80186.zip`. The machine is
+B-em (GPL), built without its Allegro front end. Every model starts in BASIC.
+
+Drawn as the monitor on top, the cream keyboard (red f0-f9, BREAK, cursor keys
+and COPY; the Masters add the numeric keypad, the Compact is light grey), a
+pad and a twin disc drive. No maker's name or logo is drawn.
+
+- **Tap the disc drive** for discs and tapes. A disc (`.ssd` `.dsd` DFS; on the
+  Masters also `.adf` `.adl` `.img` ADFS, the Compact only those) goes in
+  drive 0 and starts itself with SHIFT+BREAK (SHIFT+A+BREAK for ADFS on the
+  Masters); a tape (`.uef` `.csw`) is loaded by typing `*TAPE` and
+  `CHAIN""` for you, at the real speed (minutes). A second disc can go in
+  drive 1 without a restart. Loaded files stay in the menu.
+- **The pad** presses Z X : / (left, right, up, down), the keys most games
+  use; the menu switches it to the cursor keys. The red buttons are RETURN and
+  SPACE.
+- **SHIFT and CTRL** latch for the next key when tapped on their own. BREAK
+  restarts like the real key.
+- **A real keyboard** types on the BBC's: letters, digits, F1-F9 = f1-f9, F10 = f0,
+  F12 / Break = BREAK, Esc, Enter = RETURN, Backspace = DELETE, End = COPY,
+  `'` = `:`, `=` = `^`, `` ` `` = `_`. The arrows and a gamepad drive the pad.
+- The **Master 512** runs its 80186 memory test, then boots DOS Plus from its
+  boot disc (tested with B-em's "Master 512 Disc 1 (DOS Plus Boot).img"); the **Master Econet Terminal** has no disc system (its network filing
+  system has no server here), so it's BASIC and tapes.
+- No save states.
+
 ### A7000 and A7000+ Desktop Computers
 
 Import the MAME `a7000` or `a7000p` zip (the `rpc600` and keyboard zips aren't
@@ -889,6 +947,7 @@ app/src/main/cpp/
   cores/tm990/          TM 990/189: TMS9980A (tms9980.h), TMS9901s, TMS9918 (tms9918.h)
   cores/nixie4004/       Intel 4004 CPU (i4004.h) and the 4004 Nixie Clock board
   cores/acorn/          A7000 / A7000+: RPCEmu (GPL-2+) in rpcemu/, host side in rpcemu_glue.c, acorn.cpp
+  cores/bbc/            BBC Micro family: B-em (GPL-2+) in bem/, Allegro stand-in in shim/, glue in bem_glue.c, bbc.cpp
   cores/atari800/       Atari 8-bit computers: Atari800 (GPL-2+) as libatari800 in a800/, glue in atari800.cpp
   cores/unixpc/         PC 7300 / 3B1: FreeBee (GPL-3) + Musashi 68010, glue in unixpc.cpp
                         (Musashi is shared with the Almeria core through freebee/m68k_bus.c)

@@ -106,6 +106,11 @@ object SkinPreview {
             else -> AtariXlView.MODEL_1200XL
         })
         Skin.ACORN -> AcornView(ctx, m.badge)
+        Skin.BBC -> BbcView(ctx, when (m.badge) {
+            "m128", "mt", "m512", "met" -> BbcView.MODEL_MASTER
+            "mc" -> BbcView.MODEL_COMPACT
+            else -> BbcView.MODEL_MICRO
+        })
         Skin.KIDS_LAPTOP -> KidsLaptopView(ctx, m.badge)
     }
 

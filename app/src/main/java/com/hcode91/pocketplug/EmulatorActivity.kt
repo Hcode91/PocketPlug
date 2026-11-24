@@ -68,6 +68,8 @@ class EmulatorActivity : Activity() {
     private var workstation: DesktopSkin? = null
     private var atari: AtariXlView? = null
     private var acorn: AcornView? = null
+    private var bbc: BbcView? = null
+    private var bbcPad = 0
     private var laptop: KidsLaptopView? = null
     private var atariStick = 0
     /** Atari models without BASIC inside: the menu plugs a BASIC cartridge in */
@@ -241,6 +243,21 @@ class EmulatorActivity : Activity() {
                 setContentView(v)
                 if (machine.badge in atariNoBasic && prefs.getBoolean("basic_${machine.id}", false))
                     Native.setOption(handle, 1, 1)
+            }
+            Skin.BBC -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = BbcView(this, bbcStyle(machine)).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onDisks = { showBbcMenu() }
+                    onPad = { setTouch(0, it or keyPadBits()) ; bbcPad = it }
+                }
+                bbc = v
+                setContentView(v)
+                if (prefs.getBoolean("bbc_cursor_${machine.id}", false)) {
+                    Native.setOption(handle, 1, 1)
+                    v.padLabels = arrayOf("←", "→", "↑", "↓")
+                }
             }
             Skin.NIXIE_CLOCK -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -888,6 +905,62 @@ class EmulatorActivity : Activity() {
             .show()
     }
 
+    // ---- BBC Micro family: discs and tapes ----
+    private fun bbcStyle(m: MachineDef) = when (m.badge) {
+        "m128", "mt", "m512", "met" -> BbcView.MODEL_MASTER
+        "mc" -> BbcView.MODEL_COMPACT
+        else -> BbcView.MODEL_MICRO
+    }
+    private fun bbcDir() = java.io.File(filesDir, "bbcmicro").apply { mkdirs() }
+    private val PICK_BBC = 61
+    private val PICK_BBC_D1 = 62
+    private fun isBbcTape(f: java.io.File) = f.extension.lowercase() in setOf("uef", "csw")
+
+    private fun showBbcMenu() {
+        paused = true
+        val files = bbcDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        val formats = when (bbcStyle(machine)) {
+            BbcView.MODEL_COMPACT -> ".adf .adl"
+            BbcView.MODEL_MASTER -> ".ssd .dsd .adf .adl .img .uef .csw"
+            else -> ".ssd .dsd .uef .csw"
+        }
+        items += "Load a disc or tape ($formats)..." to { pickAtari(PICK_BBC) }
+        for (f in files) items += "Load ${f.nameWithoutExtension}" to { loadBbc(f, boot = true, drive = 0) }
+        items += "Put a disc in drive 1 (no restart)..." to { pickAtari(PICK_BBC_D1) }
+        items += "Eject the discs" to {
+            synchronized(coreLock) { Native.mediaEject(handle, 0); Native.mediaEject(handle, 1) }
+            bbc?.mediaLabel = null
+        }
+        if (files.isNotEmpty()) items += "Delete a file from the list..." to {
+            paused = true
+            AlertDialog.Builder(this)
+                .setTitle("Delete which file?")
+                .setItems(files.map { it.name }.toTypedArray()) { _, w -> files[w].delete(); paused = false }
+                .setOnCancelListener { paused = false }
+                .show()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Discs & tapes")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which -> paused = false; items[which].second() }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    private fun loadBbc(f: java.io.File, boot: Boolean, drive: Int) {
+        val tape = isBbcTape(f)
+        val d = if (tape) 2 else drive
+        val path = f.absolutePath + if (boot) "|boot" else ""
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, d, path) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        if (drive == 0 || tape) bbc?.mediaLabel = f.nameWithoutExtension
+        Toast.makeText(this, when {
+            tape && boot -> "${f.nameWithoutExtension}: loading from tape (CHAIN\"\"), it takes a few minutes"
+            boot -> "Starting ${f.nameWithoutExtension} (SHIFT+BREAK)"
+            else -> "${f.nameWithoutExtension} in drive ${drive}"
+        }, Toast.LENGTH_SHORT).show()
+    }
+
     // ---- Acorn: floppies (.adf) and files copied into HostFS ----
     /** Archimedes operating systems per machine, in the core's order, and the default */
     private val archiOs: Map<String, Pair<List<String>, Int>> by lazy {
@@ -1427,6 +1500,16 @@ class EmulatorActivity : Activity() {
                     loadAdamDisk(disk, restart = true)
                 } else loadAdamCart(dest)
             }
+            PICK_BBC, PICK_BBC_D1 -> {
+                var name = "disc"
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) name = it.getString(0) ?: name
+                }
+                val safe = name.replace(Regex("[^A-Za-z0-9._ ()-]"), "_").ifEmpty { "disc" }
+                val dest = java.io.File(bbcDir(), safe)
+                runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
+                if (requestCode == PICK_BBC) loadBbc(dest, boot = true, drive = 0) else loadBbc(dest, boot = false, drive = 1)
+            }
             PICK_ATARI, PICK_ATARI_D1 -> {
                 var name = "game"
                 contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
@@ -1588,12 +1671,14 @@ class EmulatorActivity : Activity() {
                 workstation?.indicators = Native.mediaActivity(handle)
                 atari?.indicators = Native.mediaActivity(handle)
                 acorn?.indicators = Native.mediaActivity(handle)
+                bbc?.indicators = Native.mediaActivity(handle)
                 adam?.diskLight = Native.mediaActivity(handle) != 0
                 r
             }
             if (workstation != null) workstation?.updateFrame(pixels)
             else if (atari != null) atari?.updateFrame(pixels)
             else if (acorn != null) acorn?.updateFrame(pixels)
+            else if (bbc != null) bbc?.updateFrame(pixels)
             else if (laptop != null) laptop?.updateFrame(pixels)
             else if (pet != null) pet?.updateFrame(pixels)
             else if (phone != null) phone?.updateFrame(pixels)
@@ -1635,11 +1720,11 @@ class EmulatorActivity : Activity() {
         val stateFile = cartFile?.let { RomStore.cartStateFile(this, machine, it) } ?: RomStore.stateFile(this, machine)
         val items = ArrayList<Pair<String, () -> Unit>>()
         items += "Resume" to {}
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP) items += "Save state" to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC) items += "Save state" to {
             val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
             Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
         }
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
             if (stateFile.exists()) {
                 val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
                 Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()
@@ -1690,6 +1775,15 @@ class EmulatorActivity : Activity() {
         if (workstation != null) items += "Disks..." to { showDiskMenu() }
         if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
         if (acorn != null) items += "Disks & files..." to { showAcornMenu() }
+        if (bbc != null) {
+            items += "Discs & tapes..." to { showBbcMenu() }
+            val cur = prefs.getBoolean("bbc_cursor_${machine.id}", false)
+            items += (if (cur) "Pad presses: the cursor keys" else "Pad presses: Z X : /") to {
+                prefs.edit().putBoolean("bbc_cursor_${machine.id}", !cur).apply()
+                synchronized(coreLock) { Native.setOption(handle, 1, if (cur) 0 else 1) }
+                bbc?.padLabels = if (cur) arrayOf("Z", "X", ":", "/") else arrayOf("←", "→", "↑", "↓")
+            }
+        }
         if (zod != null) items += "SD card..." to { showZodiacCardMenu() }
         archiAsSold[machine.id]?.let { sold ->
             val up = prefs.getBoolean("mem4_${machine.id}", true)
@@ -2152,6 +2246,52 @@ class EmulatorActivity : Activity() {
         }
     }
 
+    /** A real keyboard on the BBC family: keys as matrix codes (bbc.h); arrows and gamepad go to the pad. */
+    private var bbcExt = 0
+    private fun keyPadBits() = bbcExt
+    private fun applyBbcPad() {
+        setTouch(0, bbcPad or bbcExt)
+        bbc?.externalMask = bbcExt
+    }
+    private fun bbcPadBit(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_DPAD_LEFT -> BbcView.LEFT
+        KeyEvent.KEYCODE_DPAD_RIGHT -> BbcView.RIGHT
+        KeyEvent.KEYCODE_DPAD_UP -> BbcView.UP
+        KeyEvent.KEYCODE_DPAD_DOWN -> BbcView.DOWN
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER -> BbcView.RETURN
+        KeyEvent.KEYCODE_BUTTON_B -> BbcView.SPACE
+        else -> 0
+    }
+    private fun bbcKey(code: Int): Int = when (code) {
+        in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> intArrayOf(0x41, 0x64, 0x52, 0x32, 0x22, 0x43, 0x53, 0x54, 0x25,
+            0x45, 0x46, 0x56, 0x65, 0x55, 0x36, 0x37, 0x10, 0x33, 0x51, 0x23, 0x35, 0x63, 0x21, 0x42, 0x44, 0x61)[code - KeyEvent.KEYCODE_A]
+        in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> intArrayOf(0x27, 0x30, 0x31, 0x11, 0x12, 0x13, 0x34, 0x24, 0x15, 0x26)[code - KeyEvent.KEYCODE_0]
+        in KeyEvent.KEYCODE_F1..KeyEvent.KEYCODE_F10 -> intArrayOf(0x71, 0x72, 0x73, 0x14, 0x74, 0x75, 0x16, 0x76, 0x77, 0x20)[code - KeyEvent.KEYCODE_F1]
+        KeyEvent.KEYCODE_F12, KeyEvent.KEYCODE_BREAK -> BbcView.BREAK
+        KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_BUTTON_SELECT -> 0x70
+        KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_BUTTON_START -> 0x49
+        KeyEvent.KEYCODE_SPACE -> 0x62
+        KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_FORWARD_DEL -> 0x59
+        KeyEvent.KEYCODE_TAB -> 0x60
+        KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_SHIFT_RIGHT -> BbcView.SHIFT
+        KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_CTRL_RIGHT -> BbcView.CTRL
+        KeyEvent.KEYCODE_CAPS_LOCK -> 0x40
+        KeyEvent.KEYCODE_MOVE_END -> 0x69          // COPY
+        KeyEvent.KEYCODE_MINUS -> 0x17
+        KeyEvent.KEYCODE_EQUALS -> 0x18            // ^ ~
+        KeyEvent.KEYCODE_LEFT_BRACKET -> 0x38
+        KeyEvent.KEYCODE_RIGHT_BRACKET -> 0x58
+        KeyEvent.KEYCODE_SEMICOLON -> 0x57
+        KeyEvent.KEYCODE_APOSTROPHE -> 0x48        // : *
+        KeyEvent.KEYCODE_COMMA -> 0x66
+        KeyEvent.KEYCODE_PERIOD -> 0x67
+        KeyEvent.KEYCODE_SLASH -> 0x68
+        KeyEvent.KEYCODE_BACKSLASH -> 0x78
+        KeyEvent.KEYCODE_GRAVE -> 0x28             // _ £
+        KeyEvent.KEYCODE_AT -> 0x47
+        else -> -1
+    }
+
     /** A real keyboard / gamepad on the Atari: keys as POKEY codes, arrows and pad steer the joystick. */
     private fun atariKey(code: Int): Int = when (code) {
         KeyEvent.KEYCODE_A -> 0x3f; KeyEvent.KEYCODE_B -> 0x15; KeyEvent.KEYCODE_C -> 0x12; KeyEvent.KEYCODE_D -> 0x3a
@@ -2271,6 +2411,14 @@ class EmulatorActivity : Activity() {
             if (event.repeatCount == 0) keyQueue.add(k or 0x100)
             return true
         }
+        if (bbc != null) {
+            val p = bbcPadBit(keyCode)
+            if (p != 0) { bbcExt = bbcExt or p; applyBbcPad(); return true }
+            val k = bbcKey(keyCode)
+            if (k < 0) return super.onKeyDown(keyCode, event)
+            if (event.repeatCount == 0) keyQueue.add(k or 0x100)
+            return true
+        }
         if (atari != null) {
             val s = atariStickBit(keyCode)
             if (s != 0) { setAtariStick(atariStick or s); return true }
@@ -2343,6 +2491,14 @@ class EmulatorActivity : Activity() {
         }
         if (adam != null) {
             val k = adamKey(keyCode)
+            if (k < 0) return super.onKeyUp(keyCode, event)
+            keyQueue.add(k)
+            return true
+        }
+        if (bbc != null) {
+            val p = bbcPadBit(keyCode)
+            if (p != 0) { bbcExt = bbcExt and p.inv(); applyBbcPad(); return true }
+            val k = bbcKey(keyCode)
             if (k < 0) return super.onKeyUp(keyCode, event)
             keyQueue.add(k)
             return true

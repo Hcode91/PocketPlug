@@ -44,6 +44,13 @@ file(GLOB ARCHI_C_SOURCES CONFIGURE_DEPENDS ${ARCHI}/*.c ${ARCHI}/arculator/*.c)
 set_source_files_properties(${ARCHI_C_SOURCES} PROPERTIES
     COMPILE_FLAGS "-std=gnu99 -O2 -w -include ${ARCHI}/arc_rename.h -I${ARCHI}/arculator")
 
+# BBC Micro family: B-em (GPL-2+), in C, without Allegro (shim/); its global
+# names are prefixed by bem_rename.h so they can't clash with the other C cores
+set(BBC ${CMAKE_CURRENT_SOURCE_DIR}/cores/bbc)
+file(GLOB BBC_C_SOURCES CONFIGURE_DEPENDS ${BBC}/*.c ${BBC}/bem/*.c ${BBC}/shim/*.c)
+set_source_files_properties(${BBC_C_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-std=gnu99 -O2 -w -include errno.h -include time.h -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-function-pointer-types -include ${BBC}/bem_rename.h -I${BBC}/shim -I${BBC}/bem")
+
 # CHD images: the LZMA SDK (public domain) and libFLAC's decoder (BSD-3), in C
 set(CHD ${CMAKE_CURRENT_SOURCE_DIR}/common/chd)
 file(GLOB CHD_FLAC_SOURCES CONFIGURE_DEPENDS ${CHD}/flac/*.c)
@@ -70,6 +77,7 @@ add_library(pocketplug SHARED
     ${A800_C_SOURCES}
     ${ACORN_C_SOURCES}
     ${ARCHI_C_SOURCES}
+    ${BBC_C_SOURCES}
     ${CHD_FLAC_SOURCES}
     ${GWAVE_LUA_SOURCES}
     ${GWAVE_MPEG2_SOURCES}

@@ -52,6 +52,7 @@
 #include "cores/unixpc/unixpc.h"
 #include "cores/atari800/atari800.h"
 #include "cores/acorn/acorn.h"
+#include "cores/bbc/bbc.h"
 #include "cores/archi/archi.h"
 #include "cores/nixie4004/nixieclock.h"
 #include "cores/tm990/tm990.h"
@@ -465,6 +466,8 @@ Core* createCore(const std::string& id)
         id == "aa3000" || id == "aa5000" || id == "aa3010" || id == "aa3010_de" || id == "aa3020" ||
         id == "aa4000" || id == "aa4" || id == "aa500")   // Acorn Archimedes family (Arculator)
         return new ArchiCore(id);
+    if (BbcCore::known(id))   // Acorn BBC Micro family (B-em)
+        return new BbcCore(id);
     if (id == "a7000")        // Acorn A7000 (RPCEmu), RISC OS 3.60
         return new AcornCore(AcornCore::kA7000);
     if (id == "a7000p")       // Acorn A7000+ (RPCEmu), RISC OS 3.71

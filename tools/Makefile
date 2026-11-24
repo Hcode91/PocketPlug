@@ -29,13 +29,18 @@ AR = $(CPP)/cores/archi
 ARSRC = $(wildcard $(AR)/*.c) $(wildcard $(AR)/arculator/*.c)
 AROBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(ARSRC))
 
+# the BBC Micro core (B-em) is C as well; its globals are renamed by bem_rename.h
+BB = $(CPP)/cores/bbc
+BBSRC = $(wildcard $(BB)/*.c) $(wildcard $(BB)/bem/*.c) $(wildcard $(BB)/shim/*.c)
+BBOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(BBSRC))
+
 # CHD reading: the LZMA SDK and libFLAC's decoder, in C
 CHD = $(CPP)/common/chd
 CHDSRC = $(CHD)/lzma/LzmaDec.c $(wildcard $(CHD)/flac/*.c)
 CHDOBJ = $(patsubst $(CPP)/%.c,obj/%.o,$(CHDSRC))
 
-headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(CHDOBJ)
-	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(CHDOBJ) -lpthread -lz -lm
+headless: $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(BBOBJ) $(CHDOBJ)
+	$(CXX) $(CXXFLAGS) $(DEFS) -o $@ $(SRC) $(COBJ) $(A8OBJ) $(ACOBJ) $(AROBJ) $(BBOBJ) $(CHDOBJ) -lpthread -lz -lm
 
 obj/cores/archi/%.o: $(AR)/%.c
 	@mkdir -p $(dir $@)
@@ -44,6 +49,10 @@ obj/cores/archi/%.o: $(AR)/%.c
 obj/common/chd/flac/%.o: $(CHD)/flac/%.c
 	@mkdir -p $(dir $@)
 	$(CC) -O2 -w -std=gnu99 -DHAVE_CONFIG_H -I$(CHD)/flac/include -I$(CHD)/flac/src/include -c $< -o $@
+
+obj/cores/bbc/%.o: $(BB)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -w -std=gnu99 -DPOCKETPLUG -include errno.h -include $(BB)/bem_rename.h -I$(BB)/shim -I$(BB)/bem -c $< -o $@
 
 obj/cores/acorn/%.o: $(AC)/%.c
 	@mkdir -p $(dir $@)
