@@ -450,6 +450,7 @@ class EmulatorActivity : Activity() {
                 // Palm OS picks up its storage heap (apps, settings, calibration) where it was left
                 val live = liveFile()
                 if (live.exists()) synchronized(coreLock) { setZodiacClock(); Native.loadState(handle, live.absolutePath) }
+                synchronized(coreLock) { Native.mediaInsert(handle, 0, zodiacCard().absolutePath) }
             }
             Skin.UNIVERSITY_BOARD -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -676,7 +677,14 @@ class EmulatorActivity : Activity() {
     }
 
     private fun saveLive() {
-        if (zod != null && handle != 0L) { synchronized(coreLock) { setZodiacClock(); Native.saveState(handle, liveFile().absolutePath) }; return }
+        if (zod != null && handle != 0L) {
+            synchronized(coreLock) {
+                setZodiacClock()
+                Native.saveState(handle, liveFile().absolutePath)
+                Native.mediaSave(handle, 0, zodiacCard().absolutePath)
+            }
+            return
+        }
         if (nixie != null && handle != 0L) { synchronized(coreLock) { Native.saveState(handle, liveFile().absolutePath) }; return }
         if (pet == null || handle == 0L) return
         if (synchronized(coreLock) { Native.saveState(handle, liveFile().absolutePath) }) {
@@ -879,6 +887,123 @@ class EmulatorActivity : Activity() {
         val err = synchronized(coreLock) { Native.mediaInsert(handle, 0, f.absolutePath) }
         if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
         acorn?.floppyLabel = f.nameWithoutExtension
+    }
+
+    // ---- Zodiac: the SD card ----
+    private val PICK_ZODIAC = 60
+    private fun zodiacCard() = java.io.File(diskDir(), "sdcard.img")
+
+    private fun showZodiacCardMenu() {
+        paused = true
+        val items = arrayOf("Add games or files (.prc, .pdb, .zip)...", "Erase the card")
+        AlertDialog.Builder(this)
+            .setTitle("SD card")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
+                            putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                        }
+                        startActivityForResult(i, PICK_ZODIAC)
+                    }
+                    1 -> AlertDialog.Builder(this)
+                        .setMessage("Erase the SD card? Everything on it is lost.")
+                        .setPositiveButton("Erase") { _, _ ->
+                            synchronized(coreLock) {
+                                zodiacCard().delete()
+                                Native.mediaEject(handle, 0)
+                                Native.mediaInsert(handle, 0, zodiacCard().absolutePath)
+                                Native.mediaSave(handle, 0, zodiacCard().absolutePath)
+                            }
+                            paused = false
+                        }
+                        .setNegativeButton("Cancel") { _, _ -> paused = false }
+                        .setOnCancelListener { paused = false }
+                        .show()
+                }
+            }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+
+    /** Copies picked files onto the card: Palm files go to /PALM/Launcher; a zip is unpacked,
+     *  following a Zodiac "SimpleInstaller" .ini when it has one. */
+    private fun addToZodiacCard(uris: List<android.net.Uri>) {
+        val tmpDir = java.io.File(cacheDir, "zodcard").apply { deleteRecursively(); mkdirs() }
+        val adds = mutableListOf<Pair<java.io.File, String?>>()   // file, path on the card (null: by type)
+        var n = 0
+        for (uri in uris) {
+            var name = "file"
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) name = it.getString(0) ?: name
+            }
+            val safe = name.replace(Regex("[^A-Za-z0-9._ ,()-]"), "_").ifEmpty { "file" }
+            if (safe.endsWith(".zip", true)) {
+                val dir = java.io.File(tmpDir, "z${n++}").apply { mkdirs() }
+                val files = mutableMapOf<String, java.io.File>()      // zip path (lower case, '/') -> file
+                val paths = mutableMapOf<String, String>()            // lower case -> as in the zip
+                contentResolver.openInputStream(uri)?.use { ins ->
+                    java.util.zip.ZipInputStream(ins).use { zip ->
+                        while (true) {
+                            val e = zip.nextEntry ?: break
+                            if (e.isDirectory || e.name.contains("..")) continue
+                            val f = java.io.File(dir, e.name).apply { parentFile?.mkdirs() }
+                            f.outputStream().use { zip.copyTo(it) }
+                            val p = e.name.replace('\\', '/')
+                            files[p.lowercase()] = f
+                            paths[p.lowercase()] = p
+                        }
+                    }
+                }
+                val ini = files.entries.firstOrNull { it.key.endsWith(".ini") && it.value.readText().contains("[SimpleInstaller]") }
+                if (ini != null) {
+                    // [PalmFileN] Source=dir\file, Target=RAM|CARD, Folder=PALM\programs\...
+                    val base = ini.key.substringBeforeLast('/', "")
+                    var src: String? = null; var target: String? = null; var folder: String? = null
+                    fun flush() {
+                        val s = src ?: return
+                        val key = (if (base.isEmpty()) "" else "$base/") + s.replace('\\', '/').lowercase()
+                        val f = files[key]
+                        if (f != null) {
+                            val dest = if (target.equals("CARD", true) && folder != null)
+                                "/" + folder!!.replace('\\', '/').trim('/') + "/" + f.name else null
+                            adds += f to dest
+                        }
+                        src = null; target = null; folder = null
+                    }
+                    for (line in ini.value.readLines()) {
+                        val l = line.trim()
+                        if (l.startsWith("[")) { flush(); continue }
+                        val k = l.substringBefore('=').trim().lowercase(); val v = l.substringAfter('=', "").trim()
+                        when (k) { "source" -> src = v; "target" -> target = v; "folder" -> folder = v }
+                    }
+                    flush()
+                } else {
+                    // Palm files by type; anything else keeps its place in the zip
+                    for ((path, f) in files) {
+                        val ext = f.extension.lowercase()
+                        if (ext == "prc" || ext == "pdb" || ext == "pqa") adds += f to null
+                        else if (ext != "txt" && ext != "exe" && ext != "ini" && ext != "html" && ext != "htm" && ext != "pdf")
+                            adds += f to "/" + (paths[path] ?: path)
+                    }
+                }
+            } else {
+                val f = java.io.File(java.io.File(tmpDir, "f${n++}").apply { mkdirs() }, safe)
+                contentResolver.openInputStream(uri)?.use { ins -> f.outputStream().use { ins.copyTo(it) } }
+                adds += f to null
+            }
+        }
+        var ok = 0; var err: String? = null
+        synchronized(coreLock) {
+            for ((f, dest) in adds) {
+                val e = Native.mediaInsert(handle, 1, if (dest == null) f.absolutePath else f.absolutePath + "|" + dest)
+                if (e == null) ok++ else { err = e; break }
+            }
+            Native.mediaSave(handle, 0, zodiacCard().absolutePath)
+        }
+        tmpDir.deleteRecursively()
+        Toast.makeText(this, err ?: if (ok == 0) "Nothing to add" else "Copied $ok file${if (ok == 1) "" else "s"} to the card", Toast.LENGTH_LONG).show()
     }
 
     private val PICK_ACORN_FLOPPY = 46
@@ -1194,6 +1319,15 @@ class EmulatorActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PICK_ZODIAC) {
+            paused = false
+            if (resultCode != RESULT_OK || data == null) return
+            val uris = mutableListOf<android.net.Uri>()
+            data.clipData?.let { c -> for (i in 0 until c.itemCount) uris += c.getItemAt(i).uri }
+            if (uris.isEmpty()) data.data?.let { uris += it }
+            if (uris.isNotEmpty()) addToZodiacCard(uris)
+            return
+        }
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) return
         when (requestCode) {
@@ -1505,6 +1639,7 @@ class EmulatorActivity : Activity() {
         if (workstation != null) items += "Disks..." to { showDiskMenu() }
         if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
         if (acorn != null) items += "Disks & files..." to { showAcornMenu() }
+        if (zod != null) items += "SD card..." to { showZodiacCardMenu() }
         archiAsSold[machine.id]?.let { sold ->
             val up = prefs.getBoolean("mem4_${machine.id}", true)
             items += (if (up) "Memory: 4 MB (upgraded)" else "Memory: $sold (as sold)") to {

@@ -15,6 +15,7 @@
 #pragma once
 #include "../../core_api.h"
 #include "../gpl32/arm926.h"
+#include "sdcard.h"
 #include <deque>
 #include <map>
 #include <string>
@@ -52,6 +53,13 @@ public:
     // The saved state is the SDRAM (Palm OS keeps its storage heap there), the EEPROM and the
     // clock; loading it soft-resets onto that memory, as a real handheld comes back from a reset.
     bool saveState(std::vector<uint8_t>& out) override;
+    // SD card: drive 0 is the card image (a missing or empty file gets a new, blank card);
+    // drive 1 copies a file onto the card ("source" or "source|/PATH/ON/CARD"; .prc, .pdb and
+    // .pqa go to /PALM/Launcher). mediaSave(0) writes the card image back.
+    bool mediaInsert(int drive, const std::string& path, std::string& error) override;
+    bool mediaSave(int drive, const std::string& path) override;
+    void mediaEject(int drive) override;
+    int mediaActivity() override { int a = m_sdActivity; m_sdActivity = 0; return a; }
     bool loadState(const std::vector<uint8_t>& in) override;
 
     // didj::Bus
@@ -155,6 +163,7 @@ private:
     // RTC
     int64_t m_wallClock = 0;
     uint32_t m_rtcSeconds = 0, m_rtcRtcctl = 0, m_rtcIsr = 0, m_rtcIenr = 0;
+    uint32_t m_rtcAlrmHM = 0, m_rtcAlrmSec = 0, m_rtcDayAlarm = 0, m_rtcStpwch = 0x3f;
     double m_rtcAcc = 0;
 
     std::vector<uint8_t> m_flash = std::vector<uint8_t>(FLASH_SIZE, 0xff);
@@ -181,4 +190,28 @@ private:
     void dmaComplete(int n);
     void tickDma(double sec);
     void dmaIrq();
+    void dmaMemCopy(int n);       // memory to memory (W4200 surfaces and the like): done at once
+    uint8_t* hostPtr(uint32_t pa, uint32_t& avail);
+    // MMC/SD host (i.MX1 SDHC) and its card
+    SdCard m_sd;
+    int m_sdOut = 0;              // frames the card stays out (re-inserted after a copy)
+    // Palm OS only takes in a card inserted after it has started (a card already in at boot
+    // is noticed by the slot driver but never mounted), so the card goes in this long after
+    // a reset.
+    static constexpr int SD_BOOT_FRAMES = 600;
+    uint32_t m_sinceReset = 0;
+    int m_sdActivity = 0;
+    bool m_mmcClk = false;
+    uint32_t m_mmcStat = 0;
+    std::vector<uint16_t> m_mmcResp;
+    size_t m_mmcRespPos = 0;
+    uint32_t m_mmcRead = 0, m_mmcWrite = 0;     // data bytes the host still has to take / give
+    bool sdPresent() const { return m_sd.present() && m_sdOut == 0; }
+    uint32_t mmcRead(uint32_t off);
+    void mmcWrite(uint32_t off, uint32_t v);
+    void mmcCommand(uint32_t cont);
+    void mmcIrq();
+    void w42ScaledBlit();         // the stretch blit started by writing 0x1198
+    uint32_t m_w42IntStat = 0;     // W4200 GEN_INT_STATUS (bit 0: vertical blank); its line is GPIO A13, low = pending
+    void mmcDma();                // run DMA channels waiting on the SD data buffer
 };
