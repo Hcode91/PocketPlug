@@ -29,7 +29,20 @@ jobs:
         with:
           gradle-version: "8.7"
 
+      - name: Signing key
+        env:
+          KS_B64: ${{ secrets.POCKETPLUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/pocketplug.jks"
+            echo "PP_KEYSTORE=$RUNNER_TEMP/pocketplug.jks" >> "$GITHUB_ENV"
+          else
+            echo "No POCKETPLUG_KEYSTORE_B64 secret: signing with the runner's debug key"
+          fi
+
       - name: Build
+        env:
+          PP_KEYSTORE_PASSWORD: ${{ secrets.POCKETPLUG_KEYSTORE_PASSWORD }}
         run: gradle --no-daemon assembleDebug assembleRelease
 
       - uses: actions/upload-artifact@v4

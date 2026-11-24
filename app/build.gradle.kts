@@ -18,10 +18,26 @@ android {
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_static" } }
     }
 
+    // One fixed signing key (kept as GitHub secrets, decoded by the workflow) so every build
+    // installs over the last one; without it builds fall back to the runner's throwaway debug key.
+    val ppKeystore = System.getenv("PP_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (ppKeystore != null) create("pocketplug") {
+            storeFile = ppKeystore
+            storePassword = System.getenv("PP_KEYSTORE_PASSWORD")
+            keyAlias = "pocketplug"
+            keyPassword = System.getenv("PP_KEYSTORE_PASSWORD")
+        }
+    }
+    val ppSigning = if (ppKeystore != null) signingConfigs.getByName("pocketplug") else signingConfigs.getByName("debug")
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = ppSigning
+        }
+        debug {
+            signingConfig = ppSigning
         }
     }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
