@@ -22,9 +22,9 @@ import kotlin.math.hypot
  *  - "baseball": the sensor baseball set: a home-plate base with red keys along
  *                its top (arrows, SELECT, START), a ball-shaped B button (medium
  *                swing) and a black bat to tap for a full swing (A). NES pad bits.
- *  - "gear":     the motion gear for the Elan EU3A14 fighting games: four strike
- *                pads (punch, kick, guard, jab) and a spin move on a black wrist
- *                band, and the base unit's PAUSE. Bits: pause 0, punch 4, kick 5,
+ *  - "gear":     the motion gear for the Elan EU3A14 fighting games: two black
+ *                gauntlets with two strike pads each (guard/punch, jab/kick), the
+ *                chest plate (spin) and the base unit's round blue PAUSE key. Bits: pause 0, punch 4, kick 5,
  *                guard 6, jab 7, spin 9.
  *  - "minijoy":  two teal-and-white mini joysticks with grey-green ball tops,
  *                one per player (player 2 in bits 8-15).
@@ -230,14 +230,15 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 circle(B, "B", l + bw * 0.5f, t + bh * 0.8f, bh * 0.1f)
             }
             "gear" -> {
-                // the band runs across; four strike pads on it, the spin move and PAUSE beside
-                val r = bh * 0.15f
-                circle(G_PUNCH, "PUNCH", l + bw * 0.2f, t + bh * 0.42f, r)
-                circle(G_JAB, "JAB", l + bw * 0.4f, t + bh * 0.42f, r)
-                circle(G_GUARD, "GUARD", l + bw * 0.6f, t + bh * 0.42f, r)
-                circle(G_KICK, "KICK", l + bw * 0.8f, t + bh * 0.42f, r)
-                rect(G_SPIN, "SPIN", l + bw * 0.3f, t + bh * 0.78f, l + bw * 0.5f, t + bh * 0.9f)
-                rect(G_PAUSE, "PAUSE", l + bw * 0.6f, t + bh * 0.78f, l + bw * 0.8f, t + bh * 0.9f)
+                // a gauntlet each side (two strike pads on each), the chest plate (spin) between
+                // them and the base unit's round PAUSE key below it
+                val r = bh * 0.12f
+                circle(G_GUARD, "GUARD", l + bw * 0.19f, t + bh * 0.36f, r)
+                circle(G_PUNCH, "PUNCH", l + bw * 0.19f, t + bh * 0.66f, r)
+                circle(G_JAB, "JAB", l + bw * 0.81f, t + bh * 0.36f, r)
+                circle(G_KICK, "KICK", l + bw * 0.81f, t + bh * 0.66f, r)
+                circle(G_SPIN, "SPIN", l + bw * 0.5f, t + bh * 0.27f, bh * 0.15f)
+                circle(G_PAUSE, "PAUSE", l + bw * 0.5f, t + bh * 0.76f, bh * 0.075f)
             }
             "minijoy" -> {
                 for (p in 0..1) {
@@ -487,19 +488,54 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
     private fun drawGear(c: Canvas, held: Int) {
         val bw = body.width(); val bh = body.height()
         val l = body.left; val t = body.top
-        // a black padded band with a silver edge and stitched seams
-        val band = RectF(l + bw * 0.04f, t + bh * 0.16f, l + bw * 0.96f, t + bh * 0.68f)
-        paint.color = 0x55000000; c.drawRoundRect(band.left + bw * 0.006f, band.top + bh * 0.03f, band.right + bw * 0.006f, band.bottom + bh * 0.03f, bh * 0.12f, bh * 0.12f, paint)
-        paint.shader = LinearGradient(0f, band.top, 0f, band.bottom, intArrayOf(0xFF2C2C34.toInt(), 0xFF141418.toInt(), 0xFF24242A.toInt()), null, Shader.TileMode.CLAMP)
-        c.drawRoundRect(band, bh * 0.12f, bh * 0.12f, paint); paint.shader = null
-        stroke.color = 0xFF8A8E98.toInt(); stroke.strokeWidth = bw * 0.006f; c.drawRoundRect(band, bh * 0.12f, bh * 0.12f, stroke)
-        stroke.color = 0xFF3C3C46.toInt(); stroke.strokeWidth = bw * 0.003f
-        stroke.pathEffect = DashPathEffect(floatArrayOf(bw * 0.012f, bw * 0.008f), 0f)
-        c.drawRoundRect(RectF(band).apply { inset(bw * 0.015f, bh * 0.04f) }, bh * 0.1f, bh * 0.1f, stroke)
-        stroke.pathEffect = null
-        // the base unit's ledge for the two small keys
-        paint.color = 0xFF3A3F4A.toInt(); c.drawRoundRect(l + bw * 0.26f, t + bh * 0.74f, l + bw * 0.84f, t + bh * 0.94f, bh * 0.05f, bh * 0.05f, paint)
-        drawButtons(c, held, 0xFFF2C230.toInt(), 0xFF8C6A08.toInt(), 0xFF1A1A1A.toInt())
+        // the two gauntlets: black, tapering to the wrist, with three fins on the outer edge
+        for (side in 0..1) {
+            val m = if (side == 0) 1f else -1f
+            val cx = if (side == 0) l + bw * 0.19f else l + bw * 0.81f
+            path.reset()
+            path.moveTo(cx - m * bw * 0.13f, t + bh * 0.06f)
+            path.lineTo(cx + m * bw * 0.12f, t + bh * 0.06f)
+            path.lineTo(cx + m * bw * 0.09f, t + bh * 0.95f)
+            path.lineTo(cx - m * bw * 0.09f, t + bh * 0.95f)
+            path.close()
+            // fins
+            for (f in 0 until 3) {
+                val fy = t + bh * (0.22f + f * 0.24f)
+                val fx = cx - m * (bw * 0.13f - f * bw * 0.012f)
+                path.moveTo(fx, fy); path.lineTo(fx - m * bw * 0.06f, fy + bh * 0.1f); path.lineTo(fx + m * bw * 0.01f, fy + bh * 0.13f); path.close()
+            }
+            paint.color = 0x55000000; c.save(); c.translate(bw * 0.006f, bh * 0.02f); c.drawPath(path, paint); c.restore()
+            paint.shader = LinearGradient(cx - bw * 0.12f, 0f, cx + bw * 0.12f, 0f, intArrayOf(0xFF1A1A1E.toInt(), 0xFF45454C.toInt(), 0xFF141417.toInt()), null, Shader.TileMode.CLAMP)
+            c.drawPath(path, paint); paint.shader = null
+            stroke.color = 0xFF55555E.toInt(); stroke.strokeWidth = bw * 0.003f; c.drawPath(path, stroke)
+            // two straps across the wrist
+            paint.color = 0xFF0C0C0E.toInt()
+            for (y in floatArrayOf(0.5f, 0.86f)) c.drawRect(cx - bw * 0.105f, t + bh * y, cx + bw * 0.105f, t + bh * (y + 0.045f), paint)
+        }
+        // the chest plate: a dark oval with a lit ring round the spin pad, on its straps
+        val spin = ctls.first { it.bit == G_SPIN }
+        stroke.color = 0xFF101012.toInt(); stroke.strokeWidth = bh * 0.025f
+        c.drawLine(spin.cx - bw * 0.2f, spin.cy - bh * 0.12f, spin.cx + bw * 0.2f, spin.cy + bh * 0.12f, stroke)
+        c.drawLine(spin.cx + bw * 0.2f, spin.cy - bh * 0.12f, spin.cx - bw * 0.2f, spin.cy + bh * 0.12f, stroke)
+        paint.color = 0xFF202024.toInt(); c.drawOval(spin.cx - spin.r * 1.6f, spin.cy - spin.r * 1.15f, spin.cx + spin.r * 1.6f, spin.cy + spin.r * 1.15f, paint)
+        stroke.color = 0xFF4A4A52.toInt(); stroke.strokeWidth = bw * 0.003f
+        c.drawOval(spin.cx - spin.r * 1.6f, spin.cy - spin.r * 1.15f, spin.cx + spin.r * 1.6f, spin.cy + spin.r * 1.15f, stroke)
+        paint.color = if (held and G_SPIN != 0) 0xFFFFD84A.toInt() else 0xFFE0B820.toInt()
+        c.drawOval(spin.cx - spin.r * 1.3f, spin.cy - spin.r * 0.85f, spin.cx + spin.r * 1.3f, spin.cy + spin.r * 0.85f, paint)
+        label(c, "SPIN", spin.cx, spin.cy, spin.r * 0.45f, 0xFF1A1A1A.toInt())
+        // the base unit: a black wedge with the round blue key
+        val pause = ctls.first { it.bit == G_PAUSE }
+        path.reset()
+        path.moveTo(pause.cx - bw * 0.07f, pause.cy - bh * 0.13f); path.lineTo(pause.cx + bw * 0.07f, pause.cy - bh * 0.13f)
+        path.lineTo(pause.cx + bw * 0.11f, pause.cy + bh * 0.2f); path.lineTo(pause.cx - bw * 0.11f, pause.cy + bh * 0.2f); path.close()
+        paint.shader = LinearGradient(0f, pause.cy - bh * 0.13f, 0f, pause.cy + bh * 0.2f, 0xFF3A3A40.toInt(), 0xFF111114.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(path, paint); paint.shader = null
+        paint.color = 0xFF0A0A0C.toInt(); c.drawCircle(pause.cx, pause.cy, pause.r * 1.25f, paint)
+        shade(c, pause.cx, pause.cy, pause.r, 0xFF4FC3E8.toInt(), 0xFF1A6A88.toInt(), held and G_PAUSE != 0)
+        paint.color = 0xFF0A0A0C.toInt(); c.drawCircle(pause.cx, pause.cy, pause.r * 0.35f, paint)
+        label(c, "PAUSE", pause.cx, pause.cy + pause.r * 1.75f, pause.r * 0.55f, 0xCCFFFFFF.toInt())
+        // the strike pads: silver
+        drawButtons(c, held, 0xFFD6D8DE.toInt(), 0xFF7A7C84.toInt(), 0xFF141418.toInt(), setOf(G_SPIN, G_PAUSE))
     }
 
     private fun drawMiniJoy(c: Canvas, held: Int) {

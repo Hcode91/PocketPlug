@@ -125,7 +125,25 @@ class HhView(ctx: Context, private val skin: HhSkin, private val srcW: Int, priv
 
     private fun blendDark(c: Int) = Color.rgb(Color.red(c) / 6 + 18, Color.green(c) / 6 + 14, Color.blue(c) / 6 + 14)
 
+    /** white LCD glass -> clear, dark segments -> dark ink */
+    private val ink = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply {
+        colorFilter = ColorMatrixColorFilter(ColorMatrix(floatArrayOf(
+            0f, 0f, 0f, 0f, 18f,
+            0f, 0f, 0f, 0f, 20f,
+            0f, 0f, 0f, 0f, 16f,
+            -0.33f, -0.33f, -0.34f, 0f, 255f)))
+    }
+
     private fun drawScreen(c: Canvas) {
+        if (skin.parts.isNotEmpty()) {
+            synchronized(lock) {
+                for (p in skin.parts) {
+                    val src = Rect(0, (p.srcTop * srcH).toInt(), srcW, (p.srcBottom * srcH).toInt())
+                    c.drawBitmap(frame, src, p.dst, ink)
+                }
+            }
+            return
+        }
         // screen bezel and picture
         val s = skin.screen
         paint.color = skin.bezel
@@ -363,7 +381,12 @@ class HhSkin(
     val leds: List<Led> = emptyList(),
     /** wide cases (Game & Watch style) are shown in landscape */
     val landscape: Boolean = false,
+    /** split screens: a band of the frame (srcTop..srcBottom, 0-1 of its height) shown in dst.
+     *  These are LCDs with printed artwork under the glass: the body draws the print and
+     *  only the dark segments are laid over it */
+    val parts: List<ScreenPart> = emptyList(),
 ) {
+    class ScreenPart(val srcTop: Float, val srcBottom: Float, val dst: RectF)
     enum class Kind { STICK, BUTTON, SWITCH }
     enum class LedKind { ROUND, DIGIT, BAR }
     class Led(val kind: LedKind, val row: Int, val col: Int, val x: Float, val y: Float, val r: Float, val color: Int = 0xFFFF2A20.toInt(),
@@ -740,33 +763,178 @@ class HhSkin(
             },
         )
 
-        /** Bassmate Computer (1984): a tall case holding the two LCDs one above the other, the eight
-         *  fishing-condition keys in two rows under them, COMPUTE, ALARM and the recessed ACL. */
+        /** Bassmate Computer (1984): a clamshell. The lid holds the lure screen, its row tags and
+         *  pictures of the lures; the base the conditions screen with its eight keys, COMPUTE,
+         *  and the ALARM / ACL pinholes. The LCDs are printed in red and teal bands with the
+         *  choices; a lit segment darkens its box. Frame: 960 x 1263, the lid's screen in the
+         *  top 627 rows. */
         private fun bassmate(): HhSkin {
-            val key = 0xFF2E6E4E.toInt(); val ink = 0xFFE8F0E8.toInt()
-            fun k(x: Float, y: Float, bit: Int, label: String) = Control(Kind.BUTTON, x, y, 0f, color = key, base = 0xFF14281E.toInt(),
-                bit = bit, label = label, labelColor = 0xFFCFE0D2.toInt(), labelSize = 24f, bw = 170f, bh = 62f)
+            val fw = 960f; val split = 627f; val fh = 1263f
+            val top = RectF(300f, 225f, 840f, 225f + 540f * split / fw)
+            val bot = RectF(300f, 1215f, 840f, 1215f + 540f * (fh - split) / fw)
+            val sx = 540f / fw
+            // source rows and columns of the boxes (see the SVGs)
+            val topRows = floatArrayOf(40f, 108f, 177f, 246f, 315f, 384f, 453f, 522f)
+            val botRows = floatArrayOf(665f, 734f, 803f, 872f, 941f, 1010f, 1079f, 1148f)
+            val topCols = floatArrayOf(47f, 223f, 398f, 573f, 748f)
+            val botCols = floatArrayOf(60f, 234f, 406f, 579f, 751f)
+            fun ty(r: Int) = top.top + topRows[r] * sx
+            fun by(r: Int) = bot.top + (botRows[r] - split) * sx
+            val rowH = 65f * sx
+            val red = 0xFFB9584A.toInt(); val teal = 0xFF3F8580.toInt(); val olive = 0xFF8A8446.toInt()
+            val topText = listOf(
+                listOf("LIZD", "WORM", "JIG", "SPOON", "GRUB"),
+                listOf("CHUGR", "MINNW", "BUZZ", "CrSHL", "CrMED"),
+                listOf("CrDEP", "SPIN"),
+                listOf("1/8", "1/4", "3/8", "1/2", "1"),
+                listOf("SILVR", "GOLD", "FLUOR"), listOf("LITE", "MED", "DARK"),
+                listOf("LARGE", "MED", "SMALL"), listOf("SLOW", "MOD", "JERKY"))
+            val topBand = intArrayOf(red, red, red, teal, red, teal, red, teal)
+            val botText = listOf(
+                listOf("SPRG", "SUM", "FALL", "WNTR"), listOf("35-49", "50-64", "65-79", "80+"),
+                listOf("1-6", "7-15", "16-30", "30+"), listOf("EARLY", "DKmid", "CLmid", "LATE"),
+                listOf("CHANL", "COVE", "LAKE", "INLET", "BKWTR"), listOf("TIMBR", "ROCKS", "GRASS", "NONE"),
+                listOf("MUDDY", "MURKY", "CLEAR"), listOf("CALM", "MOD", "STRG"))
+            val keyY = FloatArray(8) { by(it) + rowH / 2 }
+            fun key(r: Int, bit: Int) = Control(Kind.BUTTON, 888f + (if (r % 2 == 0) 0f else 22f), keyY[r], 0f,
+                color = 0xFFC9C9C4.toInt(), base = 0xFF6E6E6A.toInt(), bit = bit, bw = 60f, bh = 30f)
+            val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) }
+            fun tag(c: Canvas, p: Paint, x0: Float, y0: Float, x1: Float, y1: Float, fill: Int, ink: Int, label: String, size: Float, pointRight: Boolean = true) {
+                val path = Path().apply {
+                    moveTo(x0, y0); lineTo(x1 - (if (pointRight) (y1 - y0) / 2 else 0f), y0); lineTo(x1, (y0 + y1) / 2)
+                    lineTo(x1 - (if (pointRight) (y1 - y0) / 2 else 0f), y1); lineTo(x0, y1); close()
+                }
+                p.color = fill; c.drawPath(path, p)
+                tp.color = ink; tp.textSize = size; tp.textAlign = Paint.Align.LEFT
+                c.drawText(label, x0 + 12f, (y0 + y1) / 2 + size * 0.36f, tp)
+            }
+            fun lcd(c: Canvas, p: Paint, area: RectF, rows: FloatArray, cols: FloatArray, srcTop: Float, texts: List<List<String>>, bands: IntArray, extra: (Canvas) -> Unit) {
+                p.color = 0xFF151512.toInt(); c.drawRoundRect(area.left - 18f, area.top - 18f, area.right + 18f, area.bottom + 18f, 14f, 14f, p)
+                p.color = 0xFF4E5040.toInt(); c.drawRect(area, p)
+                for (r in 0 until 8) {
+                    val y0 = area.top + (rows[r] - srcTop) * sx
+                    val n = texts[r].size
+                    val x1 = area.left + (cols[n - 1] + 172f) * sx
+                    p.color = bands[r]; c.drawRect(area.left + cols[0] * sx - 2f, y0, x1, y0 + rowH, p)
+                    tp.textAlign = Paint.Align.CENTER; tp.textSize = rowH * 0.5f
+                    tp.color = 0xFFF2DCCB.toInt().let { if (bands[r] == teal) 0xFFD2ECE6.toInt() else it }
+                    for ((k, t) in texts[r].withIndex())
+                        c.drawText(t, area.left + (cols[k] + 86f) * sx, y0 + rowH * 0.68f, tp)
+                }
+                extra(c)
+                // glass sheen
+                p.shader = LinearGradient(0f, area.top, 0f, area.bottom, 0x18FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+                c.drawRect(area, p); p.shader = null
+            }
+            fun lure(c: Canvas, p: Paint, s: Paint, x: Float, y: Float, w: Float, kind: Int) {
+                // simple line drawings: 0 plug with a lip, 1 spoon, 2 worm, 3 skirted jig/spinner
+                s.color = 0xFF2A2A2A.toInt(); s.strokeWidth = 3f
+                p.color = 0xFFEDEDE8.toInt()
+                when (kind) {
+                    0 -> { c.drawOval(x, y - w * 0.13f, x + w * 0.8f, y + w * 0.13f, p); c.drawOval(x, y - w * 0.13f, x + w * 0.8f, y + w * 0.13f, s)
+                           c.drawLine(x, y, x - w * 0.15f, y + w * 0.12f, s); c.drawCircle(x + w * 0.12f, y - w * 0.03f, w * 0.03f, s)
+                           c.drawLine(x + w * 0.35f, y + w * 0.13f, x + w * 0.35f, y + w * 0.24f, s); c.drawLine(x + w * 0.65f, y + w * 0.12f, x + w * 0.65f, y + w * 0.24f, s)
+                           c.drawLine(x + w * 0.8f, y, x + w, y, s) }
+                    1 -> { c.drawOval(x + w * 0.3f, y - w * 0.12f, x + w * 0.75f, y + w * 0.12f, p); c.drawOval(x + w * 0.3f, y - w * 0.12f, x + w * 0.75f, y + w * 0.12f, s)
+                           c.drawLine(x, y, x + w * 0.3f, y, s); c.drawLine(x + w * 0.75f, y, x + w, y + w * 0.1f, s) }
+                    2 -> { val path = Path().apply { moveTo(x, y); cubicTo(x + w * 0.3f, y - w * 0.2f, x + w * 0.6f, y + w * 0.2f, x + w, y - w * 0.05f) }
+                           s.strokeWidth = w * 0.06f; s.color = 0xFFDCDCD6.toInt(); c.drawPath(path, s)
+                           s.strokeWidth = 2f; s.color = 0xFF2A2A2A.toInt(); c.drawPath(path, s) }
+                    else -> { c.drawCircle(x + w * 0.2f, y, w * 0.08f, p); c.drawCircle(x + w * 0.2f, y, w * 0.08f, s)
+                              for (k in 0 until 6) c.drawLine(x + w * 0.28f, y, x + w * (0.75f + k * 0.04f), y - w * 0.12f + k * w * 0.05f, s)
+                              c.drawLine(x, y - w * 0.1f, x + w * 0.2f, y, s) }
+                }
+            }
             return HhSkin(
-                1000f, 1900f, 0xFF101412.toInt(),
-                screen = RectF(90f, 110f, 910f, 1189f), bezel = 0xFF0C0C0C.toInt(), bezelPad = 14f,
-                menu = PointF(500f, 1860f),
+                1000f, 2000f, 0xFF0E0E0E.toInt(),
+                screen = RectF(top), bezel = 0, bezelPad = 0f,
+                menu = PointF(500f, 1965f),
+                parts = listOf(ScreenPart(0f, split / fh, top), ScreenPart(split / fh, 1f, bot)),
                 controls = listOf(
-                    k(170f, 1330f, 0x10, "SEASON"), k(390f, 1330f, 0x20, "WATER TEMP"), k(610f, 1330f, 0x40, "DEPTH"), k(830f, 1330f, 0x80, "TIME OF DAY"),
-                    k(170f, 1480f, 0x100, "STRUCTURE"), k(390f, 1480f, 0x200, "COVER"), k(610f, 1480f, 0x400, "CLARITY"), k(830f, 1480f, 0x800, "WIND"),
-                    Control(Kind.BUTTON, 500f, 1680f, 0f, color = 0xFFE0B02A.toInt(), base = 0xFF5A4410.toInt(), bit = 0x1000,
-                        bw = 300f, bh = 90f, face = "COMPUTE", faceColor = 0xFF2A2008.toInt(), faceSize = 38f),
-                    Control(Kind.BUTTON, 170f, 1680f, 36f, color = 0xFF1C1C1C.toInt(), base = 0xFF6A6A6A.toInt(), bit = 0x2000,
-                        label = "ALARM", labelColor = 0xFFCFE0D2.toInt(), labelSize = 24f),
-                    Control(Kind.BUTTON, 830f, 1680f, 18f, color = 0xFF1C1C1C.toInt(), base = 0xFF6A6A6A.toInt(), bit = 0x4000,
-                        label = "ACL", labelColor = 0xFFCFE0D2.toInt(), labelSize = 24f),
+                    key(0, 0x10), key(1, 0x20), key(2, 0x40), key(3, 0x80),
+                    key(4, 0x100), key(5, 0x200), key(6, 0x400), key(7, 0x800),
+                    Control(Kind.BUTTON, 200f, 1120f, 40f, color = 0xFF1A1A1A.toInt(), base = 0xFF8C8C86.toInt(), bit = 0x1000),
+                    Control(Kind.BUTTON, 815f, 1880f, 12f, color = 0xFF2A2A2A.toInt(), base = 0xFF8A7A50.toInt(), bit = 0x4000,
+                        label = "ACL", labelColor = 0xFF222222.toInt(), labelSize = 22f),
+                    Control(Kind.BUTTON, 880f, 1880f, 12f, color = 0xFF2A2A2A.toInt(), base = 0xFF8A7A50.toInt(), bit = 0x2000,
+                        label = "ALARM", labelColor = 0xFF222222.toInt(), labelSize = 22f),
                 ),
                 drawBody = { c, p, s ->
-                    p.shader = LinearGradient(0f, 0f, 1000f, 0f, intArrayOf(0xFF2A3A30.toInt(), 0xFF3C5244.toInt(), 0xFF26342C.toInt()), null, Shader.TileMode.CLAMP)
-                    c.drawRoundRect(20f, 20f, 980f, 1880f, 60f, 60f, p); p.shader = null
-                    s.color = 0xFF16201A.toInt(); s.strokeWidth = 6f; c.drawRoundRect(20f, 20f, 980f, 1880f, 60f, 60f, s)
-                    p.color = 0xFF1A231E.toInt(); c.drawRoundRect(60f, 80f, 940f, 1222f, 30f, 30f, p)
-                    // key panel
-                    p.color = 0xFF22302A.toInt(); c.drawRoundRect(60f, 1260f, 940f, 1560f, 24f, 24f, p)
+                    // the black clamshell, lid above the base
+                    p.color = 0xFF1C1C1E.toInt()
+                    c.drawRoundRect(20f, 20f, 980f, 975f, 40f, 40f, p)
+                    c.drawRoundRect(20f, 1000f, 980f, 1980f, 40f, 40f, p)
+                    // hinge
+                    p.color = 0xFF2A2A2C.toInt(); c.drawRect(120f, 960f, 880f, 1015f, p)
+                    p.color = 0xFFD8D8D8.toInt(); for (k in 0 until 40) c.drawRect(300f + k * 10f, 972f, 305f + k * 10f, 1003f, p)
+                    // lid plate: brushed silver panel inside a cream frame
+                    p.color = 0xFFE9E4D2.toInt(); c.drawRoundRect(45f, 45f, 955f, 945f, 22f, 22f, p)
+                    p.shader = LinearGradient(0f, 60f, 940f, 900f, intArrayOf(0xFFCFCFCB.toInt(), 0xFFEDEDEA.toInt(), 0xFFC4C4C0.toInt()), null, Shader.TileMode.MIRROR)
+                    c.drawRoundRect(70f, 70f, 930f, 920f, 10f, 10f, p); p.shader = null
+                    // lure pictures with their names, around the screen
+                    tp.textAlign = Paint.Align.CENTER; tp.textSize = 22f; tp.color = 0xFF2C6FD0.toInt()
+                    val pics = listOf(Triple(320f, 625f, 2) to "WORM", Triple(520f, 625f, 3) to "LIZARD", Triple(720f, 625f, 0) to "MINNOW",
+                        Triple(110f, 95f, 3) to "JIG", Triple(330f, 95f, 3) to "GRUB", Triple(550f, 95f, 1) to "SPOON", Triple(760f, 95f, 0) to "CHUGGER")
+                    for ((t, name) in pics) { lure(c, p, s, t.first, t.second + 45f, 140f, t.third); c.drawText(name, t.first + 70f, t.second + 10f, tp) }
+                    // the lid's row tags, lined up with the screen's rows
+                    tag(c, p, 75f, ty(0) + 2f, 282f, ty(2) + rowH, 0xFF2A78D6.toInt(), Color.WHITE, "BODY TYPE", 24f)
+                    val lidTags = listOf("WT. SINKER", "METAL COLOR", "BASE COLOR", "SIZE BAIT", "RETRIEVE")
+                    for ((k, t) in lidTags.withIndex()) {
+                        val dark = k % 2 == 0
+                        tag(c, p, 75f, ty(3 + k) + 3f, 282f, ty(3 + k) + rowH - 3f, if (dark) 0xFF151515.toInt() else Color.WHITE, if (dark) Color.WHITE else 0xFF151515.toInt(), t, 21f)
+                    }
+                    // the red "use this lure" arrow under the tags
+                    p.color = 0xFFD9312A.toInt()
+                    c.drawPath(Path().apply { moveTo(85f, ty(7) + rowH + 36f); lineTo(195f, ty(7) + rowH + 14f); lineTo(305f, ty(7) + rowH + 36f); close() }, p)
+                    c.drawRoundRect(85f, ty(7) + rowH + 40f, 305f, ty(7) + rowH + 110f, 8f, 8f, p)
+                    tp.color = Color.WHITE; tp.textSize = 24f
+                    c.drawText("USE THIS", 195f, ty(7) + rowH + 70f, tp); c.drawText("LURE", 195f, ty(7) + rowH + 98f, tp)
+                    // crankbait column on the right of the lid
+                    tp.textSize = 20f; tp.color = 0xFF2C6FD0.toInt()
+                    c.drawText("CRANKBAIT", 500f, 760f, tp)
+                    for ((k, n) in listOf("SHALLOW", "MIDWATER", "DEEP").withIndex()) {
+                        c.drawText(n, 220f + k * 280f, 795f, tp); lure(c, p, s, 160f + k * 280f, 850f, 130f, 0)
+                    }
+
+                    lcd(c, p, top, topRows, topCols, 0f, topText, topBand) { cc ->
+                        // CHANGE LOCATION across the last three boxes of row 2, and the clock's olive window
+                        val y0 = ty(2)
+                        p.color = olive; cc.drawRect(top.left + 398f * sx, y0, top.left + 921f * sx, y0 + rowH, p)
+                        tp.color = 0xFFF4E8B0.toInt(); tp.textSize = rowH * 0.5f; tp.textAlign = Paint.Align.CENTER
+                        cc.drawText("CHANGE LOCATION", top.left + 660f * sx, y0 + rowH * 0.68f, tp)
+                        p.color = 0xFF6F6C3C.toInt(); cc.drawRect(top.left + 585f * sx, ty(4), top.left + 921f * sx, ty(7) + rowH, p)
+                    }
+                    // base plate
+                    p.color = 0xFFE9E4D2.toInt(); c.drawRoundRect(45f, 1035f, 955f, 1945f, 22f, 22f, p)
+                    // the keys' black and white stripes fanning out to the right edge
+                    for (r in 0 until 8) {
+                        p.color = if (r % 2 == 0) 0xFF151515.toInt() else Color.WHITE
+                        val y0 = by(r); val y1 = y0 + rowH
+                        c.drawPath(Path().apply {
+                            moveTo(bot.right + 18f, y0 + 4f); lineTo(930f, y0 - 2f); lineTo(950f, y0 - 2f)
+                            lineTo(950f, y1 + 2f); lineTo(930f, y1 + 2f); lineTo(bot.right + 18f, y1 - 4f); close()
+                        }, p)
+                    }
+                    // condition tags
+                    val conds = listOf("SEASON", "WTR. TEMP F", "WTR. DEPTH (FT)", "TIME OF DAY", "STRUCTURE", "COVER", "WTR. CLARITY", "WIND")
+                    for ((k, t) in conds.withIndex()) {
+                        val dark = k % 2 == 0
+                        tag(c, p, 75f, by(k) + 3f, 282f, by(k) + rowH - 3f, if (dark) 0xFF151515.toInt() else Color.WHITE, if (dark) Color.WHITE else 0xFF151515.toInt(), t, 20f)
+                    }
+                    // COMPUTE: the round key's dish and its red arrow tag
+                    p.color = 0xFFD4CFBC.toInt(); c.drawCircle(200f, 1120f, 58f, p)
+                    p.color = 0xFFD9312A.toInt()
+                    c.drawPath(Path().apply { moveTo(270f, 1120f); lineTo(300f, 1095f); lineTo(520f, 1095f); lineTo(520f, 1145f); lineTo(300f, 1145f); close() }, p)
+                    tp.color = Color.WHITE; tp.textSize = 26f; tp.textAlign = Paint.Align.CENTER
+                    c.drawText("COMPUTE", 410f, 1129f, tp)
+                    // ENTER CONDITIONS arrow under the tags
+                    val ey = by(7) + rowH + 20f
+                    p.color = 0xFFD9312A.toInt()
+                    c.drawPath(Path().apply { moveTo(85f, ey + 24f); lineTo(195f, ey); lineTo(305f, ey + 24f); close() }, p)
+                    c.drawRoundRect(85f, ey + 28f, 305f, ey + 100f, 8f, 8f, p)
+                    tp.color = Color.WHITE; tp.textSize = 24f
+                    c.drawText("ENTER", 195f, ey + 58f, tp); c.drawText("CONDITIONS", 195f, ey + 88f, tp)
+                    lcd(c, p, bot, botRows, botCols, split, botText, intArrayOf(red, teal, red, teal, red, teal, red, teal)) {}
                 },
             )
         }
