@@ -63,7 +63,7 @@ obj/cores/gamewave/mpeg2/%.o: $(GW)/mpeg2/%.c
 
 obj/cores/bbc/%.o: $(BB)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) -O2 -w -std=gnu99 -DPOCKETPLUG -include errno.h -include $(BB)/bem_rename.h -I$(BB)/shim -I$(BB)/bem -c $< -o $@
+	$(CC) -O2 -w -std=gnu99 -DPOCKETPLUG -include errno.h -include time.h -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types -include $(BB)/bem_rename.h -I$(BB)/shim -I$(BB)/bem -c $< -o $@
 
 obj/cores/acorn/%.o: $(AC)/%.c
 	@mkdir -p $(dir $@)
