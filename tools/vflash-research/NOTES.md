@@ -69,6 +69,24 @@ good reference. Differences found so far are marked V.Flash below.
 - 0x3C DMA buffer address (0x10357000), 0x44 / 0x48 buffer setup, 0x78 = 0x81000000 at init.
 - The drive is likely a Sony CXD3059AR (CD DSP + servo), driven over its serial interface.
 
+### Servo command port (0x10061d1c)
+
+- 0x00 = number of bits, 0x08 / 0x0C = command bits (64-bit, e.g. 0x340018 with 8 or more bits),
+  0x14 bit 0 = start (bit 2 / bit 3 options, upper half timing), then poll 0x64 bit 0 = sent,
+  acknowledge by writing 1 to 0x64. A 0x20-bit command with top bits 0x80000000 is also copied to 0x78.
+- After a command the driver reads 0x18 bit 1: most likely the drive chip's SENS output, whose
+  meaning depends on the last command (focus OK, busy, frame sync...). 0x18 bit 0 is read elsewhere.
+
+### Layers above (boot ROM copy)
+
+- File loader: 0x10011dac(?, path); BOOT loader at 0x10012788 tries "\0SYSTEM\BOOT.BIN;1",
+  then "\VBOOT.BIN;1", then jumps via 0x10053814.
+- ISO 9660: 0x10099ef0 checks "CD001"; sector cache 0x10098454 / 0x10098560.
+- CD stream layer: 0x10069000..0x1006b000 (buffer state at 0x10354580 / 0x10355840),
+  CD task with the TOC state machine at 0x1003b4f8 ("Get TOC ...", "Wake up CD task stream at %d for %d LBAs").
+- BOOT.BIN carries its own MORE OS and drivers, so hooks at this level would not cover games:
+  emulating the CD hardware (servo chip + 0xC4000000 block) is the robust route.
+
 ## Status
 
 The boot reaches the MORE OS scheduler with a working 100 Hz tick, sets up the display (320x240),
