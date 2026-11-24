@@ -20,6 +20,9 @@ public:
     // Returns a host pointer to the 4 KB physical page containing 'pa' if it is plain RAM,
     // or nullptr if the page is I/O or unmapped (slow path is used).
     virtual u8* page_ptr(u32 pa) = 0;
+    // True if page_ptr's page may be read directly but writes must go through write8/16/32
+    // (e.g. flash: reads are plain memory, writes are commands).
+    virtual bool page_readonly(u32 pa) { (void)pa; return false; }
     virtual u32 read32(u32 pa) = 0;
     virtual u16 read16(u32 pa) = 0;
     virtual u8 read8(u32 pa) = 0;
@@ -97,6 +100,12 @@ public:
     u32 cp15_fcse_pid, cp15_context_id;
     u32 cp15_cache_lockdown_d, cp15_cache_lockdown_i, cp15_tlb_lockdown;
 
+    // ARM920T-style pipeline: the two instructions after the MCR that turns the MMU on or
+    // off were already fetched with the old setting (boot code that isn't identity-mapped
+    // relies on it).
+    bool mmu_on_prefetch = false;
+    u8 mmu_grace = 0;
+    u32 mmu_grace_pc = 0, mmu_grace_pa[2] = {};
     u64 total_cycles = 0;
     u64 insn_count = 0;
     u64 stat_walks = 0, stat_aborts = 0, stat_flushes = 0, stat_irqs = 0, stat_thumb = 0, stat_slowfetch = 0;
@@ -138,6 +147,7 @@ public:
     void switch_mode(u32 newmode);
 
     bool in_thumb() const { return cpsr & FLAG_T; }
+    u32 current_pc() const { return cur_pc; }   // address of the instruction being executed
     bool privileged() const { return (cpsr & 0x1F) != MODE_USR; }
 
 private:
@@ -154,6 +164,7 @@ private:
         u8 valid;
         u8 domain;
         u8 is_section;
+        u8 ro;          // host pointer is for reads only
     };
     static const int TLB_SIZE = 2048;
     TLBEntry tlb[TLB_SIZE];

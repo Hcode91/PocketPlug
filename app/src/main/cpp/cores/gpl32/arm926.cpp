@@ -206,6 +206,7 @@ ARM926::TLBEntry* ARM926::translate(u32 va, bool write, bool user, bool fetch) {
             e->tag = page;
             e->pa_page = va & 0xFFFFF000;
             e->host = bus->page_ptr(e->pa_page);
+            e->ro = e->host && bus->page_readonly(e->pa_page);
             e->perm = 0xF;
             e->valid = 1;
         }
@@ -226,6 +227,7 @@ ARM926::TLBEntry* ARM926::translate(u32 va, bool write, bool user, bool fetch) {
     }
     ne.tag = page;
     ne.host = (ne.valid == 1) ? bus->page_ptr(ne.pa_page) : nullptr;
+    ne.ro = ne.host && bus->page_readonly(ne.pa_page);
     if (ne.valid == 1) {
         *e = ne;
     } else {
@@ -299,40 +301,40 @@ void ARM926::vwrite32(u32 va, u32 v, bool user) {
     {
         u32 m = (va < 0x02000000) ? (va | (cp15_fcse_pid & 0xFE000000)) : va;
         const TLBEntry& e = tlb[(m >> 12) & (TLB_SIZE - 1)];
-        if (!(va & 3) && e.valid == 1 && e.tag == (m >> 12) && e.host && (e.perm & (user ? 8 : 2))) {
+        if (!(va & 3) && e.valid == 1 && e.tag == (m >> 12) && e.host && !e.ro && (e.perm & (user ? 8 : 2))) {
             smc_check(e.host); memcpy(e.host + (va & 0xFFF), &v, 4); return;
         }
     }
     ALIGN_CHECK(va, 3);
     va &= ~3u;
     TLBEntry* e = translate(va, true, user, false);
-    if (e->host) { smc_check(e->host); memcpy(e->host + (va & 0xFFF), &v, 4); return; }
+    if (e->host && !e->ro) { smc_check(e->host); memcpy(e->host + (va & 0xFFF), &v, 4); return; }
     bus->write32(e->pa_page + (va & 0xFFF), v);
 }
 void ARM926::vwrite16(u32 va, u16 v, bool user) {
     {
         u32 m = (va < 0x02000000) ? (va | (cp15_fcse_pid & 0xFE000000)) : va;
         const TLBEntry& e = tlb[(m >> 12) & (TLB_SIZE - 1)];
-        if (!(va & 1) && e.valid == 1 && e.tag == (m >> 12) && e.host && (e.perm & (user ? 8 : 2))) {
+        if (!(va & 1) && e.valid == 1 && e.tag == (m >> 12) && e.host && !e.ro && (e.perm & (user ? 8 : 2))) {
             smc_check(e.host); memcpy(e.host + (va & 0xFFF), &v, 2); return;
         }
     }
     ALIGN_CHECK(va, 1);
     va &= ~1u;
     TLBEntry* e = translate(va, true, user, false);
-    if (e->host) { smc_check(e->host); memcpy(e->host + (va & 0xFFF), &v, 2); return; }
+    if (e->host && !e->ro) { smc_check(e->host); memcpy(e->host + (va & 0xFFF), &v, 2); return; }
     bus->write16(e->pa_page + (va & 0xFFF), v);
 }
 void ARM926::vwrite8(u32 va, u8 v, bool user) {
     {
         u32 m = (va < 0x02000000) ? (va | (cp15_fcse_pid & 0xFE000000)) : va;
         const TLBEntry& e = tlb[(m >> 12) & (TLB_SIZE - 1)];
-        if (e.valid == 1 && e.tag == (m >> 12) && e.host && (e.perm & (user ? 8 : 2))) {
+        if (e.valid == 1 && e.tag == (m >> 12) && e.host && !e.ro && (e.perm & (user ? 8 : 2))) {
             smc_check(e.host); e.host[va & 0xFFF] = v; return;
         }
     }
     TLBEntry* e = translate(va, true, user, false);
-    if (e->host) { smc_check(e->host); e->host[va & 0xFFF] = v; return; }
+    if (e->host && !e->ro) { smc_check(e->host); e->host[va & 0xFFF] = v; return; }
     bus->write8(e->pa_page + (va & 0xFFF), v);
 }
 
@@ -499,7 +501,11 @@ s64 ARM926::run(s64 cycles) {
                 if (!pc_written) r[15] = cur_pc + 2;
             } else {
                 u32 insn;
-                if ((cur_pc >> 12) == fetch_tag && fetch_host && fetch_user == !privileged()) {
+                if (mmu_grace && cur_pc == mmu_grace_pc) {
+                    insn = bus->read32(mmu_grace_pa[2 - mmu_grace]);
+                    mmu_grace--;
+                    mmu_grace_pc += 4;
+                } else if ((mmu_grace = 0), (cur_pc >> 12) == fetch_tag && fetch_host && fetch_user == !privileged()) {
                     memcpy(&insn, fetch_host + (cur_pc & 0xFFC), 4);
                 } else if (const TLBEntry* te = tlb_fast(cur_pc, !privileged())) {
                     fetch_tag = cur_pc >> 12; fetch_host = te->host; fetch_user = !privileged();
@@ -959,6 +965,11 @@ void ARM926::cp15_write(u32 crn, u32 crm, u32 op1, u32 op2, u32 v) {
     switch (crn) {
     case 1: {
         u32 old = cp15_control;
+        if (mmu_on_prefetch && ((cp15_control ^ v) & CR_M)) {
+            mmu_grace = 2; mmu_grace_pc = cur_pc + 4;
+            for (int k = 0; k < 2; k++)
+                if (!debug_translate(cur_pc + 4 + 4 * k, &mmu_grace_pa[k])) mmu_grace = u8(k);
+        }
         cp15_control = (v & 0x0000F387) | 0x00050078;
         if ((old ^ cp15_control) & (CR_M | CR_S | CR_R)) flush_tlb();
         break;

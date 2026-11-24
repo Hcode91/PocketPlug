@@ -59,6 +59,7 @@ class EmulatorActivity : Activity() {
     private var wide: WideHandheldView? = null
     private var genius: ArcadeGeniusView? = null
     private var giz: GizmondoView? = null
+    private var zod: ZodiacView? = null
     private var backgammon: BackgammonView? = null
     private var uboard: UniversityBoardView? = null
     private var workstation: DesktopSkin? = null
@@ -435,6 +436,16 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 giz = v
+                setContentView(v)
+            }
+            Skin.ZODIAC -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val v = ZodiacView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onAnalog = { stick, x, y -> synchronized(coreLock) { Native.setAnalog(handle, stick, x, y) } }
+                }
+                zod = v
                 setContentView(v)
             }
             Skin.UNIVERSITY_BOARD -> {
@@ -1407,6 +1418,7 @@ class EmulatorActivity : Activity() {
             else if (wide != null) wide?.updateFrame(pixels)
             else if (genius != null) genius?.updateFrame(pixels)
             else if (giz != null) giz?.updateFrame(pixels)
+            else if (zod != null) zod?.updateFrame(pixels)
             else if (backgammon != null) backgammon?.updateFrame(pixels)
             else if (uboard != null) uboard?.updateFrame(pixels)
             else tv.updateFrame(pixels)
@@ -1554,6 +1566,7 @@ class EmulatorActivity : Activity() {
         Skin.TV_CONSOLE, Skin.PLUG_PAD -> A3dBits.keyBit(code)
         Skin.ARCADE_GENIUS -> GeniusBits.keyBit(code)
         Skin.GIZMONDO -> GizBits.keyBit(code)
+        Skin.ZODIAC -> ZodBits.keyBit(code)
         Skin.BACKGAMMON -> when (code) {
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> 1 shl 0
             KeyEvent.KEYCODE_DEL -> 1 shl 4
@@ -1690,7 +1703,7 @@ class EmulatorActivity : Activity() {
             if (y > 0.5f) m = m or GizBits.DOWN
             if (x < -0.5f) m = m or GizBits.LEFT
             if (x > 0.5f) m = m or GizBits.RIGHT
-            if (m != stickMask) { stickMask = m; setTouch(3, m); giz?.externalMask = keyInputs or m }
+            if (m != stickMask) { stickMask = m; setTouch(3, m); giz?.externalMask = keyInputs or m; zod?.externalMask = keyInputs or m }
             return true
         }
         if (machine.skin == Skin.ARCADE_GENIUS && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -2065,6 +2078,7 @@ class EmulatorActivity : Activity() {
         wide?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask
+        zod?.externalMask = keyInputs or stickMask
         backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
@@ -2135,6 +2149,7 @@ class EmulatorActivity : Activity() {
         wide?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask
+        zod?.externalMask = keyInputs or stickMask
         backgammon?.externalMask = keyInputs
         pads.forEach { it?.externalMask = keyInputs }
         apfPads.forEach { it?.externalMask = keyInputs }
