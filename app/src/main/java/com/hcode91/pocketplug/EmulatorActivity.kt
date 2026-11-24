@@ -59,6 +59,7 @@ class EmulatorActivity : Activity() {
     private var aim: AimView? = null
     private var altair: AltairView? = null
     private var wide: WideHandheldView? = null
+    private var beijue: BeijueView? = null
     private var genius: ArcadeGeniusView? = null
     private var giz: GizmondoView? = null
     private var zod: ZodiacView? = null
@@ -423,6 +424,15 @@ class EmulatorActivity : Activity() {
                     add(tv, 0.92f)
                     add(m, 0.8f)
                 })
+            }
+            Skin.BEIJUE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                val v = BeijueView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                beijue = v
+                setContentView(v)
             }
             Skin.WIDE_HANDHELD -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -1725,6 +1735,7 @@ class EmulatorActivity : Activity() {
             else if (aim != null) aim?.updateFrame(pixels)
             else if (altair != null) altair?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
+            else if (beijue != null) beijue?.updateFrame(pixels)
             else if (genius != null) genius?.updateFrame(pixels)
             else if (giz != null) giz?.updateFrame(pixels)
             else if (zod != null) zod?.updateFrame(pixels)
@@ -1885,6 +1896,7 @@ class EmulatorActivity : Activity() {
         Skin.TV_CONSOLE, Skin.PLUG_PAD -> A3dBits.keyBit(code)
         Skin.BRIDGE -> BridgeCompanionView.keyBit(code)
         Skin.BEENA -> BeenaView.keyBit(code)
+        Skin.BEIJUE -> BeijueView.keyBit(code)
         Skin.ARCADE_GENIUS -> GeniusBits.keyBit(code)
         Skin.GIZMONDO -> GizBits.keyBit(code)
         Skin.ZODIAC -> ZodBits.keyBit(code)
@@ -2489,6 +2501,7 @@ class EmulatorActivity : Activity() {
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
+        beijue?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask
         zod?.externalMask = keyInputs or stickMask
@@ -2573,6 +2586,7 @@ class EmulatorActivity : Activity() {
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
+        beijue?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask
         zod?.externalMask = keyInputs or stickMask

@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
 object SkinPreview {
     private const val MAX_SIDE = 640
 
-    private fun landscape(s: Skin) = s == Skin.ALTAIR || s == Skin.AIM65 || s == Skin.KIT || s == Skin.WIDE_HANDHELD || s == Skin.ARCADE_GENIUS || s == Skin.GIZMONDO || s == Skin.ZODIAC || s == Skin.BACKGAMMON
+    private fun landscape(s: Skin) = s == Skin.ALTAIR || s == Skin.AIM65 || s == Skin.KIT || s == Skin.WIDE_HANDHELD || s == Skin.BEIJUE || s == Skin.ARCADE_GENIUS || s == Skin.GIZMONDO || s == Skin.ZODIAC || s == Skin.BACKGAMMON
 
     private fun version(ctx: Context): Long =
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode }.getOrDefault(0L)
@@ -80,6 +80,7 @@ object SkinPreview {
         Skin.HANDHELD -> HandheldView(ctx)
         Skin.MINI_ARCADE -> MiniArcadeView(ctx)
         Skin.WIDE_HANDHELD -> WideHandheldView(ctx)
+        Skin.BEIJUE -> BeijueView(ctx)
         Skin.ARCADE_GENIUS -> ArcadeGeniusView(ctx)
         Skin.GIZMONDO -> GizmondoView(ctx)
         Skin.ZODIAC -> ZodiacView(ctx)

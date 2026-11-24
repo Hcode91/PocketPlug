@@ -1,4 +1,4 @@
-// PocketPlug - SunPlus u'nSP (ISA 1.0) CPU
+// PocketPlug - SunPlus u'nSP (ISA 1.0, 1.2, 2.0) CPU
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // Instruction implementations copied from MAME src/devices/cpu/unsp
@@ -757,6 +757,7 @@ bool unsp_device::do_basic_alu_ops(const uint16_t &op0, uint32_t &lres, uint16_t
 
 void unsp_device::execute_exxx_group(uint16_t op)
 {
+	if (m_iso >= 12) return execute_exxx_group_12(op);
 	// several exxx opcodes have already been decoded as jumps by the time we get here
 	//logerror("<DUNNO>\n");
 	unimplemented_opcode(op);
@@ -1015,6 +1016,12 @@ void unsp_device::execute_fxxx_100_group(uint16_t op)
 
 void unsp_device::execute_fxxx_101_group(uint16_t op)
 {
+	if (m_iso >= 12) return execute_fxxx_101_group_12(op);
+	execute_fxxx_101_group_10(op);
+}
+
+void unsp_device::execute_fxxx_101_group_10(uint16_t op)
+{
 	//                           |   | |
 	// INT SET   1 1 1 1   - - - 1   0 1 0 0   0 0 F I
 	// BREAK     1 1 1 1   - - - 1   0 1 1 -   - 0 0 0
@@ -1202,8 +1209,791 @@ void unsp_device::execute_fxxx_group(uint16_t op)
 
 void unsp_device::execute_extended_group(uint16_t op)
 {
+	if (m_iso >= 20) return execute_extended_group_20(op);
 	// shouldn't get here anyway
 	logerror("<UNKNOWN EXTENDED>\n");
 	unimplemented_opcode(op);
+	return;
+}
+
+// ---- u'nSP 1.2 / 2.0 (MAME unsp_exxx.cpp, unsp_fxxx.cpp, unsp_extended.cpp: unsp_12_device / unsp_20_device)
+void unsp_device::execute_exxx_group_12(uint16_t op)
+{
+	// several exxx opcodes have already been decoded as jumps by the time we get here
+
+	//   Register BITOP  BITOP Rd,Rs             1 1 1 0   r r r 0   0 0 b b   0 r r r
+	//   Register BITOP  BITOP Rd,offset         1 1 1 0   r r r 0   0 1 b b   o o o o
+	//   Memory BITOP    BITOP [Rd], offset      1 1 1 0   r r r 1   1 0 b b   o o o o
+	//   Memory BITOP    BITOP ds:[Rd], offset   1 1 1 0   r r r 1   1 1 b b   o o o o
+	//   Memory BITOP    BITOP [Rd], Rs          1 1 1 0   r r r 1   0 0 b b   0 r r r
+	//   Memory BITOP    BITOP ds:[Rd], Rs       1 1 1 0   r r r 1   0 1 b b   0 r r r
+
+	if (((op & 0xf1c8) == 0xe000))
+	{
+		// Register BITOP  BITOP Rd,Rs
+		uint8_t bitop = (op & 0x0030) >> 4;
+		uint8_t rd =    (op & 0x0e00) >> 9;
+		uint8_t rs =    (op & 0x0007) >> 0;
+
+		const uint8_t offset = (m_core->m_r[rs] & 0xf);
+
+		m_core->m_r[REG_SR] &= ~UNSP_Z;
+		m_core->m_r[REG_SR] |= BIT(m_core->m_r[rd], offset) ? 0 : UNSP_Z;
+
+		switch (bitop)
+		{
+		case 0x00: // tstb
+			return;
+
+		case 0x01: // setb
+			m_core->m_r[rd] |= (1 << offset);
+			return;
+
+		case 0x02: // clrb
+			m_core->m_r[rd] &= ~(1 << offset);
+			return;
+
+		case 0x03:
+			m_core->m_r[rd] ^= (1 << offset);
+			return;
+		}
+		return;
+	}
+	else if (((op & 0xf1c0) == 0xe040))
+	{
+		// Register BITOP  BITOP Rd,offset
+		const uint8_t bitop =  (op & 0x0030) >> 4;
+		const uint8_t rd =     (op & 0x0e00) >> 9;
+		const uint8_t offset = (op & 0x000f) >> 0;
+		m_core->m_r[REG_SR] &= ~UNSP_Z;
+		m_core->m_r[REG_SR] |= BIT(m_core->m_r[rd], offset) ? 0 : UNSP_Z;
+
+		switch (bitop)
+		{
+		case 0x00: // tstb
+			return;
+
+		case 0x01: // setb
+			m_core->m_r[rd] |= (1 << offset);
+			return;
+
+		case 0x02: // clrb
+			m_core->m_r[rd] &= ~(1 << offset);
+			return;
+
+		case 0x03:
+			m_core->m_r[rd] ^= (1 << offset);
+			return;
+		}
+		return;
+	}
+	else if (((op & 0xf1c0) == 0xe180))
+	{
+		// Memory BITOP    BITOP [Rd], offset
+		const uint8_t bitop =  (op & 0x0030) >> 4;
+		const uint8_t rd =     (op & 0x0e00) >> 9;
+		const uint8_t offset = (op & 0x000f) >> 0;
+		const uint16_t addr =  m_core->m_r[rd];
+		const uint16_t orig =  read16(addr);
+		m_core->m_r[REG_SR] &= ~UNSP_Z;
+		m_core->m_r[REG_SR] |= BIT(orig, offset) ? 0 : UNSP_Z;
+
+		switch (bitop)
+		{
+		case 0x00: // tstb
+			return;
+
+		case 0x01: // setb
+			write16(addr, orig | (1 << offset));
+			return;
+
+		case 0x02: // clrb
+			write16(addr, orig & ~(1 << offset));
+			return;
+
+		case 0x03:
+			write16(addr, orig ^ (1 << offset));
+			return;
+		}
+		return;
+	}
+	else if (((op & 0xf1c0) == 0xe1c0))
+	{
+		// Memory BITOP    BITOP ds:[Rd], offset
+		const uint8_t bitop =  (op & 0x0030) >> 4;
+		const uint8_t rd =     (op & 0x0e00) >> 9;
+		const uint8_t offset = (op & 0x000f) >> 0;
+		const uint32_t addr =  m_core->m_r[rd] | (get_ds() << 16);
+		const uint16_t orig =  read16(addr);
+		m_core->m_r[REG_SR] &= ~UNSP_Z;
+		m_core->m_r[REG_SR] |= BIT(orig, offset) ? 0 : UNSP_Z;
+
+		switch (bitop)
+		{
+		case 0x00: // tstb
+			return;
+
+		case 0x01: // setb
+			write16(addr, orig | (1 << offset));
+			return;
+
+		case 0x02: // clrb
+			write16(addr, orig & ~(1 << offset));
+			return;
+
+		case 0x03:
+			write16(addr, orig ^ (1 << offset));
+			return;
+		}
+		return;
+	}
+	else if (((op & 0xf1c8) == 0xe100))
+	{
+		// Memory BITOP    BITOP [Rd], Rs
+		const uint8_t bitop =  (op & 0x0030) >> 4;
+		const uint8_t rd =     (op & 0x0e00) >> 9;
+		const uint8_t rs =     (op & 0x0007) >> 0;
+		const uint8_t offset = (m_core->m_r[rs] & 0xf);
+		const uint16_t addr =  m_core->m_r[rd];
+		const uint16_t orig =  read16(addr);
+		m_core->m_r[REG_SR] &= ~UNSP_Z;
+		m_core->m_r[REG_SR] |= BIT(orig, offset) ? 0 : UNSP_Z;
+
+		switch (bitop)
+		{
+		case 0x00: // tstb
+			return;
+
+		case 0x01: // setb
+			write16(addr, orig | (1 << offset));
+			return;
+
+		case 0x02: // clrb
+			write16(addr, orig & ~(1 << offset));
+			return;
+
+		case 0x03:
+			write16(addr, orig ^ (1 << offset));
+			return;
+		}
+		return;
+	}
+	else if (((op & 0xf1c8) == 0xe140))
+	{
+		// Memory BITOP    BITOP ds:[Rd], Rs
+		const uint8_t bitop =  (op & 0x0030) >> 4;
+		const uint8_t rd =     (op & 0x0e00) >> 9;
+		const uint8_t rs =     (op & 0x0007) >> 0;
+		const uint8_t offset = (m_core->m_r[rs] & 0xf);
+		const uint32_t addr =  m_core->m_r[rd] | (get_ds() << 16);
+		const uint16_t orig =  read16(addr);
+		m_core->m_r[REG_SR] &= ~UNSP_Z;
+		m_core->m_r[REG_SR] |= BIT(orig, offset) ? 0 : UNSP_Z;
+
+		switch (bitop)
+		{
+		case 0x00: // tstb
+			return;
+
+		case 0x01: // setb
+			write16(addr, orig | (1 << offset));
+			return;
+
+		case 0x02: // clrb
+			write16(addr, orig & ~(1 << offset));
+			return;
+
+		case 0x03:
+			write16(addr, orig ^ (1 << offset));
+			return;
+		}
+		return;
+	}
+	else if (((op & 0xf1f8) == 0xe008))
+	{
+		// MUL operations
+		// MUL      1 1 1 0*  r r r S*  0 0 0 0   1 r r r     (* = sign bit, fixed here)
+		/*
+		print_mul(stream, op); // MUL uu
+		*/
+		// only valid if S is 1, otherwise falls through to shifter
+
+		// MUL uu (unsigned * unsigned)
+		uint32_t lres = 0;
+		const uint16_t opa = (op >> 9) & 7;
+		const uint16_t opb = op & 7;
+
+		m_core->m_icount -= 12; // unknown
+
+		lres = m_core->m_r[opa] * m_core->m_r[opb];
+		m_core->m_r[REG_R4] = lres >> 16;
+		m_core->m_r[REG_R3] = (uint16_t)lres;
+
+		return;
+	}
+	else if (((op & 0xf180) == 0xe080))
+	{
+		// MULS     1 1 1 0*  r r r S*  1 s s s   s r r r    (* = sign bit, fixed here)
+		/*
+		// MULS uu
+		// only valid if S is 1? otherwise falls through to shifter
+
+		print_muls(stream, op);
+		*/
+
+		unimplemented_opcode(op);
+		return;
+	}
+	else if (((op & 0xf188) == 0xe108))
+	{
+		// 16 bit Shift    1 1 1 0   r r r 1   0 l l l   1 r r r
+		uint8_t rd =    (op & 0x0e00) >> 9;
+		uint8_t shift = (op & 0x0070) >> 4;
+		uint8_t rs =    (op & 0x0007) >> 0;
+
+		switch (shift)
+		{
+		case 0x00: // jak_smwm train movement
+		{
+
+			int16_t rdval = (int16_t)((uint16_t)m_core->m_r[rd]);
+			int shift = (m_core->m_r[rs] & 0x1f);
+			uint32_t res;
+			res = rdval >> shift;
+
+			m_core->m_r[rd] = res;
+			return;
+		}
+
+		case 0x01: // jak_car2 on starting a game, myac220 'piggy golf' ball movement
+		{
+
+			const int32_t rdval = (int32_t)(m_core->m_r[rd] << 16);
+			const int shift = (m_core->m_r[rs] & 0x1f);
+			const uint32_t res = rdval >> shift;
+			m_core->m_r[REG_R3] |= (uint16_t)res;
+			m_core->m_r[REG_R4] = (uint16_t)(res >> 16);
+
+			return;
+		}
+
+		case 0x02:
+		{
+
+			const uint32_t rdval = (uint16_t)(m_core->m_r[rd]);
+			const int shift = (m_core->m_r[rs] & 0x1f);
+			const uint32_t res = (uint16_t)(rdval << shift);
+
+			m_core->m_r[rd] = res;
+			return;
+		}
+
+		case 0x03:
+		{
+			// wrlshunt uses this
+
+			const uint32_t rdval = (uint16_t)m_core->m_r[rd];
+			const int shift = (m_core->m_r[rs] & 0x1f);
+			const uint32_t res = rdval << shift;
+			m_core->m_r[REG_R3] = (uint16_t)res;
+			m_core->m_r[REG_R4] |= (uint16_t)(res >> 16);
+
+			return;
+		}
+
+		case 0x04:
+		{
+			// smartfp loops increasing shift by 4 up to values of 28
+
+			const uint32_t rdval = (uint16_t)(m_core->m_r[rd]);
+			const int shift = (m_core->m_r[rs] & 0x1f);
+			const uint32_t res = (uint16_t)(rdval >> shift);
+
+			m_core->m_r[rd] = res;
+			return;
+		}
+
+		case 0x05:
+		{
+
+			const uint32_t rdval = m_core->m_r[rd] << 16;
+			const int shift = (m_core->m_r[rs] & 0x1f);
+			const uint32_t res = rdval >> shift;
+			m_core->m_r[REG_R3] |= (uint16_t)res;
+			m_core->m_r[REG_R4] = (uint16_t)(res >> 16);
+
+			return;
+		}
+
+		case 0x06:
+
+			unimplemented_opcode(op);
+			return;
+
+		case 0x07:
+
+			unimplemented_opcode(op);
+			return;
+		}
+	}
+
+	logerror("<DUNNO>\n");
+	unimplemented_opcode(op);
+	return;
+}
+
+void unsp_device::execute_divq(uint16_t op)
+{
+	if (m_core->m_divq_bit == UINT_MAX)
+	{
+		m_core->m_divq_bit = 15;
+		m_core->m_divq_dividend = (m_core->m_r[REG_R4] << 16) | m_core->m_r[REG_R3];
+		m_core->m_divq_divisor = m_core->m_r[REG_R2];
+		m_core->m_divq_a = 0;
+	}
+	m_core->m_aq = BIT(m_core->m_divq_a, 31);
+	if (m_core->m_aq)
+	{
+		m_core->m_divq_a += m_core->m_divq_a + BIT(m_core->m_divq_dividend, 15) + m_core->m_divq_divisor;
+	}
+	else
+	{
+		m_core->m_divq_a += m_core->m_divq_a + BIT(m_core->m_divq_dividend, 15) - m_core->m_divq_divisor;
+	}
+	m_core->m_divq_dividend <<= 1;
+	m_core->m_divq_dividend++;
+	m_core->m_divq_dividend ^= BIT(m_core->m_divq_a, 31);
+	m_core->m_r[REG_R3] = (uint16_t)m_core->m_divq_dividend;
+	m_core->m_divq_bit--;
+}
+
+bool unsp_device::op_is_divq(const uint16_t op)
+{
+	return (op & 0xf163) == 0xf163;
+}
+
+void unsp_device::execute_fxxx_101_group_12(uint16_t op)
+{
+	// FIR_MOV   1 1 1 1   - - - 1   0 1 0 0   0 1 0 f
+	// Fraction  1 1 1 1   - - - 1   0 1 0 0   0 1 1 f
+	// SECBANK   1 1 1 1   - - - 1   0 1 0 0   1 0 1 S
+	// NESTMODE  1 1 1 1   - - - 1   0 1 0 0   1 1 N 1
+	// CALLR     1 1 1 1   - - - 1   0 1 1 -   - 0 0 1
+	// DIVS      1 1 1 1   - - - 1   0 1 1 -   - 0 1 0
+	// DIVQ      1 1 1 1   - - - 1   0 1 1 -   - 0 1 1
+	// EXP       1 1 1 1   - - - 1   0 1 1 -   - 1 0 0
+
+	m_core->m_icount -= 1; // Unknown count
+
+	switch (op)
+	{
+	case 0xf146: case 0xf346: case 0xf546: case 0xf746: case 0xf946: case 0xfb46: case 0xfd46: case 0xff46:
+		m_core->m_fra = 0;
+		return;
+
+	case 0xf147: case 0xf347: case 0xf547: case 0xf747: case 0xf947: case 0xfb47: case 0xfd47: case 0xff47:
+		m_core->m_fra = 1;
+		return;
+
+	case 0xf14a: case 0xf34a: case 0xf54a: case 0xf74a: case 0xf94a: case 0xfb4a: case 0xfd4a: case 0xff4a:
+		if (m_core->m_bnk)
+		{
+			std::swap<uint32_t>(m_core->m_r[REG_R1], m_core->m_secbank[REG_SR1]);
+			std::swap<uint32_t>(m_core->m_r[REG_R2], m_core->m_secbank[REG_SR2]);
+			std::swap<uint32_t>(m_core->m_r[REG_R3], m_core->m_secbank[REG_SR3]);
+			std::swap<uint32_t>(m_core->m_r[REG_R4], m_core->m_secbank[REG_SR4]);
+		}
+		m_core->m_bnk = 0;
+		return;
+
+	case 0xf14b: case 0xf34b: case 0xf54b: case 0xf74b: case 0xf94b: case 0xfb4b: case 0xfd4b: case 0xff4b:
+		if (m_core->m_bnk == 0)
+		{
+			std::swap<uint32_t>(m_core->m_r[REG_R1], m_core->m_secbank[REG_SR1]);
+			std::swap<uint32_t>(m_core->m_r[REG_R2], m_core->m_secbank[REG_SR2]);
+			std::swap<uint32_t>(m_core->m_r[REG_R3], m_core->m_secbank[REG_SR3]);
+			std::swap<uint32_t>(m_core->m_r[REG_R4], m_core->m_secbank[REG_SR4]);
+		}
+		m_core->m_bnk = 1;
+		return;
+
+	case 0xf14d: case 0xf34d: case 0xf54d: case 0xf74d: case 0xf94d: case 0xfb4d: case 0xfd4d: case 0xff4d:
+		m_core->m_ine = 0;
+		return;
+
+	case 0xf14f: case 0xf34f: case 0xf54f: case 0xf74f: case 0xf94f: case 0xfb4f: case 0xfd4f: case 0xff4f:
+		m_core->m_ine = 1;
+		return;
+
+	case 0xf144: case 0xf344: case 0xf544: case 0xf744: case 0xf944: case 0xfb44: case 0xfd44: case 0xff44:
+		m_core->m_fir_move = 1;
+		return;
+
+	case 0xf145: case 0xf345: case 0xf545: case 0xf745: case 0xf945: case 0xfb45: case 0xfd45: case 0xff45:
+		m_core->m_fir_move = 0;
+		return;
+
+	case 0xf161: case 0xf361: case 0xf561: case 0xf761: case 0xf961: case 0xfb61: case 0xfd61: case 0xff61:
+	case 0xf169: case 0xf369: case 0xf569: case 0xf769: case 0xf969: case 0xfb69: case 0xfd69: case 0xff69:
+	case 0xf171: case 0xf371: case 0xf571: case 0xf771: case 0xf971: case 0xfb71: case 0xfd71: case 0xff71:
+	case 0xf179: case 0xf379: case 0xf579: case 0xf779: case 0xf979: case 0xfb79: case 0xfd79: case 0xff79:
+	{
+		uint32_t addr = m_core->m_r[REG_R3] | ((m_core->m_r[REG_R4] & 0x3f) << 16);
+		push(m_core->m_r[REG_PC], &m_core->m_r[REG_SP]);
+		push(m_core->m_r[REG_SR], &m_core->m_r[REG_SP]);
+		m_core->m_r[REG_PC] = addr & 0x0000ffff;
+		m_core->m_r[REG_SR] &= 0xffc0;
+		m_core->m_r[REG_SR] |= ((addr & 0x003f0000) >> 16);
+		return;
+	}
+
+	case 0xf162: case 0xf362: case 0xf562: case 0xf762: case 0xf962: case 0xfb62: case 0xfd62: case 0xff62:
+	case 0xf16a: case 0xf36a: case 0xf56a: case 0xf76a: case 0xf96a: case 0xfb6a: case 0xfd6a: case 0xff6a:
+	case 0xf172: case 0xf372: case 0xf572: case 0xf772: case 0xf972: case 0xfb72: case 0xfd72: case 0xff72:
+	case 0xf17a: case 0xf37a: case 0xf57a: case 0xf77a: case 0xf97a: case 0xfb7a: case 0xfd7a: case 0xff7a:
+		logerror("divs mr, r2\n");
+		unimplemented_opcode(op);
+		return;
+
+	case 0xf163: case 0xf363: case 0xf563: case 0xf763: case 0xf963: case 0xfb63: case 0xfd63: case 0xff63:
+	case 0xf16b: case 0xf36b: case 0xf56b: case 0xf76b: case 0xf96b: case 0xfb6b: case 0xfd6b: case 0xff6b:
+	case 0xf173: case 0xf373: case 0xf573: case 0xf773: case 0xf973: case 0xfb73: case 0xfd73: case 0xff73:
+	case 0xf17b: case 0xf37b: case 0xf57b: case 0xf77b: case 0xf97b: case 0xfb7b: case 0xfd7b: case 0xff7b:
+		execute_divq(op);
+		return;
+
+	case 0xf164: case 0xf364: case 0xf564: case 0xf764: case 0xf964: case 0xfb64: case 0xfd64: case 0xff64:
+	case 0xf16c: case 0xf36c: case 0xf56c: case 0xf76c: case 0xf96c: case 0xfb6c: case 0xfd6c: case 0xff6c:
+	case 0xf174: case 0xf374: case 0xf574: case 0xf774: case 0xf974: case 0xfb74: case 0xfd74: case 0xff74:
+	case 0xf17c: case 0xf37c: case 0xf57c: case 0xf77c: case 0xf97c: case 0xfb7c: case 0xfd7c: case 0xff7c:
+	{
+		uint16_t r4 = m_core->m_r[REG_R4];
+
+		if (r4 & 0x8000)
+		{
+			m_core->m_r[REG_R2] = (r4 == 0xffff ? 16 : __builtin_clz(uint32_t(uint16_t(~r4))) - 16) - 1;
+		}
+		else
+		{
+			m_core->m_r[REG_R2] = (r4 == 0 ? 16 : __builtin_clz(uint32_t(r4)) - 16) - 1;
+		}
+
+		return;
+	}
+
+	default:
+		return execute_fxxx_101_group_10(op);
+	}
+}
+
+
+void unsp_device::execute_extended_group_20(uint16_t op)
+{
+	uint16_t ximm = read16(UNSP_LPC);
+	add_lpc(1);
+
+	switch ((ximm & 0x01f0) >> 4)
+	{
+	case 0x00: case 0x10:
+	{
+		// Ext Register
+		// Ra = Ra op Rb
+		// A  = B  op C
+		uint8_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t rb = (ximm & 0x000f) >> 0;
+		uint8_t ra = (ximm & 0x0e00) >> 9;
+		ra |= (ximm & 0x0100) >> 5;
+
+		uint16_t b = m_core->m_r[ra];
+		uint16_t c = m_core->m_r[rb];
+		uint32_t lres;
+		uint32_t storeaddr = b; // dest address for STORE
+
+		bool write = do_basic_alu_ops(aluop, lres, b, c, storeaddr, (ra != 7));
+
+		if (write)
+		{
+			// a = Ra
+			m_core->m_r[ra] = (uint16_t)lres;
+		}
+
+		return;
+	}
+	case 0x02:
+	{
+		// Ext Push/Pop
+		if (ximm & 0x8000)
+		{
+			uint8_t rb = (ximm & 0x000f) >> 0;
+			uint8_t size = (ximm & 0x7000) >> 12;
+			uint8_t rx = (ximm & 0x0e00) >> 9;
+
+			if (size == 0) size = 8;
+
+			while (size--)
+			{
+				push(m_core->m_r[((rx--)&7) + 8], &m_core->m_r[rb]);
+			}
+			return;
+		}
+		else
+		{
+			uint8_t rb = (ximm & 0x000f) >> 0;
+			uint8_t size = (ximm & 0x7000) >> 12;
+			uint8_t rx = (ximm & 0x0e00) >> 9;
+
+			if (size == 0) size = 8;
+
+			while (size--)
+			{
+				m_core->m_r[((++rx)&7) + 8] = pop(&m_core->m_r[rb]);
+			}
+			return;
+		}
+		return;
+	}
+	case 0x04:  case 0x14:
+	{
+		uint16_t imm16_2 = read16(UNSP_LPC);
+		add_lpc(1);
+
+		// Ra = Rb op IMM16
+		// A  = B  op C
+
+		uint8_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t rb = (ximm & 0x000f) >> 0;
+		uint8_t ra = (ximm & 0x0e00) >> 9;
+		ra |= (ximm & 0x0100) >> 5;
+
+
+		uint16_t b = m_core->m_r[rb];
+		uint32_t lres;
+		uint32_t storeaddr = 0;// m_core->m_r[ra]; // dest address for STORE (invalid anyway?)
+
+		if (aluop == 0xd)
+		{
+			// store is invalid?
+			unimplemented_opcode(op, ximm, imm16_2);
+		}
+
+		bool write = do_basic_alu_ops(aluop, lres, b, imm16_2, storeaddr, (ra != 7));
+
+		if (write)
+		{
+			// a = Ra
+			m_core->m_r[ra] = (uint16_t)lres;
+		}
+
+		return;
+	}
+
+	case 0x06:
+	case 0x16:
+	{
+		uint16_t imm16_2 = read16(UNSP_LPC);
+		add_lpc(1);
+
+		// Ra = Rb op [A16]
+		// A  = B  op C
+
+		uint8_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t rb = (ximm & 0x000f) >> 0;
+		uint8_t ra = (ximm & 0x0e00) >> 9;
+		ra |= (ximm & 0x0100) >> 5;
+
+		uint16_t b = m_core->m_r[rb];
+		uint16_t c = read16(imm16_2);
+		uint32_t storeaddr = imm16_2; // dest address for STORE
+		uint32_t lres;
+
+		bool write = do_basic_alu_ops(aluop, lres, b, c, storeaddr, (ra != 7));
+
+		if (write)
+		{
+			// a = Ra
+			m_core->m_r[ra] = (uint16_t)lres;
+		}
+
+		return;
+	}
+
+	case 0x07:
+	case 0x17:
+	{
+		uint16_t imm16_2 = read16(UNSP_LPC);
+		add_lpc(1);
+
+		//[A16] = Ra op Rb
+		// A    = B  op C
+
+		uint8_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t rb = (ximm & 0x000f) >> 0;
+		uint8_t ra = (ximm & 0x0e00) >> 9;
+		ra |= (ximm & 0x0100) >> 5;
+
+		uint16_t a = imm16_2;
+		uint16_t b = m_core->m_r[ra];
+		uint16_t c = m_core->m_r[rb];
+		uint32_t lres;
+		uint32_t r2 = a;
+
+		bool write = do_basic_alu_ops(aluop, lres, b, c, r2, true);
+
+		if (write)
+		{
+			write16(imm16_2, lres);
+		}
+
+		return;
+	}
+
+	case 0x08: case 0x09: // Ext Indirect, Rx = Rx op [Ry@]
+	case 0x0a: case 0x0b: // Ext Indirect, Rx = Rx op ds:[Ry@]
+	{
+		uint16_t r0 = 0;
+		uint16_t r1 = 0;
+		uint32_t r2 = 0;
+		uint32_t lres = 0;
+
+		uint16_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t ry = (ximm & 0x0007) + 8;
+		uint8_t rx = ((ximm & 0x0e00) >> 9) + 8;
+		uint8_t use_ds = BIT(ximm, 5);
+		uint8_t form = (ximm & 0x0018) >> 3;
+
+		r0 = m_core->m_r[rx];
+
+		switch (form)
+		{
+			case 0x0: // Rx, [<ds:>Ry]
+				r2 = use_ds ? UNSP_LREG_I(ry) : m_core->m_r[ry];
+				if (aluop != 0x0d)
+					r1 = read16(r2);
+				break;
+			case 0x1: // Rx, [<ds:>Ry--]
+				r2 = use_ds ? UNSP_LREG_I(ry) : m_core->m_r[ry];
+				if (aluop != 0x0d)
+					r1 = read16(r2);
+				m_core->m_r[ry] = (uint16_t)(m_core->m_r[ry] - 1);
+				if (m_core->m_r[ry] == 0xffff && use_ds)
+					m_core->m_r[REG_SR] -= 0x0400;
+				break;
+			case 0x2: // Rx, [<ds:>Ry++]
+				r2 = use_ds ? UNSP_LREG_I(ry) : m_core->m_r[ry];
+				if (aluop != 0x0d)
+					r1 = read16(r2);
+				m_core->m_r[ry] = (uint16_t)(m_core->m_r[ry] + 1);
+				if (m_core->m_r[ry] == 0x0000 && use_ds)
+					m_core->m_r[REG_SR] += 0x0400;
+				break;
+			case 0x3: // Rx, [<ds:>++Ry]
+				m_core->m_r[ry] = (uint16_t)(m_core->m_r[ry] + 1);
+				if (m_core->m_r[ry] == 0x0000 && use_ds)
+					m_core->m_r[REG_SR] += 0x0400;
+				r2 = use_ds ? UNSP_LREG_I(ry) : m_core->m_r[ry];
+				if (aluop != 0x0d)
+					r1 = read16(r2);
+				break;
+		}
+
+		if (do_basic_alu_ops(aluop, lres, r0, r1, r2, (aluop != 7) ? true : false))
+		{
+			m_core->m_r[rx] = (uint16_t)lres;
+		}
+
+		return;
+	}
+	case 0x18: case 0x19: case 0x1a: case 0x1b:
+	{
+		// Ext IM6
+		// Rx = Rx op IM6
+		// A  = B  op C
+
+		uint8_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t rx = (ximm & 0x0e00) >> 9;
+		uint8_t imm6 = (ximm & 0x003f) >> 0;
+
+		uint16_t b = m_core->m_r[rx + 8];
+		uint16_t c = imm6;
+
+		uint32_t storeaddr = 0; // dest address for STORE
+		uint32_t lres;
+
+		if (aluop == 0xd)
+		{
+			// store is invalid?
+			unimplemented_opcode(op, ximm);
+		}
+
+		bool write = do_basic_alu_ops(aluop, lres, b, c, storeaddr, true);
+
+		if (write)
+		{
+			// A = Rx
+			m_core->m_r[rx + 8] = (uint16_t)lres;
+		}
+
+		return;
+	}
+
+	case 0x0c: case 0x0d: case 0x0e: case 0x0f:
+	{
+		// Ext Base+Disp6
+		// Rx = Rx op [BP+IM6]
+		// A  = B  op C
+
+		uint8_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t rx = (ximm & 0x0e00) >> 9;
+		uint8_t imm6 = (ximm & 0x003f) >> 0;
+
+		uint32_t addr = (uint16_t)(m_core->m_r[REG_BP] + (imm6 & 0x3f));
+
+		uint16_t b = m_core->m_r[rx + 8];
+		uint16_t c = read16(addr);
+
+		uint32_t storeaddr = addr; // dest address for STORE
+		uint32_t lres;
+
+		bool write = do_basic_alu_ops(aluop, lres, b, c, storeaddr, true);
+
+		if (write)
+		{
+			// A = Rx
+			m_core->m_r[rx + 8] = (uint16_t)lres;
+		}
+
+		return;
+	}
+
+	case 0x1c: case 0x1d: case 0x1e: case 0x1f:
+	{
+		// Ext A6
+		// Rx = Rx op [A6]
+		// A  = B  op C
+
+		uint8_t aluop = (ximm & 0xf000) >> 12;
+		uint8_t rx = (ximm & 0x0e00) >> 9;
+		uint8_t a6 = (ximm & 0x003f) >> 0;
+
+		uint16_t b = m_core->m_r[rx + 8];
+		uint16_t c = read16(a6);
+
+		uint32_t storeaddr = a6; // dest address for STORE
+		uint32_t lres;
+
+		bool write = do_basic_alu_ops(aluop, lres, b, c, storeaddr, true);
+
+		if (write)
+		{
+			// A = Rx
+			m_core->m_r[rx + 8] = (uint16_t)lres;
+		}
+
+		return;
+	}
+	}
+
+	// illegal?
+	unimplemented_opcode(op, ximm);
 	return;
 }

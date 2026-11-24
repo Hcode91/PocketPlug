@@ -20,6 +20,15 @@
 typedef uint32_t offs_t;
 class Spg2xxCore;
 
+// what the sound device needs from the chip it sits in (the SPG2xx core, the GPL162xx core)
+struct SpgAudioHost {
+    virtual uint16_t audio_read_word(uint32_t address) = 0;
+    virtual void audio_irq(int state) = 0;
+    virtual void audio_ch_irq(int state) = 0;
+    virtual SpgMachine& audio_machine() = 0;
+    virtual ~SpgAudioHost() = default;
+};
+
 // ---------------------------------------------------------------------------
 class ima_adpcm_state
 {
@@ -363,7 +372,7 @@ public:
     void loop_channel(const uint32_t channel);
     uint16_t decode_adpcm36_nybble(const uint32_t channel, const uint8_t data);
 
-    Spg2xxCore* m_soc = nullptr;
+    SpgAudioHost* m_soc = nullptr;
     SpgMachine& machine();
     void m_irq_cb(int state);
     void m_ch_irq_cb(int state);
@@ -409,9 +418,13 @@ struct Spg2xxConfig {
     std::vector<uint16_t> romPatchValues;
 };
 
-class Spg2xxCore : public Core, public unsp_device::Bus
+class Spg2xxCore : public Core, public unsp_device::Bus, public SpgAudioHost
 {
 public:
+    uint16_t audio_read_word(uint32_t a) override { return read_word(a); }
+    void audio_irq(int s) override { audioirq_w(s); }
+    void audio_ch_irq(int s) override { audiochirq_w(s); }
+    SpgMachine& audio_machine() override { return m_machine; }
     explicit Spg2xxCore(const Spg2xxConfig& c);
     ~Spg2xxCore() override;
     bool load(const std::vector<RomFile>& roms, std::string& error) override;

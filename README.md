@@ -53,6 +53,7 @@ controller.
 | System Control Car: Cheetah (Bandai, 1979) | `bcheetah` | TI TMS1000 (own core) | Programmable buggy: its motors are shown as lights |
 | Bridge Companion (Unicard, 1985) | `bbcbc` | Z80 + Z80 PIO + TMS9129 (port of MAME's unicard/bbcbc.cpp) | Runs to its "plug in cartridge" screen; needs cartridge dumps to play |
 | Advanced Pico BEENA (Sega Toys, 2005) | `beena` | Big-endian ARM7TDMI on DidjDroid's ARM926 interpreter (word-invariant big-endian mode); port of MAME's sega_beena.cpp: tile layers with per-line palettes and scroll, sprites, direct bitmap, fades, AP2010 PCM FIFO, memory cache protocol, pen / page / pad sensors, RTC | BIOS and cartridges boot and play (tested: Futari wa Pretty Cure Max Heart) with speech and sound effects; no MIDI music (not emulated in MAME either), no card readers |
+| Beijue 220-in-1 16-bit handheld | `beijuehh` | GeneralPlus GPL16218B: u'nSP 2.0 (the shared u'nSP core gains the 1.2 / 2.0 instructions), port of MAME's GPL162xx SoC, video, renderer, DMA and timebase; the SPG2xx sound device with its control registers connected and the beat interrupt on IRQ4 (MAME leaves both off); ROM banking on ports B / D | Menu and games play with sound (tested: Table Tennis). The Beam Box (GPL16258VB + NAND) is in the same core but its NAND loader doesn't start yet (MAME doesn't run it either) |
 | Bingo Bear talking puppet (Hasbro / Tiger, 1986) | `bbear` | TI TMS1100 + TMS5110A speech and TMS6100 speech ROMs (ports of MAME's tms1k, tms5110, tms6100) | Greets you, then talks when the mouth sensor is worked, as in MAME (which marks its controls imperfect) |
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
 | Arcade Mania (Milton Bradley, 1983) | `arcmania` | TI TMS1100 (own core) | LEDs and sound match MAME with the same presses |
@@ -178,6 +179,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | System Control Car: Cheetah | `bcheetah` | `mp0915`, `tms1000_common2_micro.pla`, `tms1000_bcheetah_output.pla` | 1,024 / 867 / 365 bytes | `2968c81e`, `d33da3cf`, `cc6d1ecd` |
 | Bridge Companion | `bbcbc` | `br_4_1.ic3`, `br_4_2.ic4` (plus your cartridge dumps, MAME software list `bbcbc`) | 8,192 / 8,192 bytes | `7c880d75`, `16a33aef` |
 | Advanced Pico BEENA | `beena` | `9h0-0008.bios.ic1`, `9h0-0008.midipcm.ic1` (plus your cartridge dumps, MAME software list `sega_beena_cart`) | 131,072 / 32,768 bytes | `5471aaf8`, `ed336d29` |
+| Beijue 220-in-1 handheld | `beijuehh` | `beijeu.bin` | 134,217,728 bytes | `e7b968af` |
 | Bingo Bear talking puppet | `bbear` | `e7cl04n2l`, `tms1100_common1_micro.pla`, `tms1100_bbear_output.pla`, `cm62056`, `cm62057` | 2,048 / 867 / 365 / 16,384 / 16,384 bytes | `e2e4ff07`, `62445fc9`, `5a0b8e88`, `550b40d1`, `383a8a9a` |
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |
 | Arcade Mania | `arcmania` | `m34078a`, `tms1100_common1_micro.pla`, `tms1100_arcmania_output.pla` | 2,048 / 867 / 365 bytes | `90ea0087`, `62445fc9`, `a1517b15` |

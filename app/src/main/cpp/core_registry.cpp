@@ -32,6 +32,7 @@
 #include "cores/chess/vcc.h"
 #include "cores/bbcbc/bbcbc.h"
 #include "cores/beena/beena.h"
+#include "cores/gpl162xx/gpl162xx.h"
 #include "cores/chess/beluga.h"
 #include "cores/chess/bkc.h"
 #include "cores/xavix/xavix.h"
@@ -481,6 +482,10 @@ Core* createCore(const std::string& id)
         return new BbcCore(id);
     if (id == "beluga")        // Novag Beluga
         return new BelugaCore();
+    if (id == "beijuehh")      // Beijue 220-in-1 handheld (GPL16218B)
+        return new Gpl162xxCore(Gpl162xxCore::BEIJUEHH);
+    if (id == "beambox")       // Rescue Bots Beam Box (GPL16258VB + NAND)
+        return new Gpl162xxCore(Gpl162xxCore::BEAMBOX);
     if (id == "beena")         // Sega Toys Advanced Pico BEENA
         return new BeenaCore();
     if (id == "bbcbc")         // Unicard Bridge Companion

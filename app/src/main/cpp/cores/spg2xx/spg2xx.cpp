@@ -21,7 +21,7 @@ static const uint32_t SPG_XTAL = 27000000;
 // framework stand-ins used by the generated device code
 // ---------------------------------------------------------------------------
 SpgMachine& spg2xx_io_device::machine() { return m_soc->m_machine; }
-SpgMachine& spg2xx_audio_device::machine() { return m_soc->m_machine; }
+SpgMachine& spg2xx_audio_device::machine() { return m_soc->audio_machine(); }
 uint32_t spg2xx_io_device::clock() { return m_soc->m_cpuClock; }   // derived from the (scaled) CPU clock
 uint16_t spg_renderer_device::read_word(uint32_t a) { return m_soc->read_word(a); }
 
@@ -56,8 +56,8 @@ void spg2xx_io_device::m_external_irq_cb(int s) { m_soc->extirq_w(s); }
 void spg2xx_io_device::m_ffreq_tmr1_irq_cb(int s) { m_soc->ffreq1_w(s); }
 void spg2xx_io_device::m_ffreq_tmr2_irq_cb(int s) { m_soc->ffreq2_w(s); }
 void spg2xx_io_device::m_fiq_vector_w(uint8_t data) { m_soc->m_fiq_vector = data; }
-void spg2xx_audio_device::m_irq_cb(int s) { m_soc->audioirq_w(s); }
-void spg2xx_audio_device::m_ch_irq_cb(int s) { m_soc->audiochirq_w(s); }
+void spg2xx_audio_device::m_irq_cb(int s) { m_soc->audio_irq(s); }
+void spg2xx_audio_device::m_ch_irq_cb(int s) { m_soc->audio_ch_irq(s); }
 
 #define TIMER(cls, fn) [](void* c, int p) { ((cls*)c)->fn(p); }
 

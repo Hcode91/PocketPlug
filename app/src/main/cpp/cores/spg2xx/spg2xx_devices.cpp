@@ -3403,7 +3403,7 @@ bool spg2xx_audio_device::advance_channel(const uint32_t channel)
 
 uint16_t spg2xx_audio_device::read_space(offs_t offset)
 {
-	return m_soc->read_word(offset);
+	return m_soc->audio_read_word(offset);
 }
 
 uint16_t spg2xx_audio_device::decode_adpcm36_nybble(const uint32_t channel, const uint8_t data)

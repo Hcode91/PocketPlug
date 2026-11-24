@@ -63,6 +63,12 @@ public:
     void set_fr(uint16_t fr);
     uint16_t get_fr();
     void set_state_unsynced(int inputnum, int state);
+    // u'nSP 1.2 / 2.0 (GeneralPlus GPL162xx): extra ops, 2.0 adds R8-R15 and the extended group
+    void set_iso(int iso) { m_iso = iso; m_numregs = iso >= 20 ? 16 : 8; }
+    void set_vectorbase(uint16_t v) { m_vectorbase = v; }
+    void set_bootvectorbase(uint16_t v) { m_bootvectorbase = v; }
+    void (*m_irq_ack)(void* ctx, int line) = nullptr;
+    void* m_irq_ack_ctx = nullptr;
 
     enum : uint32_t
     {
@@ -129,12 +135,16 @@ protected:
     void execute_fxxx_100_group(uint16_t op);
     void execute_extended_group(uint16_t op);
     void execute_exxx_group(uint16_t op);
+    void execute_exxx_group_12(uint16_t op);
+    void execute_fxxx_101_group_12(uint16_t op);
+    void execute_fxxx_101_group_10(uint16_t op);
+    void execute_extended_group_20(uint16_t op);
     void execute_muls_ss(const uint16_t rd, const uint16_t rs, const uint16_t size);
     void unimplemented_opcode(uint16_t op) {}
     void unimplemented_opcode(uint16_t op, uint16_t ximm) {}
     void unimplemented_opcode(uint16_t op, uint16_t ximm, uint16_t ximm_2) {}
-    bool op_is_divq(const uint16_t op) { return false; }
-    void execute_divq(uint16_t op) {}
+    bool op_is_divq(const uint16_t op);
+    void execute_divq(uint16_t op);
 
     void push(uint32_t value, uint32_t *reg);
     uint16_t pop(uint32_t *reg);
@@ -149,5 +159,5 @@ protected:
     void trigger_fiq();
     void trigger_irq(int line);
     void check_irqs();
-    void standard_irq_callback(int, uint32_t) {}
+    void standard_irq_callback(int line, uint32_t) { if (m_irq_ack) m_irq_ack(m_irq_ack_ctx, line); }
 };
