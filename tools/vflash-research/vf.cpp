@@ -1,5 +1,6 @@
 #include <cmath>
 #include <tuple>
+#include <map>
 // V.Flash research harness: boot ROM on the ARM926 interpreter, logging I/O.
 #include "cores/gpl32/arm926.h"
 #include <cstdio>
@@ -359,7 +360,13 @@ struct VF : Bus {
         return v;
     }
     std::string line;
+    std::map<u32, u64> regionCount;
     void io_write(u32 a, u32 v) {
+        if (getenv("VFREG") && cycles / 150000 > (u64)atoll(getenv("VFREG"))) {
+            u64& c = regionCount[(a >> 24) == 0xa8 || (a >> 24) == 0xa4 ? a : a & 0xfffff000];
+            if (!c) printf("region %08x first write %08x = %08x pc %08x t=%llu\n", a & 0xfffff000, a, v, cpu->r[15], cycles / 150000);
+            c++;
+        }
         if (a == 0xb8000000) { lcdStatus &= ~v; lcd_int(); log("W", a, v); return; }
         if (a == 0xc4000014) {
             if ((v & 1) && !(regs[a] & 1)) {
@@ -455,7 +462,7 @@ int main(int argc, char** argv) {
     {
         const char* p = getenv("VFWATCH");
         while (p && *p) { watch.insert(u32(strtoul(p, (char**)&p, 16))); if (*p == ',') p++; else break; }
-        if (p) { cpu.hle_base = 0x10000000; cpu.hle_size = 0x00200000; }
+        if (p) { cpu.hle_base = 0x10000000; cpu.hle_size = 0x02000000; }
         cpu.hle_watch_pc = 0x10010994;   // OS idle task: a pure counting loop, so sleep until the next interrupt
         cpu.hle_hook = [](ARM926* c, u32 pc, void*) -> bool {
             if (pc == 0x10010994 && !getenv("NOIDLE")) { c->halt(); return true; }
@@ -501,6 +508,7 @@ int main(int argc, char** argv) {
         }
     }
     if (getenv("DUMP")) { FILE* o = fopen("ram.bin", "wb"); fwrite(vf.sdram.data(), 1, 32 << 20, o); fclose(o); }
+    for (auto& [k, v] : vf.regionCount) printf("region %08x writes %llu\n", k, (unsigned long long)v);
     for (int k = 0; k < 32; k++) if (vf.claims[k]) printf("irq %d x%lu\n", k, vf.claims[k]);
     printf("active %08x status %08x mask %08x\n", vf.active, vf.status, vf.mask[0]);
     printf("regs:"); for (int k = 0; k < 16; k++) printf(" r%d=%08x", k, cpu.r[k]); printf(" cpsr=%08x\n", cpu.cpsr);

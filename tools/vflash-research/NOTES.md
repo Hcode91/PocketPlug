@@ -310,3 +310,30 @@ decoder must not be gated on it.
 
 Screen state after the load: framebuffer clears only; 09 primitive records
 (sprites/textured quads) are not drawn yet.
+
+## Textures (in progress)
+
+- MAIN.VFF is a "vfD0" executable, not an asset pack: header at 0 = magic,
+  then 3 segments {load address, size}: 0x104B8000/0x18E000,
+  0x107F1000/0x1A4000, 0x101B8000/0x2AC000 (entry probably 0x104BC890).
+- Texture objects (OS, 0x2C bytes): +4 x,y (u16, 2D space, x in 16-bit
+  units), +8 w,h, +0xC bpp (4/8/16), +0x10 unit, +0x14 palette x,y,
+  +0x1C palette source, +0x20 size, +0x24 bytes, +0x28 pixel source.
+- Bind (0x10a2be64 / 0x10a2bff4): 8F/90/91 = (y << 12) | x of the palette
+  (8bpp) for texture unit 0/1/2 (builder 0x109e61c0), 87 = texture position,
+  86 = format. Upload when not yet loaded: 0x10a36030 -> 0x109e4a3c(rect,
+  src, bpp), which writes list chunks:
+  `D4000002, (y<<16)|x, (h<<16)|w16, 0E000000|words, src address, 95000000`.
+  Never called in the current run (all textures already flagged loaded).
+- OS textures do sit in RAM at 0x10048000 + y*2048 (rows 720+, 8bpp indices
+  seen at 0x101B0000), but MAIN.VFF segment 3 (0x101B8000 = row 736) loads
+  over them. Segment 3 holds the game's texture art (bricks, temple carvings,
+  menu buttons "Music/Sound/Player/Level", copyright text), packed per texture
+  (best partial view: 64x16 tiles, 16 per band) - i.e. source blobs, not the
+  chip's layout. Game palettes (8F rows 2305-2317) land in segment 1 code if
+  read as RAM, so the game's 2D texture space is probably NOT plain RAM:
+  open question where it lives and how the game fills it.
+- 09 + address = call a sublist (records start C8.., 40.., 6F.., 0A..);
+  3D records carry half-float vertices and 0x7FFF colours.
+- No CPU or DMA writes go to unmodelled regions besides small register blocks
+  at 0xA1000000 and 0xB0000000 (OS boot).
