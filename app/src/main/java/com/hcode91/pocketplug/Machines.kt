@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -54,7 +54,7 @@ val MachineDef.category: String
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.LETS_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC -> "Handhelds"
         Skin.EGG_PET -> "Pets"
-        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN, Skin.PLAYDIA, Skin.GAME_WAVE, Skin.BRIDGE -> "Consoles"
+        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN, Skin.PLAYDIA, Skin.GAME_WAVE, Skin.BRIDGE, Skin.BEENA -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK, Skin.BACKGAMMON -> "Chess & clocks"
         else -> "Computers"
     }
@@ -1369,6 +1369,29 @@ object Machines {
             setup = listOf(
                 "The console needs a cartridge: without one it asks you to plug one in. Add your bridge cartridge dumps (MAME's bbcbc software list zips).",
                 "Bid with the grey keys (the suits, NT, PASS, DBL, RDBL); PLAY YES / PLAY NO answer its questions; START begins, BACK steps back.",
+            ),
+        ),
+        MachineDef(
+            id = "beena",
+            title = "Picture-book console",
+            subtitle = "2005 educational console for the TV: a storyware book sits in the lid and the pen points at "
+                + "its pages or at the drawing tablet, with a pad and a big red button at each side. Import the BIOS zip, "
+                + "then add a game cartridge dump (Sega Toys Advanced Pico BEENA; MAME set: beena). Speech and sound "
+                + "effects play; the MIDI music isn't emulated yet",
+            chip = "Sega Toys 9H0-0008 (Applause AP2010: big-endian ARM7TDMI @ 81 MHz, tile/sprite/bitmap video, PCM)",
+            region = "Japan",
+            year = "2005",
+            roms = listOf(
+                RomSpec("9h0-0008.bios.ic1", 0x20000L, 0x5471aaf8L),
+                RomSpec("9h0-0008.midipcm.ic1", 0x8000L, 0xed336d29L),
+            ),
+            skin = Skin.BEENA,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 0x800000,
+            setup = listOf(
+                "Add a cartridge dump (MAME's sega_beena_cart software list zips, or a .bin): without one the console only shows its logo.",
+                "Turn pages with the tabs next to the book (\"Shut\" closes it): most games start when the book is opened at page 1.",
+                "Touch the tablet to point the pen at the TV picture, or touch the open page to point at the book; the red buttons and coloured keys are the two pads.",
             ),
         ),
         MachineDef(

@@ -276,13 +276,13 @@ u16 ARM926::vread16(u32 va, bool user) {
         u32 m = (va < 0x02000000) ? (va | (cp15_fcse_pid & 0xFE000000)) : va;
         const TLBEntry& e = tlb[(m >> 12) & (TLB_SIZE - 1)];
         if (!(va & 1) && e.valid == 1 && e.tag == (m >> 12) && e.host && (e.perm & (user ? 4 : 1))) {
-            u16 v; memcpy(&v, e.host + (va & 0xFFF), 2); return v;
+            u16 v; memcpy(&v, e.host + ((va & 0xFFF) ^ bex16), 2); return v;
         }
     }
     ALIGN_CHECK(va, 1);
     va &= ~1u;
     TLBEntry* e = translate(va, false, user, false);
-    if (e->host) { u16 v; memcpy(&v, e->host + (va & 0xFFF), 2); return v; }
+    if (e->host) { u16 v; memcpy(&v, e->host + ((va & 0xFFF) ^ bex16), 2); return v; }
     return bus->read16(e->pa_page + (va & 0xFFF));
 }
 u8 ARM926::vread8(u32 va, bool user) {
@@ -290,11 +290,11 @@ u8 ARM926::vread8(u32 va, bool user) {
         u32 m = (va < 0x02000000) ? (va | (cp15_fcse_pid & 0xFE000000)) : va;
         const TLBEntry& e = tlb[(m >> 12) & (TLB_SIZE - 1)];
         if (e.valid == 1 && e.tag == (m >> 12) && e.host && (e.perm & (user ? 4 : 1))) {
-            return e.host[va & 0xFFF];
+            return e.host[(va & 0xFFF) ^ bex8];
         }
     }
     TLBEntry* e = translate(va, false, user, false);
-    if (e->host) return e->host[va & 0xFFF];
+    if (e->host) return e->host[(va & 0xFFF) ^ bex8];
     return bus->read8(e->pa_page + (va & 0xFFF));
 }
 void ARM926::vwrite32(u32 va, u32 v, bool user) {
@@ -316,13 +316,13 @@ void ARM926::vwrite16(u32 va, u16 v, bool user) {
         u32 m = (va < 0x02000000) ? (va | (cp15_fcse_pid & 0xFE000000)) : va;
         const TLBEntry& e = tlb[(m >> 12) & (TLB_SIZE - 1)];
         if (!(va & 1) && e.valid == 1 && e.tag == (m >> 12) && e.host && !e.ro && (e.perm & (user ? 8 : 2))) {
-            smc_check(e.host); memcpy(e.host + (va & 0xFFF), &v, 2); return;
+            smc_check(e.host); memcpy(e.host + ((va & 0xFFF) ^ bex16), &v, 2); return;
         }
     }
     ALIGN_CHECK(va, 1);
     va &= ~1u;
     TLBEntry* e = translate(va, true, user, false);
-    if (e->host && !e->ro) { smc_check(e->host); memcpy(e->host + (va & 0xFFF), &v, 2); return; }
+    if (e->host && !e->ro) { smc_check(e->host); memcpy(e->host + ((va & 0xFFF) ^ bex16), &v, 2); return; }
     bus->write16(e->pa_page + (va & 0xFFF), v);
 }
 void ARM926::vwrite8(u32 va, u8 v, bool user) {
@@ -330,11 +330,11 @@ void ARM926::vwrite8(u32 va, u8 v, bool user) {
         u32 m = (va < 0x02000000) ? (va | (cp15_fcse_pid & 0xFE000000)) : va;
         const TLBEntry& e = tlb[(m >> 12) & (TLB_SIZE - 1)];
         if (e.valid == 1 && e.tag == (m >> 12) && e.host && !e.ro && (e.perm & (user ? 8 : 2))) {
-            smc_check(e.host); e.host[va & 0xFFF] = v; return;
+            smc_check(e.host); e.host[(va & 0xFFF) ^ bex8] = v; return;
         }
     }
     TLBEntry* e = translate(va, true, user, false);
-    if (e->host && !e->ro) { smc_check(e->host); e->host[va & 0xFFF] = v; return; }
+    if (e->host && !e->ro) { smc_check(e->host); e->host[(va & 0xFFF) ^ bex8] = v; return; }
     bus->write8(e->pa_page + (va & 0xFFF), v);
 }
 
@@ -361,15 +361,15 @@ u16 ARM926::fetch16(u32 va) {
     bool user = !privileged();
     u32 page = va >> 12;
     if (page == fetch_tag && user == fetch_user && fetch_host) {
-        u16 v; memcpy(&v, fetch_host + (va & 0xFFE), 2); return v;
+        u16 v; memcpy(&v, fetch_host + ((va & 0xFFE) ^ bex16), 2); return v;
     }
     TLBEntry* e = translate(va, false, user, true);
     if (e->host && e->valid == 1) {
         fetch_tag = page; fetch_host = e->host; fetch_user = user;
-        u16 v; memcpy(&v, e->host + (va & 0xFFE), 2); return v;
+        u16 v; memcpy(&v, e->host + ((va & 0xFFE) ^ bex16), 2); return v;
     }
     fetch_tag = 0xFFFFFFFF;
-    if (e->host) { u16 v; memcpy(&v, e->host + (va & 0xFFE), 2); return v; }
+    if (e->host) { u16 v; memcpy(&v, e->host + ((va & 0xFFE) ^ bex16), 2); return v; }
     return bus->read16(e->pa_page + (va & 0xFFE));
 }
 
@@ -490,7 +490,7 @@ s64 ARM926::run(s64 cycles) {
             if (cpsr & FLAG_T) {
                 u16 insn;
                 if ((cur_pc >> 12) == fetch_tag && fetch_host && fetch_user == !privileged()) {
-                    memcpy(&insn, fetch_host + (cur_pc & 0xFFE), 2);
+                    memcpy(&insn, fetch_host + ((cur_pc & 0xFFE) ^ bex16), 2);
                 } else
                 try { insn = fetch16(cur_pc); }
                 catch (const MemFault& f) { prefetch_abort(f); done++; continue; }

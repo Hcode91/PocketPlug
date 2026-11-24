@@ -61,6 +61,10 @@ public:
     s64 run(s64 cycles);
 
     void set_irq(bool level) { irq_line = level; }
+    // big-endian systems: the bus keeps RAM pages as host-order 32-bit words (word-invariant),
+    // so halfwords and bytes inside a word are found at offset ^ 2 / ^ 3
+    void set_big_endian(bool be) { bex8 = be ? 3 : 0; bex16 = be ? 2 : 0; }
+    u32 bex8 = 0, bex16 = 0;
     void set_fiq(bool level) { fiq_line = level; }
     bool halted() const { return wfi; }
     void halt() { wfi = true; }        // sleep until the next interrupt

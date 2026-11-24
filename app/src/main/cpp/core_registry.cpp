@@ -31,6 +31,7 @@
 #include "cores/chess/arb.h"
 #include "cores/chess/vcc.h"
 #include "cores/bbcbc/bbcbc.h"
+#include "cores/beena/beena.h"
 #include "cores/chess/beluga.h"
 #include "cores/chess/bkc.h"
 #include "cores/xavix/xavix.h"
@@ -480,6 +481,8 @@ Core* createCore(const std::string& id)
         return new BbcCore(id);
     if (id == "beluga")        // Novag Beluga
         return new BelugaCore();
+    if (id == "beena")         // Sega Toys Advanced Pico BEENA
+        return new BeenaCore();
     if (id == "bbcbc")         // Unicard Bridge Companion
         return new BbcbcCore();
     if (id == "a7000")        // Acorn A7000 (RPCEmu), RISC OS 3.60

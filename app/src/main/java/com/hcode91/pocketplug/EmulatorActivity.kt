@@ -38,6 +38,7 @@ class EmulatorActivity : Activity() {
     private var astroConsole: AstrocadeConsoleView? = null
     private var a3dPad: Arcade3dPadView? = null
     private var bridge: BridgeCompanionView? = null
+    private var beena: BeenaView? = null
     private var mini: MiniArcadeView? = null
     private var pet: EggPetView? = null
     private var phone: PhoneCaseView? = null
@@ -578,6 +579,21 @@ class EmulatorActivity : Activity() {
                     setBackgroundColor(0xFF0B0814.toInt())
                     add(tv, 0.92f)   // TV cabinet incl. margins
                     add(m, 1.12f)    // mat incl. its SELECT/START strip
+                })
+            }
+            Skin.BEENA -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = BeenaView(this).apply {
+                    onInput = { setTouch(1, it) }
+                    onPen = { stick, x, y -> synchronized(coreLock) { Native.setAnalog(handle, stick, x, y) } }
+                    onPage = { n -> synchronized(coreLock) { Native.setOption(handle, 0, n) } }
+                    onMenu = { showMenu() }
+                }
+                beena = v
+                setContentView(StackLayout(this).apply {
+                    setBackgroundColor(0xFF0B0814.toInt())
+                    add(tv, 0.68f)
+                    add(v, 0.9f)
                 })
             }
             Skin.BRIDGE -> {
@@ -1868,6 +1884,7 @@ class EmulatorActivity : Activity() {
         Skin.MINI_ARCADE -> MiniArcadeView.keyBit(code)
         Skin.TV_CONSOLE, Skin.PLUG_PAD -> A3dBits.keyBit(code)
         Skin.BRIDGE -> BridgeCompanionView.keyBit(code)
+        Skin.BEENA -> BeenaView.keyBit(code)
         Skin.ARCADE_GENIUS -> GeniusBits.keyBit(code)
         Skin.GIZMONDO -> GizBits.keyBit(code)
         Skin.ZODIAC -> ZodBits.keyBit(code)
@@ -2485,6 +2502,7 @@ class EmulatorActivity : Activity() {
         astroConsole?.externalMask = keyInputs
         a3dPad?.externalMask = keyInputs
         bridge?.externalMask = keyInputs
+        beena?.externalMask = keyInputs
         mini?.externalMask = keyInputs
         return true
     }
@@ -2568,6 +2586,7 @@ class EmulatorActivity : Activity() {
         astroConsole?.externalMask = keyInputs
         a3dPad?.externalMask = keyInputs
         bridge?.externalMask = keyInputs
+        beena?.externalMask = keyInputs
         mini?.externalMask = keyInputs
         return true
     }
