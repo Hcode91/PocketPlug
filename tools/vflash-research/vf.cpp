@@ -25,7 +25,7 @@ struct VF : Bus {
     u32 servoLast = 0;              // last command's address nibble selects what SENS reports
     int sledMode = 0;               // $2x low bits: 2 = move out, 3 = move in
     // ---- disc geometry: the pickup radius is the master state ----
-    static constexpr double PITCH = 1.6e-6, VEL = 1.3, R0 = 0.025, RLIMIT = 0.0225, RLEADIN = 0.023, SLED_SPEED = 0.004;
+    static constexpr double PITCH = 1.6e-6, VEL = 0.952, R0 = 0.025, RLIMIT = 0.0225, RLEADIN = 0.023, SLED_SPEED = 0.004;
     double rad = 0.0325;                    // metres from the centre
     long discSectors = 271506;              // set from the image size
     int tracking = 0, clv = 0;              // $2x bits 3-2, $Ex low nibble
@@ -42,12 +42,68 @@ struct VF : Bus {
         if (sledMode == 3) rad = std::max(RLIMIT, rad - dt * SLED_SPEED);
         else if (sledMode == 2) rad += dt * SLED_SPEED;
     }
-    void jump(int tracks) { sled_update(); rad = std::max(RLIMIT, rad + tracks * PITCH); if (getenv("VFSUB")) printf("jump %d -> lba %.0f\n", tracks, lba_at(rad)); }
+    // Each jump covers a little more than one groove so the boot ROM's pause/fine seek converges:
+    // it allows ~14 frames of play between a kick and its next position check.
+    double jumpScale = getenv("JUMPSCALE") ? atof(getenv("JUMPSCALE")) : 1.6;
+    void jump(int tracks) { sled_update(); rad = std::max(RLIMIT, rad + tracks * PITCH * (tracks == 1 || tracks == -1 ? jumpScale : 1.0)); if (getenv("VFSUB")) printf("jump %d -> lba %.0f\n", tracks, lba_at(rad)); }
     static u8 bcd(int v) { return u8((v / 10) << 4 | (v % 10)); }
     static void msf(long lba, u8* m) { lba += 150; if (lba < 0) lba += 450000; m[0] = bcd(int(lba / 4500)); m[1] = bcd(int(lba / 75 % 60)); m[2] = bcd(int(lba % 75)); }
     bool spinning() { return clv != 0 && clv != 8 && tracking == 1; }
     void cd_int() { int_set(14, (regs[0xc4000064] & regs[0xc4000068]) != 0); }
-    void sector_arrived(long lba) { (void)lba; }
+    // ---- CD-ROM decoder: 4 slots of 1 KB at 0x3C (8 status bytes, then the raw sector start) ----
+    FILE* disc = nullptr;
+    int slotRd = 0, slotCount = 0;
+    bool ringStopped = false;
+    bool decoding = false, matched = false;
+    void read_raw(long lba, u8* out) {
+        memset(out, 0, 2352);
+        if (disc && lba >= 0 && lba < discSectors) { fseek(disc, lba * 2352L, SEEK_SET); fread(out, 1, 2352, disc); }
+    }
+    void decoder_update() { regs[0xc4000070] = u32(slotCount) << 2 | u32(slotRd & 3); }
+    // Ring mode: 2048 user bytes per sector at the write pointer 0x24, wrapping inside 0x28..0x2C;
+    // 0x64 bit 16 once the pointer passes 0x80; 0x20 = sectors left (bit 24 = until stopped).
+    void ring_sector(long lba) {
+        u32 cnt = regs[0xc4000020];
+        if (!(cnt & 0x1000000) && (cnt & 0xffffff) == 0) return;
+        if (ringStopped) return;                      // halted at the mark (0x84 bit 0)
+        u8 raw[2352]; read_raw(lba, raw);
+        u32 wp = regs[0xc4000024], lo = regs[0xc4000028], hi = regs[0xc400002c] + 4, mark = regs[0xc4000080];
+        if (wp >= hi) wp = lo;
+        bool last = (regs[0xc4000084] & 1) && wp == mark;   // stop mark: the sector starting there is the last one
+        for (int i = 0; i < 2048; i += 4) {
+            if (wp >= hi) wp = lo;
+            if (wp >= 0x10000000 && wp + 4 <= 0x10000000 + sdram.size()) memcpy(&sdram[wp - 0x10000000], raw + 16 + i, 4);
+            wp += 4;
+            if (wp == mark && !(regs[0xc4000084] & 1)) regs[0xc4000064] |= 1u << 16;
+        }
+        if (last) { ringStopped = true; regs[0xc4000064] |= 1u << 16 | 1u << 4; }
+        if (wp >= hi) wp = lo;
+        regs[0xc4000024] = wp;
+        if (!(cnt & 0x1000000)) { regs[0xc4000020] = cnt - 1; if (((cnt - 1) & 0xffffff) == 0) regs[0xc4000064] |= 1u << 4; }
+        if (getenv("VFSUB")) printf("ring lba %ld -> wp %08x\n", lba, wp);
+    }
+    void sector_arrived(long lba) {
+        if ((regs[0xc4000040] & 5) != 5) { decoding = false; return; }
+        if (!decoding) { decoding = true; matched = (regs[0xc400001c] >> 24) & 1; }
+        if (!matched) {
+            u8 m[3]; msf(lba, m);
+            if ((regs[0xc400001c] & 0xffffff) != u32(m[0] << 16 | m[1] << 8 | m[2])) return;
+            matched = true;
+        }
+        bool ring = !(regs[0xc4000040] & 0x80);      // bit 7 clear: user data by DMA into the ring
+        if (ring) { if (ringStopped) return; ring_sector(lba); }
+        if (slotCount >= 4) return;                  // header buffer full: the entry is lost
+        int slot = (slotRd + slotCount) & 3;
+        u32 base = regs[0xc400003c] + u32(slot) * 0x400;
+        u8 raw[2352]; read_raw(lba, raw);
+        if (base >= 0x10000000 && base + 0x400 <= 0x10000000 + sdram.size()) {
+            memset(&sdram[base - 0x10000000], 0, 8);
+            memcpy(&sdram[base - 0x10000000 + 8], raw, 0x400 - 8);
+        }
+        slotCount++; decoder_update();
+        regs[0xc4000064] |= (ring ? 0 : 1u << 4) | 1u << 12;
+        if (getenv("VFSUB")) printf("sector lba %ld -> slot %d (%d queued)\n", lba, slot, slotCount);
+    }
     void subcode_tick() {
         if (cycles - subAt < 2000000) return;        // 75 frames per second at 150 MHz
         subAt = cycles;
@@ -129,7 +185,9 @@ struct VF : Bus {
     u32 gpioD = getenv("GPIOD") ? u32(strtoul(getenv("GPIOD"), 0, 16)) : 5;           // last written value per I/O address
     std::set<u32> seen;
     int logLimit = 4000, logged = 0;
-    VF() { regs[0x9009008c] = 0x1230ffab; sdram.assign(64u << 20, 0); sram.assign(64 << 10, 0); }
+    VF() {
+        if (const char* dp = getenv("DISC")) { disc = fopen(dp, "rb"); if (disc) { fseek(disc, 0, SEEK_END); discSectors = ftell(disc) / 2352; } }
+        regs[0x9009008c] = 0x1230ffab; sdram.assign(64u << 20, 0); sram.assign(64 << 10, 0); }
     u8* page_ptr(u32 pa) override {
         if (pa < rom.size()) return &rom[pa & ~0xfffu];
         if (pa >= 0x10000000 && pa < 0x10000000 + sdram.size()) return &sdram[(pa - 0x10000000) & ~0xfffu];
@@ -244,7 +302,9 @@ struct VF : Bus {
         if (dev == 0x9001 || dev == 0x900c) { u32 v = timer_read(a); log("R", a, v); return v; }
         if (a == 0xc4000018) { u32 v = drive_sens() ? 3 : 0; log("R", a, v); return v; }
         if (a == 0xb8000000) { u32 v = lcdStatus; log("R", a, v); return v; }
-        if (a == 0xc4000040) { u32 v = regs[a] | (spinning() ? 0x65 : 0); log("R", a, v); return v; }
+        // 0x40: bits 0 (decoder on), 2 (transfer on), 7-8 (mode) read back as written; bits 3-6 are
+        // status (3-4 = error, 5-6 = locked) as the driver's health check 0x100629B4 expects
+        if (a == 0xc4000040) { u32 v = (regs[a] & ~0x7du) | (spinning() ? 0x65 : 0); log("R", a, v); return v; }
         if (a == 0xb8000004) { u32 v = 0xffffffff; log("R", a, v); return v; }
         if (a == 0xb800208c || a == 0xb8002088) { u32 v = u32(cycles / 300) % 0x600; return v; }   // line counter
         if (a == 0xa1000010) { u32 v = 1; log("R", a, v); return v; }   // serial bus: transfer done
@@ -287,6 +347,13 @@ struct VF : Bus {
         }
         if (a == 0xc4000064) { regs[a] &= ~v; cd_int(); log("W", a, v); return; }
         if (a == 0xc4000068) { regs[a] = v; cd_int(); log("W", a, v); return; }
+        if (a == 0xc4000080 || a == 0xc4000024) ringStopped = false;
+        if (a == 0xc4000024) { slotRd = slotCount = 0; decoder_update(); decoding = false; }   // a new ring read starts with an empty header buffer
+        if (a == 0xc4000074) { if ((v & 3) && slotCount) { slotRd = (slotRd + 1) & 3; slotCount--; decoder_update(); } log("W", a, v); return; }
+        if (a == 0xc4000040) {
+            if (!(v & 4)) decoding = false;
+            if ((v & 4) && !(regs[a] & 4)) { slotRd = slotCount = 0; decoder_update(); }   // transfer start empties the header buffer
+        }
         regs[a] = v; log("W", a, v);
     }
     u32 read32(u32 pa) override { u8* p = page_ptr(pa); if (p) { u32 v; memcpy(&v, p + (pa & 0xfff), 4); return v; } return io_read(pa); }
@@ -318,10 +385,11 @@ int main(int argc, char** argv) {
                 if (t >= trFrom && t < trTo && seenPc.insert(pc).second) printf("tr %08x t=%lld\n", pc, t);
             }
             if (watch.count(pc)) {
-                printf("watch %08x lr %08x r0 %08x r1 %08x r2 %08x t=%llu", pc, c->r[14], c->r[0], c->r[1], c->r[2], gvf->cycles / 150000);
+                printf("watch %08x lr %08x r0 %08x r1 %08x r2 %08x r3 %08x t=%llu", pc, c->r[14], c->r[0], c->r[1], c->r[2], c->r[3], gvf->cycles / 150000);
                 if (const char* pk = getenv("VFPEEK")) {   // VFPEEK=addr,...: memory words shown at each hit
                     while (*pk) { u32 a = u32(strtoul(pk, (char**)&pk, 16)); u32 w = 0; if (a >= 0x10000000 && a < 0x14000000) memcpy(&w, &gvf->sdram[a - 0x10000000], 4); printf(" [%08x]=%08x", a, w); if (*pk == ',') pk++; else break; }
                 }
+                if (getenv("VFWBT")) { u32 sp = c->r[13]; printf(" bt:"); for (int k = 0; k < 80; k++) { u32 w, a = sp + k * 4; if (a < 0x10000000 || a >= 0x14000000) break; memcpy(&w, &gvf->sdram[a - 0x10000000], 4); if (w >= 0x10010000 && w < 0x100b0000) printf(" %08x", w); } }
                 printf("\n");
             }
             return false;

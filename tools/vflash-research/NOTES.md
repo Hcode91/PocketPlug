@@ -176,11 +176,34 @@ good reference. Differences found so far are marked V.Flash below.
   current Q from 0x10355640 vs target 0x10354E60) and fix the jump/kick model so it lands.
 - 0x1005908C waits for a valid subcode Q (0x10354648 = 0 after parsing; 1 = CRC error, 2 = bad).
 
+### Sector reads (vf.cpp, DISC=<image.bin>)
+
+- Fine seek 0x10055CBC accepts a landing 0..37 frames before target-4; corrections are
+  floor(d/12.37)+1 one-track kicks ($49), with ~190 ms (10 x 10 ms $A0 GFS debounce) of play
+  between a kick and the next position check. The model uses VEL = 0.952 m/s so a track holds the
+  firmware's 12.37 frames at the start of the disc (table 0x100A0EE8, per 10 minutes), and
+  single-track kicks cover 1.6 tracks so the pause loop converges.
+- 0x40: bits 0 (decoder on) and 2 (transfer on) are control; bits 3-6 read as status (3-4 = 0,
+  5-6 = locked) and the driver writes them back. Bit 7 set = header-slot mode, clear = ring mode.
+- Header slots: 4 x 1 KB at 0x3C (8 status bytes, then the raw sector: mode byte at +0x17).
+  0x70 = count << 2 | read slot; 0x64 bits 4 + 12 (slot mode) or 12 (ring mode); 0x74 bit 0 or 1
+  releases one. The ISR posts event 6 per header (0x10063198 = count).
+- Ring mode (0x10062608): 0x1C = start MSF (bit 24 = no match), 0x20 bit 24 = until stopped,
+  0x24 = write pointer, 0x28/0x2C = ring (20 x 2048 bytes), 0x80 = mark: bit 16 (event 9) when the
+  pointer reaches it; with 0x84 bit 0 the sector starting at the mark is the last one and the
+  transfer ends with bits 16 + 4 (event 8). 2048 user bytes per sector.
+- Boot result: the disc check passes (callback event 0x10), the loader 0x10012788(7) opens
+  0SYSTEM\BOOT.BIN;1 (LBA 50, 2,007,756 bytes), and the file system reads LBA 16..35 correctly
+  (volume descriptor, root, 0SYSTEM directory). The read op 0x10070C60 is started once but the
+  CD events (6/8/9, posted by 0x100676DC) never reach it, so job 0x206 stays in state 2
+  (0x10358BC4) and the loader polls 0x1009B358 forever. Next: follow 0x100676DC's queue
+  (0x1006F9B4 with r1 = 1) to where op handlers receive events.
+
 ## Status
 
 The boot reaches the MORE OS scheduler, shows the VTech logo and the V.Smile Pro splash, spins the
-disc up, calibrates, reads the TOC, reports the disc as found and seeks towards LBA 8 for the first
-sector read. No sector has been read yet.
+disc up, reads the TOC, accepts the disc, starts the boot loader and reads the first 20 sectors of
+the ISO file system. BOOT.BIN itself is not read yet.
 
 ## Next steps
 
