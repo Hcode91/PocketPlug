@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -54,7 +54,7 @@ val MachineDef.category: String
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.LETS_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
         Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC -> "Handhelds"
         Skin.EGG_PET -> "Pets"
-        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN -> "Consoles"
+        Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN, Skin.PLAYDIA -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK, Skin.BACKGAMMON -> "Chess & clocks"
         else -> "Computers"
     }
@@ -1128,6 +1128,22 @@ object Machines {
                 RomSpec("spg290.bin", 0x8000L, 0x41aad748L),
             ),
             skin = Skin.HYPERSCAN,
+            media = MediaKind.CARTRIDGE,
+            cartMaxSize = 1L shl 30,
+            cartDisc = true,
+        ),
+        MachineDef(
+            id = "playdia",
+            title = "Playdia",
+            subtitle = "Bandai's 1994 CD console for animated, interactive stories and quizzes. No BIOS is needed: add "
+                + "a disc as a .zip of its .cue and .bin files. The disc plays as its video and sound stream, and "
+                + "follows its choices: B picks, the D-pad moves between options, A is the other answer "
+                + "(choices wait about ten seconds, then take the disc's default)",
+            chip = "Toshiba TMP87C800F + NEC uPD78214 (8-bit), Asahi Kasei AK8000 video and sound decoder",
+            region = "Japan",
+            year = "1994",
+            roms = emptyList(),
+            skin = Skin.PLAYDIA,
             media = MediaKind.CARTRIDGE,
             cartMaxSize = 1L shl 30,
             cartDisc = true,

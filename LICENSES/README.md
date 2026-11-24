@@ -28,6 +28,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/gizmondo/wce_gles*` | GPL-3.0-or-later | PocketSprout's software OpenGL ES 1.1 renderer, with S3TC (DXT1-5) decoding added |
 | `app/src/main/cpp/cores/zodiac/*` | GPL-3.0-or-later | PocketPlug (i.MX1 registers after Linux 2.6's mach-imx; W4200 register layout after Linux's w100fb, the ATI Imageon 100 driver; the rest worked out from the Zodiac ROM) |
 | `app/src/main/cpp/cores/hyperscan/*` | BSD-3-Clause | S+core CPU (score7.cpp, scorem.h) and the SPG290 device models from MAME (copyright-holders: Sandro Ronco); DAC register meanings from HyperScanEmu (BSD-3-Clause, Aloys); CD image reading and the rest PocketPlug |
+| `app/src/main/cpp/cores/playdia/*` | BSD-3-Clause | Ported from PlaydiaEmu (BSD-3-Clause, Aloys): stream routing, F2 navigation, AK8000 picture decoder, XA ADPCM decoder; choice button order, press latching and app glue PocketPlug |
 | `app/src/main/cpp/common/smsvdp.h`, `app/src/main/cpp/cores/sms/*` | BSD-3-Clause / GPL-2.0-or-later | PocketPlug (SMS / Game Gear VDP written from the documented hardware behaviour; the AtGames chip's registers worked out from its menu code) |
 | `app/src/main/cpp/cores/astrocde/*` | GPL-2.0-or-later | Port of MAME's bally/astrohome.cpp and astrocde_v.cpp (Nicola Salmoria, Mike Coates, Frank Palazzolo, Aaron Giles) and sound/astrocde.cpp (Aaron Giles, Frank Palazzolo), BSD-3 |
 | `app/src/main/cpp/cores/apf/*` | BSD-3-Clause | MAME `src/mame/apf/apf.cpp` (Robbbert) and `src/devices/bus/apf` (Fabio Priuli) |

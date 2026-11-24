@@ -20,6 +20,7 @@
 #include "cores/gizmondo/gizgame.h"
 #include "cores/zodiac/zodiac.h"
 #include "cores/hyperscan/hyperscan.h"
+#include "cores/playdia/playdia.h"
 #include "cores/st2302/bbl380.h"
 #include "cores/trkfld/trkfld.h"
 #include "cores/chess/academy.h"
@@ -337,6 +338,8 @@ Core* createCore(const std::string& id)
         return new GizmondoCore();
     if (id == "hyperscan")    // Mattel HyperScan (SPG290 + CD)
         return new HyperScanCore();
+    if (id == "playdia")      // Bandai Playdia (disc stream player)
+        return new PlaydiaCore();
     if (id == "zodiac")       // Tapwave Zodiac (full hardware)
         return new ZodiacCore();
     if (id == "gizgame")      // Gizmondo games run directly (Windows CE calls handled by the emulator)
