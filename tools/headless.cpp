@@ -54,7 +54,8 @@ int main(int argc, char** argv)
     std::string err;
     if (!core || !core->load(roms, err)) { fprintf(stderr, "load failed: %s\n", err.c_str()); return 1; }
     // MEDIA="drive:path" inserted before the first frame
-    if (const char* m = getenv("MEDIA")) {
+    // (MEDIA2 the same for a second drive)
+    for (const char* var : { "MEDIA", "MEDIA2" }) if (const char* m = getenv(var)) {
         int drv = atoi(m); const char* p = strchr(m, ':');
         if (p && !core->mediaInsert(drv, p + 1, err)) fprintf(stderr, "media: %s\n", err.c_str());
     }

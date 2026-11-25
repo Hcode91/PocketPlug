@@ -128,6 +128,8 @@ void BigBoardCore::selectDrive()
     else drv = (m_pa & 3) < 2 ? (m_pa & 3) : -1;
     m_drive = drv;
     m_fdc.setDisk(drv >= 0 ? m_disk[drv].get() : nullptr);
+    // the drive size follows the disk in it (77 tracks: 8", else 5.25"); PA4 tells the monitor
+    if (drv >= 0 && m_disk[drv]) m_eight = m_disk[drv]->cylinders > 50;
     m_fdc.setSide((m_pa >> 2) & 1);
 }
 
@@ -272,6 +274,7 @@ bool BigBoardCore::mediaInsert(int drive, const std::string& path, std::string& 
     }
     if (!ok) { error = "Unrecognised disk image (use .imd or a raw single-density image)"; return false; }
     d->path = path;
+    if (drive == 0) m_eight = d->cylinders > 50;
     m_disk[drive] = std::move(d);
     selectDrive();
     return true;

@@ -85,6 +85,8 @@ class EmulatorActivity : Activity() {
     // computer keyboards: key events go to the core between frames
     private val keyQueue = java.util.concurrent.ConcurrentLinkedQueue<Int>()
     private var floppyFile: java.io.File? = null
+    /** CP/M boards: the disk in drive B */
+    private var floppyFileB: java.io.File? = null
     @Volatile private var volume = 1f
     private var stickMask = 0
     // LCD pets keep living while the app is closed: the clock is fast-forwarded on return
@@ -187,7 +189,7 @@ class EmulatorActivity : Activity() {
             Skin.CPM -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val big2 = machine.id == "bigbord2"
-                val v = CpmTerminalView(this, if (big2) 640 else 560, if (big2) 288 else 240).apply {
+                val v = CpmTerminalView(this, if (big2) 640 else 560, if (big2) 288 else 240, CpmTerminalView.styleFor(machine.id)).apply {
                     onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
                     onMenu = { showMenu() }
                     onDisks = { showDiskMenu() }
@@ -879,6 +881,11 @@ class EmulatorActivity : Activity() {
         val last = getSharedPreferences("settings", MODE_PRIVATE).getString("floppy_${machine.id}", null)
         val f = last?.let { java.io.File(floppyDir(), it) }
         if (f != null && f.exists()) insertFloppy(f, quiet = true)
+        if (machine.skin == Skin.CPM) {
+            val lastB = getSharedPreferences("settings", MODE_PRIVATE).getString("floppyB_${machine.id}", null)
+            val fb = lastB?.let { java.io.File(floppyDir(), it) }
+            if (fb != null && fb.exists()) insertFloppyB(fb, quiet = true)
+        }
     }
 
     private fun insertFloppy(f: java.io.File, quiet: Boolean = false) {
@@ -893,6 +900,22 @@ class EmulatorActivity : Activity() {
         workstation?.floppyLabel = f.nameWithoutExtension
         getSharedPreferences("settings", MODE_PRIVATE).edit().putString("floppy_${machine.id}", f.name).apply()
         if (!quiet) Toast.makeText(this, "Inserted ${f.nameWithoutExtension}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun insertFloppyB(f: java.io.File, quiet: Boolean = false) {
+        saveDisks()
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 1, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        floppyFileB = f
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putString("floppyB_${machine.id}", f.name).apply()
+        if (!quiet) Toast.makeText(this, "${f.nameWithoutExtension} is in drive B", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun ejectFloppyB() {
+        saveDisks()
+        synchronized(coreLock) { Native.mediaEject(handle, 1) }
+        floppyFileB = null
+        getSharedPreferences("settings", MODE_PRIVATE).edit().remove("floppyB_${machine.id}").apply()
     }
 
     private fun ejectFloppy() {
@@ -916,7 +939,8 @@ class EmulatorActivity : Activity() {
         if (workstation == null || handle == 0L) return
         synchronized(coreLock) {
             floppyFile?.let { Native.mediaSave(handle, 0, it.absolutePath) }
-            Native.mediaSave(handle, 1, hardDiskFile().absolutePath)
+            if (machine.skin == Skin.CPM) floppyFileB?.let { Native.mediaSave(handle, 1, it.absolutePath) }
+            else Native.mediaSave(handle, 1, hardDiskFile().absolutePath)
         }
     }
 
@@ -1472,8 +1496,13 @@ class EmulatorActivity : Activity() {
             }
             startActivityForResult(i, PICK_FLOPPY)
         }
-        for (f in floppies) if (f != floppyFile) items += "Insert ${f.nameWithoutExtension}" to { insertFloppy(f) }
-        if (floppyFile != null) items += "Eject ${floppyFile?.nameWithoutExtension}" to { ejectFloppy() }
+        val cpm = machine.skin == Skin.CPM
+        for (f in floppies) if (f != floppyFile && f != floppyFileB) items += (if (cpm) "Drive A: insert ${f.nameWithoutExtension}" else "Insert ${f.nameWithoutExtension}") to { insertFloppy(f) }
+        if (floppyFile != null) items += (if (cpm) "Drive A: eject ${floppyFile?.nameWithoutExtension}" else "Eject ${floppyFile?.nameWithoutExtension}") to { ejectFloppy() }
+        if (cpm) {
+            for (f in floppies) if (f != floppyFile && f != floppyFileB) items += "Drive B: insert ${f.nameWithoutExtension}" to { insertFloppyB(f) }
+            if (floppyFileB != null) items += "Drive B: eject ${floppyFileB?.nameWithoutExtension}" to { ejectFloppyB() }
+        }
         if (machine.skin != Skin.CPM) items += "Hard disk: save a copy..." to {
             saveDisks()
             val i = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply {

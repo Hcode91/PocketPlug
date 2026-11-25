@@ -3048,7 +3048,7 @@ object Machines {
             skin = Skin.CPM,
             setup = listOf(
                 "The monitor starts at the * prompt: D dumps memory (D 0 3F), B boots drive A.",
-                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 8\" single-density (77 x 26 x 128) image) in drive A, then type B and RETURN.",
+                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 8\" single-density (77 x 26 x 128) image) in drive A, then type B and RETURN. Dave Dunfield's BB1.IMD boots CP/M 2.2; BBCPM.IMD also wants a disk in drive B.",
             ),
         ),
         MachineDef(
@@ -3065,7 +3065,7 @@ object Machines {
             skin = Skin.CPM,
             setup = listOf(
                 "The monitor starts at the * prompt: D dumps memory (D 0 3F), B boots drive A.",
-                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 5.25\" single-density (40 x 18 x 128) image) in drive A, then type B and RETURN.",
+                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 5.25\" single-density (40 x 18 x 128) image) in drive A, then type B and RETURN. Dave Dunfield's BB1.IMD boots CP/M 2.2; BBCPM.IMD also wants a disk in drive B.",
             ),
         ),
         MachineDef(
@@ -3082,7 +3082,7 @@ object Machines {
             skin = Skin.CPM,
             setup = listOf(
                 "The monitor starts at the * prompt: D dumps memory (D 0 3F), B boots drive A.",
-                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 8\" single-density (77 x 26 x 128) image) in drive A, then type B and RETURN.",
+                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 8\" single-density (77 x 26 x 128) image) in drive A, then type B and RETURN. Dave Dunfield's BB1.IMD boots CP/M 2.2; BBCPM.IMD also wants a disk in drive B.",
             ),
         ),
         MachineDef(
@@ -3115,7 +3115,7 @@ object Machines {
             ),
             skin = Skin.CPM,
             setup = listOf(
-                "The monitor menu: A boots drive A, T is a typewriter. Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 5.25\" single-density image).",
+                "The monitor menu: A then RETURN boots drive A, T is a typewriter. Its 8\" CP/M disks (X820-1/2/3.IMD) boot too. Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 5.25\" single-density image).",
             ),
         ),
         MachineDef(

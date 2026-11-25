@@ -1115,8 +1115,9 @@ class HhSkin(
             )
         }
 
-        /** Big Trak (placeholder until a photo): the grey control deck with the 4 x 7 keypad (blue
-         *  moves, orange numbers, red / white / green functions) under a floor view where the tank
+        /** Big Trak, from a photo, without the name: the white body with the yellow / orange / red /
+         *  black stripe and black treads, and the dark keypad well with its 4 x 7 keys (blue moves,
+         *  orange numbers, red / white / green functions) under a floor view where the tank
          *  drives what you programmed: its motors are the outputs (row 0: 0 IR LED, 1 lamp, 2 left
          *  forward, 3 left reverse, 4 right forward, 5 right reverse). One step is a body length,
          *  15 turn steps a quarter turn, as on the real one. */
@@ -1155,9 +1156,15 @@ class HhSkin(
                     while (gx < fl.right) { if (gx > fl.left) c.drawLine(gx, fl.top, gx, fl.bottom, s); gx += unit }
                     var gy = fl.centerY() - kotlin.math.floor((fl.centerY() - fl.top) / unit) * unit
                     while (gy < fl.bottom) { if (gy > fl.top) c.drawLine(fl.left, gy, fl.right, gy, s); gy += unit }
-                    // the deck
-                    p.color = 0xFF5E6168.toInt(); c.drawRoundRect(60f, 790f, 940f, 1640f, 28f, 28f, p)
-                    p.color = 0xFF3C3F45.toInt(); c.drawRoundRect(110f, 840f, 890f, 1620f, 20f, 20f, p)
+                    // the white body (treads either side, the yellow / orange / red / black stripe) and the
+                    // dark keypad well with its grey surround
+                    p.color = 0xFF161616.toInt(); c.drawRoundRect(30f, 800f, 100f, 1650f, 26f, 26f, p); c.drawRoundRect(900f, 800f, 970f, 1650f, 26f, 26f, p)
+                    p.color = 0xFF3A3A3A.toInt(); var ty2 = 815f; while (ty2 < 1640f) { c.drawRect(36f, ty2, 94f, ty2 + 10f, p); c.drawRect(906f, ty2, 964f, ty2 + 10f, p); ty2 += 34f }
+                    p.color = 0xFFF2F0EA.toInt(); c.drawRoundRect(80f, 790f, 920f, 1660f, 30f, 30f, p)
+                    val stripes = intArrayOf(0xFFF2C21E.toInt(), 0xFFF07A1E.toInt(), 0xFFD8302A.toInt(), 0xFF151515.toInt())
+                    for ((i, col) in stripes.withIndex()) { p.color = col; c.drawRect(80f, 1620f - i * 14f, 920f, 1631f - i * 14f, p) }
+                    p.color = 0xFF9A9EA4.toInt(); c.drawRoundRect(120f, 830f, 880f, 1590f, 20f, 20f, p)
+                    p.color = 0xFF1C1E22.toInt(); c.drawRoundRect(140f, 850f, 860f, 1575f, 14f, 14f, p)
                     val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFFDADADA.toInt(); textSize = 22f }
                     c.drawText("LAMP", 900f, 870f, t)
                 },
@@ -1201,39 +1208,67 @@ class HhSkin(
             )
         }
 
-        /** Gunfighter duel (placeholder until a photo): a wide tabletop with the VFD between the two
-         *  players' ends, each with an up / down lever and a FIRE key, and the PLAYERS slide (Auto 1 /
-         *  2 / 3 against the machine, or Manual for two players). Left player: bits 0, 1, 4; right: 8, 9, 5. */
+        /** Bandai Gunfighter (1980), from a photo, without the name: the tan boomerang case, its black
+         *  centre panel with the VFD in a white frame (ladder bars either side, SCORE at each end,
+         *  cactus and brush printed under the tube), and the two players' wings: an orange FIRE key
+         *  over the dark up / down ACTION KEYs, a speaker grille on the left, the PLAYERS slide
+         *  (1 / 2 / 3 / MANUAL) and the POWER slide on the right. Left player: bits 0, 1, 4; right: 8, 9, 5. */
         private fun gunDuel(): HhSkin {
-            val wood = 0xFF6A3E1E.toInt()
-            fun lever(x: Float, up: Int, down: Int) = listOf(
-                Control(Kind.BUTTON, x, 300f, 34f, color = 0xFFE8D8B0.toInt(), bit = 1 shl up, bw = 110f, bh = 80f, face = "▲", faceColor = 0xFF3A2410.toInt(), faceSize = 34f, shine = false),
-                Control(Kind.BUTTON, x, 420f, 34f, color = 0xFFE8D8B0.toInt(), bit = 1 shl down, bw = 110f, bh = 80f, face = "▼", faceColor = 0xFF3A2410.toInt(), faceSize = 34f, shine = false))
+            val tan = 0xFFD9BC8C.toInt(); val tanDark = 0xFFB89A6A.toInt(); val ink = 0xFF5A4630.toInt()
+            fun keys(x: Float, y: Float, fire: Int, up: Int, down: Int) = listOf(
+                Control(Kind.BUTTON, x, y, 34f, color = 0xFFF07A2A.toInt(), bit = 1 shl fire, bw = 150f, bh = 70f, face = "FIRE",
+                    faceColor = 0xFF6A2A0A.toInt(), faceSize = 22f, shine = false),
+                Control(Kind.BUTTON, x - 40f, y + 95f, 30f, color = 0xFF3A3632.toInt(), bit = 1 shl up, bw = 72f, bh = 64f, face = "▲",
+                    faceColor = 0xFFB8B0A4.toInt(), faceSize = 26f, shine = false),
+                Control(Kind.BUTTON, x + 40f, y + 95f, 30f, color = 0xFF3A3632.toInt(), bit = 1 shl down, bw = 72f, bh = 64f, face = "▼",
+                    faceColor = 0xFFB8B0A4.toInt(), faceSize = 26f, shine = false))
             return HhSkin(
-                1600f, 720f, 0xFF16120E.toInt(),
-                screen = RectF(250f, 220f, 1350f, 522f), bezel = 0xFF050505.toInt(), bezelPad = 10f,
-                menu = PointF(800f, 690f),
+                1600f, 900f, 0xFF3A2A1C.toInt(),
+                screen = RectF(470f, 300f, 1130f, 481f), bezel = 0xFF050608.toInt(), bezelPad = 8f,
+                menu = PointF(800f, 860f),
                 landscape = true,
-                controls = lever(130f, 0, 1) + lever(1470f, 8, 9) + listOf(
-                    Control(Kind.BUTTON, 130f, 570f, 46f, color = 0xFFD8302A.toInt(), base = 0xFF7A1410.toInt(), bit = 1 shl 4,
-                        label = "FIRE", labelAbove = true, labelColor = 0xFFF2E2B8.toInt(), labelSize = 24f),
-                    Control(Kind.BUTTON, 1470f, 570f, 46f, color = 0xFFD8302A.toInt(), base = 0xFF7A1410.toInt(), bit = 1 shl 5,
-                        label = "FIRE", labelAbove = true, labelColor = 0xFFF2E2B8.toInt(), labelSize = 24f),
-                    Control(Kind.SWITCH, 800f, 610f, 26f, color = 0xFFE8D8B0.toInt(), option = 0, positions = listOf("A1", "A2", "A3", "M"),
-                        labelColor = 0xFFF2E2B8.toInt(), labelSize = 20f),
+                controls = keys(230f, 560f, 4, 0, 1) + keys(1370f, 560f, 5, 8, 9) + listOf(
+                    Control(Kind.SWITCH, 1330f, 380f, 22f, color = 0xFF3A3632.toInt(), option = 0, positions = listOf("1", "2", "3", "M"),
+                        labelColor = ink, labelSize = 20f),
                 ),
                 drawBody = { c, p, s ->
-                    p.color = 0xFF2A1A0E.toInt(); c.drawRoundRect(20f, 60f, 1580f, 690f, 30f, 30f, p)
-                    p.color = wood; c.drawRoundRect(30f, 50f, 1570f, 670f, 30f, 30f, p)
-                    s.color = 0x18000000; s.strokeWidth = 3f
-                    var y = 70f; while (y < 660f) { c.drawLine(40f, y, 1560f, y + 8f, s); y += 22f }
-                    p.color = 0xFFD8A848.toInt(); c.drawRoundRect(220f, 190f, 1380f, 552f, 16f, 16f, p)
-                    p.color = 0xFF1A1208.toInt(); c.drawRoundRect(236f, 206f, 1364f, 536f, 10f, 10f, p)
-                    p.color = 0xFF3A2410.toInt(); c.drawRoundRect(60f, 230f, 200f, 490f, 16f, 16f, p); c.drawRoundRect(1400f, 230f, 1540f, 490f, 16f, 16f, p)
-                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFFF2E2B8.toInt(); textSize = 24f }
-                    c.drawText("PLAYERS", 800f, 575f, t)
-                    p.color = 0xFFD8A848.toInt(); for (x in listOf(260f, 1340f)) { c.drawCircle(x, 120f, 10f, p) }
-                    c.drawRect(280f, 116f, 1320f, 124f, p)
+                    // the boomerang case: wings raised at the ends, a deep middle
+                    val body = Path().apply {
+                        moveTo(40f, 640f); lineTo(380f, 150f); lineTo(470f, 110f); lineTo(1130f, 110f); lineTo(1220f, 150f)
+                        lineTo(1560f, 640f); lineTo(1560f, 760f); lineTo(1300f, 830f); lineTo(300f, 830f); lineTo(40f, 760f); close()
+                    }
+                    p.color = tanDark; c.save(); c.translate(0f, 14f); c.drawPath(body, p); c.restore()
+                    p.color = tan; c.drawPath(body, p)
+                    // the black centre panel and the band under it
+                    val panel = Path().apply {
+                        moveTo(440f, 150f); lineTo(1160f, 150f); lineTo(1170f, 600f); lineTo(1290f, 790f); lineTo(310f, 790f); lineTo(430f, 600f); close()
+                    }
+                    p.color = 0xFF141414.toInt(); c.drawPath(panel, p)
+                    p.color = tan; c.drawRect(520f, 700f, 1080f, 790f, p)
+                    p.color = tanDark; for (i in 0 until 3) { c.drawRect(600f, 715f + i * 20f, 720f, 722f + i * 20f, p); c.drawRect(880f, 715f + i * 20f, 1000f, 722f + i * 20f, p) }
+                    // the white frame round the tube, ladder bars, SCORE, and the desert print below
+                    s.color = 0xFFEDEDE6.toInt(); s.strokeWidth = 5f
+                    c.drawRect(455f, 285f, 1145f, 540f, s)
+                    p.color = 0xFFEDEDE6.toInt()
+                    for (i in 0 until 9) { c.drawRect(395f, 280f + i * 30f, 445f, 286f + i * 30f, p); c.drawRect(1155f, 280f + i * 30f, 1205f, 286f + i * 30f, p) }
+                    c.drawRect(455f, 560f, 1145f, 565f, p)
+                    fun cactus(x: Float, h: Float) { c.drawRect(x - 4f, 560f - h, x + 4f, 560f, p); c.drawRect(x - 16f, 560f - h * 0.6f, x - 10f, 560f - h * 0.3f, p)
+                        c.drawRect(x - 16f, 560f - h * 0.32f, x - 4f, 560f - h * 0.26f, p); c.drawRect(x + 10f, 560f - h * 0.75f, x + 16f, 560f - h * 0.4f, p); c.drawRect(x + 4f, 560f - h * 0.42f, x + 16f, 560f - h * 0.36f, p) }
+                    cactus(570f, 44f); cactus(620f, 30f); cactus(890f, 44f); cactus(980f, 30f); cactus(1010f, 40f)
+                    s.strokeWidth = 2.5f
+                    for (x in listOf(520f, 700f, 830f, 1080f)) for (k in 0 until 5) c.drawLine(x, 558f, x - 22f + k * 11f, 546f, s)
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFFEDEDE6.toInt(); textSize = 18f }
+                    c.save(); c.rotate(90f, 480f, 390f); c.drawText("SCORE", 480f, 390f, t); c.restore()
+                    c.save(); c.rotate(-90f, 1120f, 390f); c.drawText("SCORE", 1120f, 390f, t); c.restore()
+                    // left wing: speaker grille; right wing: the PLAYERS and POWER slides
+                    p.color = tanDark
+                    for (i in 0 until 7) c.drawRect(250f + i * 16f, 380f - i * 6f, 258f + i * 16f, 520f - i * 6f, p)
+                    t.color = ink; t.textSize = 20f
+                    c.drawText("ACTION KEY", 230f, 745f, t); c.drawText("ACTION KEY", 1370f, 745f, t)
+                    c.drawText("PLAYERS", 1330f, 330f, t)
+                    p.color = 0xFF151515.toInt(); c.drawRoundRect(1180f, 440f, 1240f, 520f, 8f, 8f, p)
+                    p.color = 0xFF3A3632.toInt(); c.drawRoundRect(1186f, 446f, 1234f, 478f, 6f, 6f, p)
+                    c.drawText("POWER", 1210f, 430f, t); t.textSize = 16f; c.drawText("ON", 1262f, 466f, t); c.drawText("OFF", 1266f, 510f, t)
                 },
             )
         }

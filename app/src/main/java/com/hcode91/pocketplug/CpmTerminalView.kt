@@ -8,16 +8,26 @@ import android.view.MotionEvent
 import android.view.View
 
 /**
- * Early-80s single-board CP/M computer at a desk (Big Board family): a grey
- * terminal monitor with a white-phosphor screen, the twin floppy drive cabinet
- * under it and a plain ASCII keyboard. Original design, no names or logos.
+ * Early-80s single-board CP/M computer at a desk (Big Board family), in three
+ * looks from photos (see the styles): a terminal monitor with a white-phosphor
+ * screen, the drives under it and an ASCII keyboard. No names or logos.
  *
  * Keys send ASCII codes (down, then up); SHIFT and CTRL latch for the next key
  * when tapped on their own, CAPS LOCK starts on (CP/M likes capitals). Tap the
  * drive cabinet for the disk menu and the monitor's power rocker for the menu.
  */
 @SuppressLint("ViewConstructor")
-class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int) : View(ctx), DesktopSkin {
+class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, private val style: Int = BOARD) : View(ctx), DesktopSkin {
+
+    companion object {
+        /** the bare blue board with two 8" drives beside it (Big Board, MK-82, Moj mikro) */
+        const val BOARD = 0
+        /** the brushed-metal case with two drives, a key switch and three buttons (Big Board II) */
+        const val CASE = 1
+        /** cream office monitor, drive unit with a black front and a cream keyboard with dark keys (Xerox 820) */
+        const val OFFICE = 2
+        fun styleFor(id: String) = when (id) { "bigbord2" -> CASE; "x820" -> OFFICE; else -> BOARD }
+    }
 
     override var onKey: ((Int, Boolean) -> Unit)? = null
     override var onMenu: (() -> Unit)? = null
@@ -106,11 +116,13 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int) : 
         // the monitor: light grey with a dark surround
         paint.color = 0x66000000
         c.drawRoundRect(monitor.left + mw * 0.01f, monitor.top + mw * 0.015f, monitor.right + mw * 0.01f, monitor.bottom + mw * 0.015f, mw * 0.035f, mw * 0.035f, paint)
-        paint.shader = LinearGradient(0f, monitor.top, 0f, monitor.bottom, 0xFFD6D4CE.toInt(), 0xFFAEABA3.toInt(), Shader.TileMode.CLAMP)
+        val office = style == OFFICE
+        paint.shader = LinearGradient(0f, monitor.top, 0f, monitor.bottom, if (office) 0xFFEAE4D4.toInt() else 0xFFD6D4CE.toInt(),
+            if (office) 0xFFC8C0AC.toInt() else 0xFFAEABA3.toInt(), Shader.TileMode.CLAMP)
         c.drawRoundRect(monitor, mw * 0.035f, mw * 0.035f, paint); paint.shader = null
         stroke.color = 0xFF85827A.toInt(); stroke.strokeWidth = mw * 0.004f
         c.drawRoundRect(monitor, mw * 0.035f, mw * 0.035f, stroke)
-        paint.color = 0xFF2E2F32.toInt(); c.drawRoundRect(glass, mw * 0.025f, mw * 0.025f, paint)
+        paint.color = if (office) 0xFFB8B0A0.toInt() else 0xFF2E2F32.toInt(); c.drawRoundRect(glass, mw * 0.025f, mw * 0.025f, paint)
         paint.color = 0xFF060707.toInt()
         c.drawRoundRect(screen.left - mw * 0.012f, screen.top - mw * 0.012f, screen.right + mw * 0.012f, screen.bottom + mw * 0.012f, mw * 0.02f, mw * 0.02f, paint)
         frame.setPixels(framePx, 0, fw, 0, 0, fw, fh)
@@ -127,24 +139,64 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int) : 
         paint.color = 0xFF46443F.toInt(); c.drawRoundRect(power, power.height() * 0.3f, power.height() * 0.3f, paint)
         paint.color = 0xFFE8A030.toInt(); c.drawCircle(power.left - mw * 0.025f, power.centerY(), mw * 0.007f, paint)
 
-        // the twin 8" drive cabinet: drive A (with the disk label when one is in) and drive B
-        paint.shader = LinearGradient(0f, cabinet.top, 0f, cabinet.bottom, 0xFF8E8B84.toInt(), 0xFF6C6A64.toInt(), Shader.TileMode.CLAMP)
-        c.drawRoundRect(cabinet, mw * 0.015f, mw * 0.015f, paint); paint.shader = null
+        // the drives (tap for the disk menu), in the style's housing
+        when (style) {
+            BOARD -> {
+                // the blue board with rows of black chips, the two drives on its right
+                paint.color = 0xFF3A86B8.toInt(); c.drawRoundRect(cabinet, mw * 0.01f, mw * 0.01f, paint)
+                paint.color = 0xFF1C1C1E.toInt()
+                val cw = cabinet.width() * 0.024f; val ch = cabinet.height() * 0.16f
+                for (row in 0 until 4) for (col in 0 until 11) {
+                    val x = cabinet.left + cabinet.width() * 0.03f + col * cw * 1.45f
+                    val y = cabinet.top + cabinet.height() * 0.1f + row * ch * 1.35f
+                    c.drawRect(x, y, x + cw, y + ch, paint)
+                }
+                paint.color = 0xFFE8E0A0.toInt()
+                c.drawRect(cabinet.left + cabinet.width() * 0.32f, cabinet.top + cabinet.height() * 0.55f, cabinet.left + cabinet.width() * 0.36f, cabinet.top + cabinet.height() * 0.75f, paint)
+            }
+            CASE -> {
+                paint.shader = LinearGradient(cabinet.left, 0f, cabinet.right, 0f, intArrayOf(0xFFC9CBCC.toInt(), 0xFFE4E6E7.toInt(), 0xFFBFC1C2.toInt()), null, Shader.TileMode.CLAMP)
+                c.drawRoundRect(cabinet, mw * 0.008f, mw * 0.008f, paint); paint.shader = null
+                // the key switch and three square buttons on the right, a blank plate above them
+                val rx = cabinet.left + cabinet.width() * 0.88f; val ry = cabinet.top + cabinet.height() * 0.55f
+                paint.color = 0xFFF4F4F2.toInt(); c.drawRect(rx - mw * 0.06f, cabinet.top + cabinet.height() * 0.12f, rx + mw * 0.06f, cabinet.top + cabinet.height() * 0.3f, paint)
+                paint.color = 0xFF2A2A2A.toInt(); c.drawCircle(rx - mw * 0.035f, ry - cabinet.height() * 0.08f, mw * 0.012f, paint)
+                paint.color = 0xFFB0A060.toInt(); c.drawRect(rx - mw * 0.037f, ry - cabinet.height() * 0.13f, rx - mw * 0.033f, ry - cabinet.height() * 0.03f, paint)
+                for (k in 0 until 3) { paint.color = 0xFF1A1A1A.toInt(); c.drawRect(rx - mw * 0.05f + k * mw * 0.035f, ry + cabinet.height() * 0.08f, rx - mw * 0.03f + k * mw * 0.035f, ry + cabinet.height() * 0.2f, paint) }
+            }
+            else -> {
+                paint.shader = LinearGradient(0f, cabinet.top, 0f, cabinet.bottom, 0xFFEAE4D4.toInt(), 0xFFCFC7B2.toInt(), Shader.TileMode.CLAMP)
+                c.drawRoundRect(cabinet, mw * 0.015f, mw * 0.015f, paint); paint.shader = null
+                paint.color = 0xFF161616.toInt()
+                c.drawRoundRect(cabinet.left + cabinet.width() * 0.03f, cabinet.top + cabinet.height() * 0.1f, cabinet.right - cabinet.width() * 0.03f, cabinet.bottom - cabinet.height() * 0.1f, mw * 0.008f, mw * 0.008f, paint)
+            }
+        }
         for (i in 0..1) {
             val s = slots[i]
             val face = RectF(s.left - mw * 0.01f, cabinet.top + cabinet.height() * 0.12f, s.right + mw * 0.01f, cabinet.bottom - cabinet.height() * 0.12f)
-            paint.color = 0xFFCFCCC4.toInt(); c.drawRoundRect(face, mw * 0.008f, mw * 0.008f, paint)
-            paint.color = 0xFF151515.toInt(); c.drawRoundRect(s, s.height() / 2, s.height() / 2, paint)
-            if (i == 0 && floppyLabel != null) {
+            if (style == BOARD) {      // the drives sit on the right of the board, smaller
+                val l = cabinet.left + cabinet.width() * 0.66f; val t0 = cabinet.top + cabinet.height() * (0.06f + i * 0.47f)
+                face.set(l, t0, cabinet.right - cabinet.width() * 0.02f, t0 + cabinet.height() * 0.42f)
+                s.set(face.left + face.width() * 0.08f, face.top + face.height() * 0.42f, face.right - face.width() * 0.08f, face.top + face.height() * 0.58f)
+            } else if (style == CASE && i == 1) {
+                face.right = cabinet.left + cabinet.width() * 0.78f
+                s.right = face.right - mw * 0.01f
+            }
+            paint.color = when (style) { BOARD -> 0xFFCFCCC4.toInt(); CASE -> 0xFF1E1E1E.toInt(); else -> 0xFF222222.toInt() }
+            c.drawRoundRect(face, mw * 0.008f, mw * 0.008f, paint)
+            paint.color = if (style == BOARD) 0xFF151515.toInt() else 0xFF050505.toInt()
+            c.drawRoundRect(s, s.height() / 2, s.height() / 2, paint)
+            val disk = if (i == 0) floppyLabel != null else false
+            if (disk) {
                 paint.color = 0xFF2A2A30.toInt()
                 c.drawRect(s.left + s.width() * 0.05f, s.top + s.height() * 0.25f, s.right - s.width() * 0.05f, s.bottom - s.height() * 0.25f, paint)
             }
-            // the door latch and busy light
-            paint.color = 0xFF3A3A3A.toInt(); c.drawRoundRect(s.centerX() - s.width() * 0.08f, s.bottom + cabinet.height() * 0.06f, s.centerX() + s.width() * 0.08f, s.bottom + cabinet.height() * 0.16f, 4f, 4f, paint)
+            paint.color = if (style == BOARD) 0xFF3A3A3A.toInt() else 0xFF5A5A5A.toInt()
+            c.drawRoundRect(s.centerX() - s.width() * 0.08f, s.bottom + face.height() * 0.08f, s.centerX() + s.width() * 0.08f, s.bottom + face.height() * 0.2f, 4f, 4f, paint)
             paint.color = if (i == 0 && indicators and 1 != 0) 0xFFFF3A2A.toInt() else 0xFF5A1A14.toInt()
-            c.drawCircle(face.right - mw * 0.02f, face.top + cabinet.height() * 0.15f, mw * 0.007f, paint)
-            text.color = 0xFF3A3A3A.toInt(); text.textSize = cabinet.height() * 0.13f
-            c.drawText(if (i == 0) "A" else "B", face.left + mw * 0.02f, face.top + cabinet.height() * 0.2f, text)
+            c.drawCircle(face.right - mw * 0.02f, face.top + face.height() * 0.18f, mw * 0.007f, paint)
+            text.color = if (style == BOARD) 0xFF3A3A3A.toInt() else 0xFFBDBDBD.toInt(); text.textSize = face.height() * 0.16f
+            c.drawText(if (i == 0) "A" else "B", face.left + mw * 0.02f, face.top + face.height() * 0.24f, text)
         }
         floppyLabel?.let {
             text.color = 0xFFEDEBE5.toInt(); text.textSize = cabinet.height() * 0.13f
@@ -152,16 +204,17 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int) : 
         }
 
         // the keyboard
-        paint.color = 0xFF2C2D31.toInt(); c.drawRoundRect(keyboard, mw * 0.02f, mw * 0.02f, paint)
+        paint.color = if (office) 0xFFE4DCC6.toInt() else 0xFF2C2D31.toInt(); c.drawRoundRect(keyboard, mw * 0.02f, mw * 0.02f, paint)
         for (k in allKeys) {
             val d = k.down || (k.k.kind == Kind.SHIFT && shiftLatched) || (k.k.kind == Kind.CTRL && ctrlLatched) || (k.k.kind == Kind.LOCK && caps)
             val r = k.rect
-            val base = when (k.k.kind) { Kind.CHAR, Kind.SPACE -> 0xFFE6E2D8.toInt(); else -> 0xFF8C8A84.toInt() }
+            val base = if (office) (when (k.k.kind) { Kind.CHAR, Kind.SPACE -> 0xFF3A3A3C.toInt(); else -> 0xFF5A5A5E.toInt() })
+                else when (k.k.kind) { Kind.CHAR, Kind.SPACE -> 0xFFE6E2D8.toInt(); else -> 0xFF8C8A84.toInt() }
             paint.color = 0xFF111111.toInt(); c.drawRoundRect(r.left, r.top + r.height() * 0.06f, r.right, r.bottom + r.height() * 0.04f, r.height() * 0.12f, r.height() * 0.12f, paint)
             paint.color = if (d) darken(base) else base
             c.drawRoundRect(r.left, r.top + (if (d) r.height() * 0.05f else 0f), r.right, r.bottom - r.height() * 0.04f + (if (d) r.height() * 0.05f else 0f), r.height() * 0.12f, r.height() * 0.12f, paint)
             if (k.k.kind == Kind.LOCK && caps) { paint.color = 0xFFFF3A2A.toInt(); c.drawCircle(r.right - r.width() * 0.15f, r.top + r.height() * 0.2f, r.height() * 0.06f, paint) }
-            text.color = 0xFF1C1C1C.toInt()
+            text.color = if (office) 0xFFEDEDED.toInt() else 0xFF1C1C1C.toInt()
             val lines = k.k.label.split("\n")
             text.textSize = if (k.k.kind == Kind.CHAR) r.height() * 0.38f else r.height() * (if (lines.size > 1) 0.2f else 0.24f)
             val label = if (k.k.kind == Kind.CHAR && k.k.label[0].isLetter()) k.k.label.uppercase() else k.k.label
