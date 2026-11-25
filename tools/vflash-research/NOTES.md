@@ -516,3 +516,21 @@ Screen state after the load: framebuffer clears only; 09 primitive records
 - Texture descriptors are packed tightly (x in 16-bit units even for 8 bpp:
   an 8 bpp texture W wide occupies W/2 units), e.g. (128,1392,512x16),
   (128,1408,256x128), (128,1536,...), (128,1664,...), (0,2064,...).
+
+## Live rendering in the harness
+
+- `VFRENDER=ms` turns on an experimental software renderer inside vf.cpp
+  (rn_* functions): it tracks list state all the time, rasterises from the
+  given time, performs the 0C write-back into RAM, and at exit writes fb.ppm
+  (shown buffer) and vram.ppm (the 1024x720 buffer area). At 240 s the three
+  render targets hold the menu room, same as the offline script.
+  Cost: a run to 240 s takes ~25 minutes instead of ~12.
+- Packet 81 = projection centre, (y << 12) | x: (768,600), (256,600), (768,360)
+  for the targets (512,480), (0,480), (512,240). The renderer uses it.
+- Render targets are (512,240), (0,480), (512,480) (82/83 clip), but the
+  display base register cycles (512,0), (0,240), (512,240): each is exactly
+  240 rows (0x78000 bytes) above a target. The harness therefore shows
+  "display base + 240 rows"; why is not understood (an LCD start-line setting?).
+- D3 fills: (512,480)-style positions clear a colour target with 0; the fill at
+  (0,0) with 0x199 is separate (depth clear, shows as orange if viewed as
+  colour).

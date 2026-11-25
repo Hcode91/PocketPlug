@@ -68,7 +68,102 @@ struct VF : Bus {
             if (w == 0x09000000 && depth < 3) { u32 t = rd32(a + 4 * k + 4); if (t >= 0x10000000 && t < 0x12000000) d4_scan(t, 64, depth + 1); k++; }
         }
     }
+    // ---- experimental 3D renderer (VFRENDER=ms: rasterise lists from that time on; see NOTES "first menu render") ----
+    // Vertex floats: 1 sign, 6 exponent (bias 31), 9 mantissa. Projection constants are guesses.
+    struct RnState { float M[9] = {1,0,0,0,1,0,0,0,1}, T[3] = {0,0,0}, S[3] = {1,1,1}; bool ident = false; u32 tex = 0, fmt = 0, pal = 0, vb = 0, cap = 0, org = 0, clip0 = 0, clip1 = 0x000ef1ff; } rn;
+    std::vector<float> rnZ; long long rnTris = 0, rnFrames = 0;
+    static float rn_f(u16 h) { int e = (h >> 9) & 63; if (!e) return 0; float v = (1 + (h & 511) / 512.0f) * ldexpf(1.0f, e - 31); return (h & 0x8000) ? -v : v; }
+    static u16 rn_enc(float f) { if (f == 0 || f != f) return 0; u16 s = f < 0 ? 0x8000 : 0; f = fabsf(f); int e; float m = frexpf(f, &e); /* f = m * 2^e, m in [0.5,1) */ int ex = e - 1 + 31; if (ex <= 0) return 0; if (ex > 63) ex = 63; int man = int((m * 2 - 1) * 512); if (man > 511) man = 511; return s | u16(ex << 9) | u16(man); }
+    u8* rn_byte(int xb, int y) { u32 base = regs.count(0xa8000098) && regs[0xa8000098] ? regs[0xa8000098] : VRAM_BASE; if (xb < 0 || y < 0 || xb >= 2048) return nullptr; u32 a = base + (u32(y) / 8) * 16384 + (u32(xb) / 64) * 512 + (u32(y) % 8) * 64 + u32(xb) % 64; if (a < 0x10000000 || a >= 0x10000000 + sdram.size()) return nullptr; return &sdram[a - 0x10000000]; }
+    struct RnV { float x, y, z, u, v; };
+    void rn_tri(const RnV& a, const RnV& b, const RnV& c) {
+        const float F = 420.0f, NEARZ = 40.0f;
+        if (a.z < NEARZ || b.z < NEARZ || c.z < NEARZ) return;
+        int cx0 = rn.clip0 & 0xfff, cy0 = (rn.clip0 >> 12) & 0xfff, cx1 = rn.clip1 & 0xfff, cy1 = (rn.clip1 >> 12) & 0xfff;
+        float ox = rn.org ? float(rn.org & 0xfff) : cx0 + 256.0f, oy = rn.org ? float((rn.org >> 12) & 0xfff) : cy0 + 120.0f;   // 81 = projection centre
+        float X[3] = { ox + F * a.x / a.z, ox + F * b.x / b.z, ox + F * c.x / c.z }, Y[3] = { oy + 0.47f * F * a.y / a.z, oy + 0.47f * F * b.y / b.z, oy + 0.47f * F * c.y / c.z };
+        float iz[3] = { 1 / a.z, 1 / b.z, 1 / c.z }, U[3] = { a.u * iz[0], b.u * iz[1], c.u * iz[2] }, V[3] = { a.v * iz[0], b.v * iz[1], c.v * iz[2] };
+        float den = (Y[1] - Y[2]) * (X[0] - X[2]) + (X[2] - X[1]) * (Y[0] - Y[2]); if (fabsf(den) < 1e-6f) return;
+        int x0 = std::max(cx0, (int)floorf(std::min({X[0], X[1], X[2]}))), x1 = std::min(cx1, (int)ceilf(std::max({X[0], X[1], X[2]})));
+        int y0 = std::max(cy0, (int)floorf(std::min({Y[0], Y[1], Y[2]}))), y1 = std::min(cy1, (int)ceilf(std::max({Y[0], Y[1], Y[2]})));
+        if (x1 < x0 || y1 < y0) return;
+        int tw = 8 << (rn.fmt & 7), th = 8 << ((rn.fmt >> 3) & 7);
+        int tx = (rn.tex & 0xfff) * 2, ty = (rn.tex >> 12) & 0xfff, px = (rn.pal & 0xfff) * 2, py = (rn.pal >> 12) & 0xfff;
+        if (ty >= 2048) ty -= 240; if (py >= 2048) py -= 240;      // rows 2048+ sit 240 rows lower in memory
+        if (rnZ.empty()) rnZ.assign(1024 * 1024, 1e30f);
+        rnTris++;
+        for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) {
+            float gx = x + 0.5f, gy = y + 0.5f;
+            float l0 = ((Y[1] - Y[2]) * (gx - X[2]) + (X[2] - X[1]) * (gy - Y[2])) / den, l1 = ((Y[2] - Y[0]) * (gx - X[2]) + (X[0] - X[2]) * (gy - Y[2])) / den, l2 = 1 - l0 - l1;
+            if (l0 < 0 || l1 < 0 || l2 < 0) continue;
+            float w = l0 * iz[0] + l1 * iz[1] + l2 * iz[2], z = 1 / w;
+            float& zb = rnZ[(y & 1023) * 1024 + (x & 1023)]; if (z >= zb) continue;
+            float u = (l0 * U[0] + l1 * U[1] + l2 * U[2]) * z, v = 1 - (l0 * V[0] + l1 * V[1] + l2 * V[2]) * z;
+            int iu = ((int)floorf(u * tw) % tw + tw) % tw, iv = ((int)floorf(v * th) % th + th) % th;
+            u8* t = rn_byte(tx + iu, ty + iv); if (!t || !*t) continue;                 // palette entry 0 = transparent
+            u8* p = rn_byte(px + 2 * *t, py); if (!p) continue;
+            if (u16* d = vram_px(x, y)) { *d = u16(p[0] | p[1] << 8); zb = z; }
+        }
+    }
+    void rn_sublist(u32 a, bool draw) {
+        for (int guard = 0; guard < 4000; guard++) {
+            u32 w = rd32(a), op = w >> 24;
+            if (op == 0x0a) { rn.vb = rd32(a + 4); a += 8; continue; }
+            if (op != 0x40 && op != 0x44 && op != 0x6f) return;
+            u32 fl = (w >> 16) & 0xff, n = w & 0xffff; bool indexed = fl & 0x40;
+            if (indexed && !rn.vb) return;
+            std::vector<RnV> vs(n); std::vector<u32> src(n);
+            for (u32 i = 0; i < n; i++) {
+                u32 va = indexed ? rn.vb + 4 * u32(u16(rd32(a + 4 + (i / 2) * 4) >> ((i & 1) * 16))) : a + 4 + 20 * i;
+                src[i] = va;
+                u32 w0 = rd32(va), w1 = rd32(va + 4), w3 = rd32(va + 12);
+                float p[3] = { rn_f(u16(w0)), rn_f(u16(w0 >> 16)), rn_f(u16(w1)) }, q[3];
+                if (rn.ident) { for (int j = 0; j < 3; j++) q[j] = p[j] * 4096.0f; }
+                else for (int j = 0; j < 3; j++) q[j] = (rn.M[j * 3] * p[0] * rn.S[0] + rn.M[j * 3 + 1] * p[1] * rn.S[1] + rn.M[j * 3 + 2] * p[2] * rn.S[2]) * 4096.0f + rn.T[j];
+                vs[i] = { q[0], q[1], -q[2], rn_f(u16(w3)), rn_f(u16(w3 >> 16)) };
+            }
+            if (rn.cap && !indexed) {                       // 0C: write the transformed vertices back instead of drawing
+                for (u32 i = 0; i < n; i++) {
+                    u32 o = rn.cap + 20 * i - 0x10000000; if (rn.cap < 0x10000000 || o + 20 > sdram.size()) break;
+                    memcpy(&sdram[o], &sdram[src[i] - 0x10000000], 20);
+                    u16 h[3] = { rn_enc(vs[i].x / 4096.0f), rn_enc(vs[i].y / 4096.0f), rn_enc(-vs[i].z / 4096.0f) };
+                    memcpy(&sdram[o], h, 6);
+                    u16 vv = rn_enc(1 - vs[i].v); memcpy(&sdram[o + 14], &vv, 2);     // empirical: captured pieces need v the other way up
+                }
+            } else if (draw) {
+                if (op == 0x44) { for (u32 i = 0; i + 2 < n; i += 3) rn_tri(vs[i], vs[i + 1], vs[i + 2]); }
+                else for (u32 i = 0; i + 2 < n; i++) rn_tri(vs[i], vs[i + 1], vs[i + 2]);
+            }
+            a += 4 + (indexed ? 4 * ((n + 1) / 2) : 20 * n);
+        }
+    }
+    void gfx_render(u32 la, bool draw) {
+        for (int k = 1; k < 4096; k++) {
+            u32 w = rd32(la + 4 * k), op = w >> 24;
+            if ((w & 0xff0000ff) == 0x14000001) break;
+            if (op == 0x20) {
+                u32 r = (w >> 16) & 0xff, n = w & 0xffff, nw = (n + 1) / 2; int16_t h[16] = {};
+                for (u32 i = 0; i < n && i < 16; i++) h[i] = int16_t(rd32(la + 4 * (k + 1 + i / 2)) >> ((i & 1) * 16));
+                if (r == 0x40 && n >= 9) { rn.ident = u16(h[0]) == 0x3e00; for (int i = 0; i < 9; i++) rn.M[i] = h[i] / 4096.0f; }
+                if (r == 0x4c && n >= 3) for (int i = 0; i < 3; i++) rn.T[i] = h[i];
+                if (r == 0x3c && n >= 3) for (int i = 0; i < 3; i++) rn.S[i] = u16(h[0]) == 0x3e00 ? 1.0f : h[i] / 4096.0f;
+                k += nw; continue;
+            }
+            if (op == 0xd3) { if (rd32(la + 4 * (k + 1)) == 0 && draw) { std::fill(rnZ.begin(), rnZ.end(), 1e30f); rnFrames++; } k += w & 0xffff; continue; }
+            if (op == 0x82) rn.clip0 = w & 0xffffff;
+            if (op == 0x81) rn.org = w & 0xffffff;
+            if (op == 0x83) rn.clip1 = w & 0xffffff;
+            if (op == 0x87) rn.tex = w & 0xffffff;
+            if (op == 0x86) rn.fmt = w & 0xffffff;
+            if (op == 0x8f) rn.pal = w & 0xffffff;
+            if (op == 0x0a) { rn.vb = rd32(la + 4 * (k + 1)); k++; continue; }
+            if (op == 0x0c) { rn.cap = rd32(la + 4 * (k + 1)); k++; continue; }
+            if (op == 0x10) { k++; continue; }
+            if (op == 0x09) { rn_sublist(rd32(la + 4 * (k + 1)), draw); rn.cap = 0; k++; continue; }
+        }
+    }
     void gfx_run(u32 la) {
+        if (const char* re = getenv("VFRENDER")) gfx_render(la, cycles / 150000 >= (u64)atoll(re));
         if (getenv("VFD4")) d4_scan(la + 4, 4096, 0);
         if (const char* fe = getenv("VFFRAME")) {   // VFFRAME=ms: dump lists and their sublists for 40 ms from that time
             u64 t = cycles / 150000, t0 = (u64)atoll(fe);
@@ -555,6 +650,17 @@ int main(int argc, char** argv) {
             if (getenv("VFSTACK")) { u32 sp = cpu.r[13]; for (int k = 0; k < 96; k++) { u32 w, a = sp + k * 4; if (a < 0x10000000 || a >= 0x14000000) break; memcpy(&w, &vf.sdram[a - 0x10000000], 4); if (w >= 0x10010000 && w < 0x100b0000) printf(" %08x", w); } }
             printf("\n");
         }
+    }
+    if (getenv("VFRENDER")) {      // write the displayed 512x240 buffer as fb.ppm
+        u32 base = vf.regs[0xa8000098] ? vf.regs[0xa8000098] : 0x10048000, off = vf.regs[0xb8000160] - base;
+        int y0 = int(off / 16384) * 8 + 240, x0 = int((off % 16384) / 512) * 32;   // the shown buffer is the render target 240 rows below the display base (empirical)
+        FILE* o = fopen("fb.ppm", "wb"); fprintf(o, "P6 512 240 255\n");
+        for (int y = 0; y < 240; y++) for (int x = 0; x < 512; x++) { u16* p = vf.vram_px(x0 + x, y0 + y); u16 v = p ? *p : 0; u8 c[3] = { u8((v & 31) << 3), u8(((v >> 5) & 31) << 3), u8(((v >> 10) & 31) << 3) }; fwrite(c, 1, 3, o); }
+        fclose(o);
+        o = fopen("vram.ppm", "wb"); fprintf(o, "P6 1024 720 255\n");
+        for (int y = 0; y < 720; y++) for (int x = 0; x < 1024; x++) { u16* p = vf.vram_px(x, y); u16 v = p ? *p : 0; u8 c[3] = { u8((v & 31) << 3), u8(((v >> 5) & 31) << 3), u8(((v >> 10) & 31) << 3) }; fwrite(c, 1, 3, o); }
+        fclose(o); printf("clip %06x %06x\n", vf.rn.clip0, vf.rn.clip1);
+        printf("render: %lld triangles, %lld frames, display %08x = (%d,%d)\n", vf.rnTris, vf.rnFrames, vf.regs[0xb8000160], x0, y0);
     }
     if (getenv("DUMP")) { FILE* o = fopen("ram.bin", "wb"); fwrite(vf.sdram.data(), 1, 32 << 20, o); fclose(o); }
     for (auto& [k, v] : vf.regionCount) printf("region %08x writes %llu last %08x\n", k, (unsigned long long)v, vf.regionLast[k]);
