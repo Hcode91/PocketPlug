@@ -368,8 +368,9 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   MAIN.VFF it reads MAIN01.MJP sectors 0-19, then 0-1, about every 1.4 s.
 - MJP container: "MIAV", u32 header size 0x40, u32 payload size, 0, u32 frame
   count (300), u16 fps (20), u16 1, u16 width (320), u16 height (160); then
-  chunks {tag, u32 0, u32 size}: `00dc` video (JPEG, bytes swapped in pairs,
-  headers only in... first frame carries DQT/SOF/DHT), `01wb`/`02wb` audio
+  chunks {tag, u32 0, u32 size}: `00dc` video (JPEG, bytes swapped in pairs;
+  only the first frame carries the DQT/SOF/DHT headers, and its scan data does
+  not decode with a stock JPEG decoder yet), `01wb`/`02wb` audio
   (612 bytes per frame each).
 - Sound chip at 0xB0000000: 64 voices x 0x40 bytes: +0 start, +4 end, +8 loop
   address, +0xC control (bit 4 tested), +0x10 pitch (13 bits), +0x14.. volume/
