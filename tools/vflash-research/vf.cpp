@@ -1,6 +1,7 @@
 #include <cmath>
 #include <tuple>
 #include <map>
+#include <deque>
 // V.Flash research harness: boot ROM on the ARM926 interpreter, logging I/O.
 #include "cores/gpl32/arm926.h"
 #include <cstdio>
@@ -461,6 +462,47 @@ struct VF : Bus {
         if (double(cycles - sndAt[v]) / 150e6 * rate >= double(len)) { sndOn[v] = false; if (getenv("VFSND")) printf("snd voice %d ended t=%llu\n", v, cycles / 150000); }
         return sndOn[v];
     }
+    // ---- controller ports: two 16550 UARTs (0x90020000 = IRQ 1, 0x90030000 = IRQ 2, guessed from the game's mask) ----
+    // Packet: FF, 01, L, then L raw bytes packed 2 -> 3 (each byte carries 0x40), then the 16-bit sum of 1 + L + raw bytes packed the same way.
+    std::deque<u8> padRx[2]; std::vector<u8> padTx[2];
+    void pad_int() { for (int p = 0; p < 2; p++) int_set(1 + p, !padRx[p].empty() && (regs[0x90020004 + p * 0x10000] & 1)); }
+    void pad_send(int p, std::vector<u8> raw) {
+        if (raw.size() & 1) raw.push_back(0);
+        u32 sum = 1 + u32(raw.size()); for (u8 b : raw) sum += b;
+        std::vector<u8> all = raw; all.push_back(u8(sum)); all.push_back(u8(sum >> 8));
+        padRx[p].push_back(0xff); padRx[p].push_back(1); padRx[p].push_back(u8(raw.size()));
+        for (size_t i = 0; i < all.size(); i += 2) { u8 r0 = all[i], r1 = all[i + 1]; padRx[p].push_back(0x40 | (r0 & 0xf)); padRx[p].push_back(0x40 | (r0 >> 4) | ((r1 & 3) << 4)); padRx[p].push_back(0x40 | (r1 >> 2)); }
+        pad_int();
+    }
+    // VFPADKEY="ms:mask,ms:mask,..." = button mask (hex) from each time on; records go out on change and every 500 ms once the probe was answered.
+    bool padLive = false; u64 padLast = 0; u32 padMask = 0xffffffff; std::vector<std::pair<u64, u32>> padScript; bool padScriptInit = false;
+    void pad_tick() {
+        if (!padLive) return;
+        if (!padScriptInit) { padScriptInit = true; if (const char* e = getenv("VFPADKEY")) { while (*e) { u64 t = strtoull(e, (char**)&e, 10); if (*e != ':') break; u32 m = u32(strtoul(e + 1, (char**)&e, 16)); padScript.push_back({ t, m }); if (*e == ',') e++; } } }
+        u64 t = cycles / 150000; u32 m = 0;
+        for (auto& ps : padScript) if (t >= ps.first) m = ps.second;
+        if (m == padMask && t - padLast < 500) return;
+        if (m != padMask) printf("pad0 -> buttons %04x t=%llu\n", m, t);
+        padMask = m; padLast = t;
+        u64 rec = (u64(0x80) << 4) | (u64(0x80) << 13) | (u64(m & 0xffff) << 22);
+        std::vector<u8> raw(6); for (int i = 0; i < 6; i++) raw[i] = u8(rec >> (8 * i));
+        pad_send(0, raw);
+    }
+    void pad_tx(int p, u8 b) {
+        auto& t = padTx[p];
+        if (b == 0xff) t.clear();
+        t.push_back(b);
+        if (t[0] != 0xff) { t.clear(); return; }
+        if (t.size() < 3) return;
+        size_t need = 3 + ((t[2] + 1) / 2) * 3 + 3;
+        if (t.size() < need) return;
+        std::vector<u8> raw;
+        for (size_t i = 3; i + 2 < need - 3 + 3 && i + 2 < t.size(); i += 3) { raw.push_back((t[i] & 0xf) | ((t[i + 1] << 4) & 0xf0)); raw.push_back(((t[i + 1] >> 4) & 3) | ((t[i + 2] << 2) & 0xfc)); }
+        raw.resize(t[2]);
+        printf("pad%d <-", p); for (u8 r : raw) printf(" %02x", r); printf("  t=%llu\n", cycles / 150000);
+        if (getenv("VFPAD") && raw.size() == 2 && raw[0] == 0x40) { pad_send(p, { u8(atoi(getenv("VFPAD"))), 0 }); if (p == 0 && getenv("VFPADKEY")) padLive = true; printf("pad%d -> type %d\n", p, atoi(getenv("VFPAD"))); }
+        t.clear();
+    }
     u32 io_read(u32 a) {
         if (a >= 0xb0000000 && a < 0xb0001000 && (a & 0x3f) == 0x34) return snd_busy((a >> 6) & 63) ? 0x10000 : 0;
         if (a >= 0xb8000800 && a < 0xb8001000) { u32 v; memcpy(&v, &sram[a - 0xb8000000], 4); return v; }
@@ -484,7 +526,9 @@ struct VF : Bus {
         u32 v = regs.count(a) ? regs[a] : 0;
         // status bits that boot code spins on
         if (a == 0x900b0014) v |= 0x21;            // PLL locked, power key on
-        if ((a & 0xfffeffff) == 0x90020014) return 0x60;          // 16550 LSR: transmitter empty
+        if ((a & 0xfffeffff) == 0x90020014) return 0x60 | (padRx[(a >> 16) & 1].empty() ? 0 : 1);   // 16550 LSR: transmitter empty, data ready
+        if ((a & 0xfffeffff) == 0x90020000 && !(regs[(a & 0xffff0000) | 0x0c] & 0x80)) { auto& q = padRx[(a >> 16) & 1]; u32 v = 0; if (!q.empty()) { v = q.front(); q.pop_front(); } pad_int(); return v; }
+        if ((a & 0xfffeffff) == 0x90020008) return padRx[(a >> 16) & 1].empty() ? 0xc1 : 0xc4;        // IIR: receive data available
         log("R", a, v);
         return v;
     }
@@ -522,6 +566,8 @@ struct VF : Bus {
           if (a == 0x900a002c || a == 0x900a0030) { int i = a == 0x900a0030; pairs[i].int_status &= ~v; tp_int(i); log("W", a, v); return; }
           if (a == 0x900a0034 || a == 0x900a0038) { int i = a == 0x900a0038; pairs[i].int_mask = v & 0x3f; tp_int(i); log("W", a, v); return; } }
         if ((a & 0xfffeffff) == 0x90020000 && !(regs[(a & 0xffff0000) | 0x0c] & 0x80)) {
+            pad_tx((a >> 16) & 1, u8(v));
+            if (getenv("VFUART")) printf("tx%d %02x pc %08x t=%llu\n", (a >> 16) & 1, v & 0xff, cpu->r[15], cycles / 150000);
             char ch = char(v);
             if (ch == '\n') { printf("[uart%d] %s\n", (a >> 16) & 1 ? 1 : 0, line.c_str()); line.clear(); }
             else if (ch != '\r') line += ch;
@@ -634,6 +680,7 @@ int main(int argc, char** argv) {
         vf.cycles += 4578;
         vf.tick32k();
         vf.subcode_tick();
+        vf.pad_tick();
         if (cpu.r[15] >= 0x10999d74 && cpu.r[15] <= 0x10999d84 && !getenv("NOIDLE")) cpu.halt();   // the game OS's idle task
         if (vf.resetPending) {
             vf.resetPending = false;

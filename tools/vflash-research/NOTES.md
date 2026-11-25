@@ -534,3 +534,28 @@ Screen state after the load: framebuffer clears only; 09 primitive records
 - D3 fills: (512,480)-style positions clear a colour target with 0; the fill at
   (0,0) with 0x199 is separate (depth clear, shows as orange if viewed as
   colour).
+
+## Controller ports
+
+- Two 16550 UARTs: port 0 = 0x90020000 (IRQ 1), port 1 = 0x90030000 (IRQ 2);
+  divisor 0xF4, 8N1, receive interrupt. Port 0 also carries the OS banner text
+  at start-up. Driver code 0x10A1BF00-0x10A1F260 (receive handlers 0x10A1E4EC
+  and 0x10A1EBD0, same logic per port).
+- Packet both ways: `FF, 01, L`, then L raw bytes packed two-into-three
+  (`0x40 | r0 & 0xF`, `0x40 | r0 >> 4 | (r1 & 3) << 4`, `0x40 | r1 >> 2`),
+  then the 16-bit sum of (1 + L + raw bytes) packed the same way.
+- Console -> controller every ~15.3 s on each port: raw `40 03` (probe /
+  keep-alive; bytes on the wire FF 01 02 40 74 40 46 44 40).
+- Controller -> console, by L:
+  - 2: raw[0] = 1..4 sets the device type (0x10B3ADA8) and "present"
+    (0x10B91A30); raw[0] = 0x20 sets a flag at 0x10B95C30.
+  - 4: 12-bit X = raw[0] | (raw[1] & 0xF) << 8, 12-bit Y = raw[1] >> 4 |
+    raw[2] << 4, raw[3] bit 0 = a flag; min/max are tracked (a pointing or
+    drawing device).
+  - 6: state record, queued (up to 9) at 0x10B3A248 and unpacked at
+    0x10A1C43C: bits 4-11 and 13-20 = two 8-bit axes, bits 22-37 = 16
+    buttons (compared with the previous value to find changes).
+- Harness: VFPAD=n answers the probe with type n (accepted: type and present
+  are set); VFPADKEY="ms:mask,..." then sends state records with that button
+  mask (axes 0x80). Which bit is which button, and the polarity, are being
+  tested.
