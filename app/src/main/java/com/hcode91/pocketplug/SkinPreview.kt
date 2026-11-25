@@ -81,7 +81,7 @@ object SkinPreview {
         Skin.HANDHELD -> HandheldView(ctx)
         Skin.KARAOKE -> KaraokeMicView(ctx)
         Skin.MINI_ARCADE -> MiniArcadeView(ctx)
-        Skin.WIDE_HANDHELD -> WideHandheldView(ctx)
+        Skin.WIDE_HANDHELD -> WideHandheldView(ctx, m.id == "bl339")
         Skin.MINI_FC -> MiniFcView(ctx)
         Skin.BIT90 -> Bit90View(ctx)
         Skin.BEIJUE -> BeijueView(ctx, m.id == "bkid218")
@@ -103,7 +103,8 @@ object SkinPreview {
         Skin.WORKSTATION -> WorkstationView(ctx)
         Skin.DESKTOP_3B1 -> Desktop3b1View(ctx)
         Skin.BK -> BkView(ctx, m.id.startsWith("bk0011"))
-        Skin.CPM -> CpmTerminalView(ctx, if (m.id.startsWith("bitgrp")) 768 else if (m.id == "bigbord2") 640 else 560, if (m.id.startsWith("bitgrp")) 1024 else if (m.id == "bigbord2") 288 else 240, CpmTerminalView.styleFor(m.id))
+        Skin.CPM -> CpmTerminalView(ctx, if (m.id.startsWith("bitgrp")) 768 else if (m.id == "blit") 800 else if (m.id == "bigbord2") 640 else 560,
+            if (m.id.startsWith("bitgrp") || m.id == "blit") 1024 else if (m.id == "bigbord2") 288 else 240, CpmTerminalView.styleFor(m.id))
         Skin.ATARI_XL -> AtariXlView(ctx, when (m.badge) {
             "130xe", "65xe", "800xe" -> AtariXlView.MODEL_XE
             "400" -> AtariXlView.MODEL_400

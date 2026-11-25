@@ -15,8 +15,17 @@ import kotlin.math.hypot
  * and B on the right and two small round keys up top (SELECT left, START
  * right). Drawn for the phone held sideways; no maker's name is shown - the
  * plain strip under the screen opens the menu.
+ *
+ * baobao = true: the blue-and-white peanut handheld (BaoBaoLong kind), after a photo: a blue
+ * shell with a white face, a round pad of four pale keys on the left with the power slide above
+ * it, the square screen in a white frame, two oval keys top right (B over A), small round RESET
+ * (top) and SOUND (lower right, sent as SELECT) keys, START bottom left and a speaker grille.
  */
-class WideHandheldView(ctx: Context) : View(ctx) {
+@SuppressLint("ViewConstructor")
+class WideHandheldView(ctx: Context, private val baobao: Boolean = false) : View(ctx) {
+
+    var onReset: (() -> Unit)? = null
+    private val btnReset = PointF(); private val grille = PointF()
 
     var onInput: ((Int) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -53,6 +62,7 @@ class WideHandheldView(ctx: Context) : View(ctx) {
     }
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
+        if (baobao) { layoutBaobao(w, h); return }
         // fit a 2:1 body in the view
         var bw = w * 0.98f; var bh = bw * 0.5f
         if (bh > h * 0.96f) { bh = h * 0.96f; bw = bh * 2f }
@@ -69,7 +79,98 @@ class WideHandheldView(ctx: Context) : View(ctx) {
         btnSel.set(l + bw * 0.115f, t + bh * 0.2f); btnStart.set(l + bw * 0.885f, t + bh * 0.2f)
     }
 
+    private fun layoutBaobao(w: Int, h: Int) {
+        var bw = w * 0.98f; var bh = bw * 0.5f
+        if (bh > h * 0.96f) { bh = h * 0.96f; bw = bh * 2f }
+        val l = (w - bw) / 2; val t = (h - bh) / 2
+        body.set(l, t, l + bw, t + bh)
+        val sh = bh * 0.6f; val sw = sh * 256f / 240f
+        screen.set(l + bw * 0.47f - sw / 2, t + bh * 0.15f, l + bw * 0.47f + sw / 2, t + bh * 0.15f + sh)
+        bezel.set(screen.left - bh * 0.05f, screen.top - bh * 0.05f, screen.right + bh * 0.05f, screen.bottom + bh * 0.13f)
+        menuStrip.set(bezel.left, screen.bottom + bh * 0.02f, bezel.right, bezel.bottom - bh * 0.015f)
+        dpadR = bh * 0.19f; dpad.set(l + bw * 0.15f, t + bh * 0.55f)
+        abR = bh * 0.075f
+        btnB.set(l + bw * 0.81f, t + bh * 0.3f); btnA.set(l + bw * 0.83f, t + bh * 0.5f)
+        smallR = bh * 0.045f
+        btnSel.set(l + bw * 0.73f, t + bh * 0.76f)       // SOUND
+        btnStart.set(l + bw * 0.24f, t + bh * 0.86f)
+        btnReset.set(l + bw * 0.7f, t + bh * 0.13f)
+        grille.set(l + bw * 0.86f, t + bh * 0.66f)
+    }
+
+    private fun drawBaobao(c: Canvas) {
+        c.drawColor(0xFF15161A.toInt())
+        val bh = body.height(); val bw = body.width()
+        val r = bh * 0.46f
+        paint.color = 0x55000000
+        c.drawRoundRect(body.left + bh * 0.02f, body.top + bh * 0.03f, body.right + bh * 0.02f, body.bottom + bh * 0.03f, r, r, paint)
+        paint.shader = LinearGradient(0f, body.top, 0f, body.bottom, 0xFF4F86D8.toInt(), 0xFF2D5CB0.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(body, r, r, paint); paint.shader = null
+        // white face: a peanut shape, waisted top and bottom
+        val f = RectF(body.left + bh * 0.06f, body.top + bh * 0.06f, body.right - bh * 0.06f, body.bottom - bh * 0.06f)
+        val face = Path().apply {
+            moveTo(f.left + bh * 0.35f, f.top)
+            quadTo(f.centerX(), f.top + bh * 0.07f, f.right - bh * 0.35f, f.top)
+            quadTo(f.right, f.top, f.right, f.centerY())
+            quadTo(f.right, f.bottom, f.right - bh * 0.35f, f.bottom)
+            quadTo(f.centerX(), f.bottom - bh * 0.07f, f.left + bh * 0.35f, f.bottom)
+            quadTo(f.left, f.bottom, f.left, f.centerY())
+            quadTo(f.left, f.top, f.left + bh * 0.35f, f.top)
+            close()
+        }
+        paint.shader = LinearGradient(0f, f.top, 0f, f.bottom, 0xFFF4F4F2.toInt(), 0xFFDDDDDA.toInt(), Shader.TileMode.CLAMP)
+        c.drawPath(face, paint); paint.shader = null
+        // screen in a white raised frame
+        paint.color = 0xFFEDEDEB.toInt(); c.drawRoundRect(bezel, bh * 0.04f, bh * 0.04f, paint)
+        stroke.color = 0xFFC8C8C4.toInt(); stroke.strokeWidth = bh * 0.006f; c.drawRoundRect(bezel, bh * 0.04f, bh * 0.04f, stroke)
+        paint.color = 0xFF9A9C98.toInt()
+        c.drawRect(screen.left - bh * 0.012f, screen.top - bh * 0.012f, screen.right + bh * 0.012f, screen.bottom + bh * 0.012f, paint)
+        frame.setPixels(framePx, 0, 256, 0, 0, 256, 240)
+        c.drawBitmap(frame, null, screen, smooth)
+        text.color = 0xFF55575A.toInt(); text.textSize = menuStrip.height() * 0.42f
+        c.drawText("MENU", menuStrip.centerX(), menuStrip.centerY() + text.textSize * 0.36f, text)
+        // power slide
+        paint.color = 0xFFBDBDB8.toInt(); c.drawRoundRect(body.left + bw * 0.1f, body.top + bh * 0.18f, body.left + bw * 0.16f, body.top + bh * 0.24f, bh * 0.02f, bh * 0.02f, paint)
+        paint.color = 0xFFF6F6F4.toInt(); c.drawRoundRect(body.left + bw * 0.1f, body.top + bh * 0.18f, body.left + bw * 0.13f, body.top + bh * 0.24f, bh * 0.02f, bh * 0.02f, paint)
+        // speaker grille
+        paint.color = 0xFF2D4F90.toInt()
+        for (i in -2..2) for (j in -2..2) if (i * i + j * j <= 5) c.drawCircle(grille.x + i * bh * 0.035f, grille.y + j * bh * 0.035f, bh * 0.009f, paint)
+
+        val held = touchMask or externalMask
+        // round pad: four pale petal keys in a ring
+        paint.color = 0xFFCFCFCB.toInt(); c.drawCircle(dpad.x, dpad.y, dpadR * 1.08f, paint)
+        for ((dx, dy, bit) in listOf(Triple(0f, -1f, UP), Triple(0f, 1f, DOWN), Triple(-1f, 0f, LEFT), Triple(1f, 0f, RIGHT))) {
+            val cx = dpad.x + dx * dpadR * 0.5f; val cy = dpad.y + dy * dpadR * 0.5f
+            paint.color = if (held and bit != 0) 0xFFBDBDB8.toInt() else 0xFFF2F2EF.toInt()
+            c.drawCircle(cx, cy, dpadR * 0.44f, paint)
+            stroke.color = 0xFFB4B4B0.toInt(); stroke.strokeWidth = bh * 0.005f
+            c.drawCircle(cx, cy, dpadR * 0.44f, stroke)
+            c.drawCircle(cx + dx * dpadR * 0.06f, cy + dy * dpadR * 0.06f, dpadR * 0.2f, stroke)
+        }
+        // oval A / B
+        for ((p, bit, name) in listOf(Triple(btnB, B, "B"), Triple(btnA, A, "A"))) {
+            val down = held and bit != 0
+            val ov = RectF(p.x - abR * 1.5f, p.y - abR * 0.85f, p.x + abR * 1.5f, p.y + abR * 0.85f)
+            c.save(); c.rotate(-15f, p.x, p.y)
+            paint.color = 0x40000000; c.drawOval(ov.left, ov.top + abR * 0.15f, ov.right, ov.bottom + abR * 0.15f, paint)
+            paint.color = if (down) 0xFFC6C6C2.toInt() else 0xFFF0F0EC.toInt(); c.drawOval(ov, paint)
+            stroke.color = 0xFFB4B4B0.toInt(); c.drawOval(ov, stroke)
+            c.restore()
+            text.color = 0xFFB0B2B6.toInt(); text.textSize = abR * 0.6f
+            c.drawText(name, p.x - abR * 2.1f, p.y + text.textSize * 0.36f, text)
+        }
+        // small round keys
+        for ((p, down, name) in listOf(Triple(btnReset, false, "RESET"), Triple(btnSel, held and SELECT != 0, "SOUND"), Triple(btnStart, held and START != 0, "START"))) {
+            paint.color = 0x40000000; c.drawCircle(p.x, p.y + smallR * 0.15f, smallR, paint)
+            paint.color = if (down) 0xFFC6C6C2.toInt() else 0xFFEFEFEB.toInt(); c.drawCircle(p.x, p.y, smallR, paint)
+            stroke.color = 0xFFB4B4B0.toInt(); c.drawCircle(p.x, p.y, smallR, stroke)
+            text.color = 0xFF6A6C70.toInt(); text.textSize = smallR * 0.7f
+            c.drawText(name, p.x + smallR * 2.6f, p.y + text.textSize * 0.36f, text)
+        }
+    }
+
     override fun onDraw(c: Canvas) {
+        if (baobao) { drawBaobao(c); return }
         c.drawColor(0xFF15161A.toInt())
         val bh = body.height()
         val r = bh * 0.42f
@@ -148,6 +249,10 @@ class WideHandheldView(ctx: Context) : View(ctx) {
             if (dy < -dpadR * 0.25f) b = b or UP
             return b
         }
+        if (baobao) {
+            if (hypot(x - btnA.x, y - btnA.y) < abR * 1.6f) return A
+            if (hypot(x - btnB.x, y - btnB.y) < abR * 1.6f) return B
+        }
         if (hypot(x - btnA.x, y - btnA.y) < abR * 1.5f) return A
         if (hypot(x - btnB.x, y - btnB.y) < abR * 1.5f) return B
         if (hypot(x - btnSel.x, y - btnSel.y) < smallR * 2.2f) return SELECT
@@ -173,6 +278,7 @@ class WideHandheldView(ctx: Context) : View(ctx) {
                 val i = e.actionIndex
                 val x = e.getX(i); val y = e.getY(i)
                 if (e.actionMasked == MotionEvent.ACTION_DOWN && menuStrip.contains(x, y)) { onMenu?.invoke(); return true }
+                if (baobao && hypot(x - btnReset.x, y - btnReset.y) < smallR * 2.2f) { performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP); onReset?.invoke(); return true }
                 pointers[e.getPointerId(i)] = hit(x, y)
                 update()
             }

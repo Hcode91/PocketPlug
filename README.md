@@ -25,6 +25,7 @@ controller.
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
 | BittBoy Mini FC 300 in 1 | `bittboy` | VT42xx (VT02 / VT03 core with the $412c 16 MB half select) | The 300-game menu and games from both 16 MB halves play with sound |
+| BaoBaoLong 339-in-1 handheld | `bl339` | VT42xx (VT02 / VT03 core) with MAME's address and data line swaps undone on load | The six-category menu and the games run (MAME: not working) |
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Mephisto Almeria 16 Bit / 32 Bit chess modules (Hegener + Glaser) | `alm16`, `alm16a`, `alm32` | Motorola 68000 / 68020 (Musashi), HD44780 LCD, magnet sensor board | All three boot to the same LCD as MAME and answer 1. e2-e4 with e7-e5 (same LEDs and LCD as MAME's alm32) |
 | Mephisto Berlin 68000 / Berlin Professional 68020 (Hegener + Glaser) | `berl16`, `berl16a`, `berlinp`, `berlinpl` | Motorola 68000 / 68EC020 (Musashi), HD44780 LCD, button board with 64 LEDs | Boot to the LCD and answer 1. e2-e4 (with c7-c5 / e7-e5) |
@@ -48,6 +49,7 @@ controller.
 | Bally Professional Arcade / Home Library Computer / Computer System (Astrocade) | `astrocde`, `astrocdl`, `astrocdw` | Z80 + Astrocade data chip (bitmap, function generator, scanline interrupts) and I/O chip (sound, keypad, controllers) | Menu and Gunfight identical to MAME pixel for pixel; the sound follows MAME's; cartridges up to 8 KB |
 | Alien Attack tabletop (Coleco, 1981) | `alnattck` | Hitachi HD38800 (HMCS44, own core), VFD drawn from MAME's SVG | Same screen as MAME frame for frame (title, attract); skill / off switch |
 | Basketball (Bambino, 1979) | `bambball` | Hitachi HD38750 (HMCS43, own core), VFD drawn from MAME's SVG | Attract mode and play run; skill and teams switches |
+| Knock-Em Out Boxing (Bambino, 1979) | `bmboxing` | Hitachi HD38750 (HMCS43, own core), VFD drawn from MAME's SVG | Both boxers move and punch; one- or two-player and skill switches |
 | Alien Chase tabletop (Tomy, 1984) | `alnchase` | NEC uPD553C (uCOM-43, own core), two-sided VFD from MAME's SVG | Every element's lit time over 600 frames within a few frames of MAME |
 | Alphie robot (Playskool, 1978) | `alphie` | TI TMS1000 (own core) | LED and sound output match MAME with the same presses |
 | Burger Time (Bandai, 1983) | `bbtime` | Hitachi HD38820 (own HMCS40 core) | VFD, joystick, two buttons |
@@ -68,6 +70,7 @@ controller.
 | Amaze-A-Tron (Coleco, 1978) | `amaztron` | TI TMS1100 (own core) | LEDs and digits match MAME with the same presses |
 | Arcade Mania (Milton Bradley, 1983) | `arcmania` | TI TMS1100 (own core) | LEDs and sound match MAME with the same presses |
 | Arrange Ball (Tandy, 1980) | `arrball` | TI TMS1000 (own core) | Lamps, digits and sound match MAME with the same presses |
+| Blast It (Entex, 1980) | `blastit` | TI TMS1000 (own core) | Bricks, paddle, ball, score and sound; AM / PRO switch |
 | Bank Shot (Parker Brothers, 1980) | `bankshot` | TI TMS1400 (the TMS1000 core with 4 chapters, a 3-level call stack and TPC) | The pool table's 70 lamps and sound run; drawn table with the six keys |
 | Astro Command tabletop (Epoch, 1982) | `astrocmd` | NEC uPD553C (uCOM-43, own core), VFD from MAME's SVG | Screen follows MAME closely through the attract mode and play |
 | Ataka asteroidov (Elektronika IM-53, 1992) | `atakaast` | Kvazar KB1013VK1-2 (Sharp SM5A, own core), LCD from MAME's SVG | Every LCD element matches MAME frame for frame with the same presses |
@@ -82,6 +85,7 @@ controller.
 | Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard, printer and disk drive 6801s (own 6801 port with the serial interface), WD2793 | Boots SmartWriter and types, matching MAME's screen; boots 160 KB disks as MAME does; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape drive yet |
 | Bit90 (Bit Corporation) | `bit90` | Z80 + TMS9929A + SN76489A (as the Adam), the BASIC ROM banks and the 8 x 8 keyboard | BIT90 BASIC 3.1 and 3.0 boot and run typed lines; ColecoVision cartridges with the controller strip |
 | BitGraph rev A / rev B (BBN) | `bitgrpha`, `bitgrphb` | Motorola 68000 (Musashi), 6850 ACIAs, 6821 PIA, AY-3-8912 (tones and noise), ER2055 EAROM, 1024 x 768 bitmap shown upright | Rev A 1.25, rev B 2.33 alpha and 3.0P boot to their banners and draw what the host sends (a loopback plug echoes the keyboard); rev B is not working in MAME |
+| Blit (AT&T / Bell Labs, 1981) | `blit` | Motorola 68000 (Musashi), two 6850 ACIAs, 800 x 1024 bitmap shown upright, mouse at 60000h (from 9front's Blit notes) | Boots to its terminal; the keyboard (on the even byte, which MAME misses) and the loopback plug make typing show; the mouse moves by dragging on the screen (MAME: not working) |
 | BK-0010, BK-0010.01, BK-0010 + floppy card, BK-0011, BK-0011M (Elektronika) | `bk0010`, `bk001001`, `bk0010fd`, `bk0011`, `bk0011m` | K1801VM1 (port of MAME's T-11 core, PDP-11 instruction set) with its timer, the 1801VP014 keyboard controller, 512 x 256 bitmap (colour or black and white), BK-0011 banking and palettes, 1-bit speaker; .bin programs load and start from the menu | FOCAL, Vilnius BASIC and the BK-0011 monitor / BASIC boot and take typed lines; no floppy drives or tape yet |
 | Air-Blaster Joystick (Advance Bright, 2005) | `airblsjs` | Elan EU3A05 (6502 SoC: banked 4 MB ROM, DMA, tile/sprite video, 6 ADPCM channels) | Menu and the games run (tested: the first 3D stage); identical to MAME's frames on the title. Enemy patterns differ run to run (the chip's random register) |
 | Altair 8800b (MITS, 1976) | `al8800b` | Intel 8080, front panel (LEDs, address/data and control switches), 88-2SIO terminal, 88-DCDD 8" disks | Front panel works (examine, deposit, run, single step, accumulator switches; the bus lights while running), Kill the Bit built in; terminal and disks as on the turnkey (booting disks uses the turnkey's boot PROM) |
@@ -166,6 +170,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | 500-in-1 Handheld Game | `500in1hh` | `500in1.bin` | 16 MB (16,777,216 bytes) | `50f44c1a` |
 | Joystick88 | `88in1joy` | `88in1joystick.bin` | 4 MB (4,194,304 bytes) | `86b8d819` |
 | BittBoy Mini FC 300 in 1 | `bittboy` | `bittboy_flash_read_s29gl256n-tf-v2.bin` | 32 MB | `24c802d7` |
+| BaoBaoLong 339-in-1 | `bl339` | `s29gl128n10tfi01.u3` | 16 MB | `291cbd8c` |
 | Mephisto Academy | `academy` | `academy_engl.16k`, `academy_engl.32k` | 32 KB each | `ebda6674`, `a967922b` |
 | | | `hd44780_a00.bin` (from MAME's `hd44780` zip) | 4 KB (4,096 bytes) | `e459877c` |
 | Mephisto Almeria 32 Bit | `alm32` | `alm32.bin` + `hd44780_a00.bin` | 128 KB (131,072 bytes) | `38f4b305` |
@@ -190,6 +195,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Bally Astrocade BIOS | `astrocde` / `astrocdl` / `astrocdw` | `astro.bin` / `ballyhlc.bin` / `bioswhit.bin` | 8 KB | `ebc77f3a` / `d7c517ba` / `6eb53e79` |
 | Alien Attack | `alnattck` | `hd38800a25`, `alnattck.svg` | 4,352 / 564,266 bytes | `18b50869`, `386bf327` |
 | Basketball | `bambball` | `hd38750a08`, `bambball.svg` | 2,176 / 281,982 bytes | `907fef18`, `df113d8a` |
+| Knock-Em Out Boxing | `bmboxing` | `hd38750a07`, `bmboxing.svg` | 2,176 / 257,149 bytes | `7f33e259`, `f8d38287` |
 | Alien Chase | `alnchase` | `d553c_258`, `alnchase.svg` | 2,048 / 576,555 bytes | `c5284ff5`, `b2c1734b` |
 | Alphie | `alphie` | `us4280809`, `tms1000_common2_micro.pla` | 1,024 / 867 bytes | `f8f14013`, `d33da3cf` |
 | Burger Time (Bandai) | `bbtime` | `hd38820a65`, `bbtime.svg` | 4,352 / 461,598 bytes | `33611faf`, `297f30de` |
@@ -212,6 +218,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Amaze-A-Tron | `amaztron` | `mp3405`, `tms1100_common3_micro.pla`, `tms1100_amaztron_output.pla` | 2,048 / 867 / 365 bytes | `9cbc0009`, `03574895`, `f3875384` |
 | Arcade Mania | `arcmania` | `m34078a`, `tms1100_common1_micro.pla`, `tms1100_arcmania_output.pla` | 2,048 / 867 / 365 bytes | `90ea0087`, `62445fc9`, `a1517b15` |
 | Arrange Ball | `arrball` | `mp0166`, `tms1000_common2_micro.pla`, `tms1000_arrball_output.pla` | 1,024 / 867 / 365 bytes | `a78694db`, `d33da3cf`, `ffc206fb` |
+| Blast It | `blastit` | `mp0230`, `tms1000_common2_micro.pla`, `tms1000_blastit_output.pla` | 1,024 / 867 / 365 bytes | `1eb5f473`, `d33da3cf`, `fa8081df` |
 | Bank Shot | `bankshot` | `mp7313`, `tms1100_common1_micro.pla`, `tms1400_bankshot_output.pla` | 4,096 / 867 / 557 bytes | `7a5016a9`, `62445fc9`, `7539283b` |
 | Astro Command | `astrocmd` | `d553c_202.s01`, `astrocmd.svg` | 2,048 / 335,380 bytes | `b4b34883`, `950af2c4` |
 | Ataka asteroidov | `atakaast` | `im-53.bin` (= `mc-25` from the `gnw_mmouse` zip), `atakaast.svg` | 1,856 / 105,570 bytes | `cb820c32`, `3d79aacc` |
@@ -232,6 +239,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | BK-0010 + floppy card | `bk0010fd` | `monit10.rom`, `focal.rom` (from bk0010), `disk_327.rom` | 8 KB, 8 KB, 4 KB | `26c6e8a0`, `717149b7`, `ed8a43ae` |
 | BK-0011 | `bk0011` | `bk11_199_basic2.rom`, `bk11_200_basic3.rom`, `bk11_198_basic1.rom`, `bk11_202_ext.rom`, `bk11_201_bos.rom` + `disk_253.rom` (bk_kmd zip) | 8 KB each + 4 KB | `34273976`, `d29731bc`, `4992c478`, `1a0b6b59`, `6d927f81` + `7a21b887` |
 | BK-0011M | `bk0011m` | `bk11m_328_basic2.rom`, `bk11m_329_basic3.rom`, `bk11m_327_basic1.rom`, `bk11m_325_ext.rom`, `bk11m_324_bos.rom` + `disk_326.rom` (bk_kmd zip) | 8 KB each + 4 KB | `deb0b29f`, `bb645dfb`, `4c68ff59`, `b2e4c33c`, `8ffd5efa` + `fde7583d` |
+| Blit | `blit` | `rom0.bin` - `rom5.bin` | 4 KB x 4, 2,239 x 2 | `e1cea320`, `b717fa64`, `8a80bf57`, `846b742c`, `2af93f8b`, `d87f121f` |
 | BitGraph rev A | `bitgrpha` | `bg125.rom` | 32 KB | `b86c974e` |
 | BitGraph rev B | `bitgrphb` | `bg2.32hi_u13.bin`, `bg2.32lo_u11.bin`, `bg2.32hi_u12.bin`, `bg2.32lo_u10.bin` (2.33 alpha; or the `bg517x` 3.0P set) | 8 KB each | `731df44f`, `46912afd`, `a282a2c8`, `6a702a96` |
 | | | `master rev a 174b.u6` (adam zip), `keyboard.u2` (adam_kb), `printer.u2` (adam_prn) | 2 KB each | `035a7a3d`, `ef204746`, `e8db783b` |

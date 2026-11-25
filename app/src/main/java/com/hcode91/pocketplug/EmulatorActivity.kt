@@ -204,11 +204,16 @@ class EmulatorActivity : Activity() {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val big2 = machine.id == "bigbord2"
                 val bitg = machine.id.startsWith("bitgrp")
+                val blit = machine.id == "blit"
                 if (bitg) Native.setOption(handle, 0, if (prefs.getBoolean("bitgraph_loop", true)) 1 else 0)
-                val v = CpmTerminalView(this, if (bitg) 768 else if (big2) 640 else 560, if (bitg) 1024 else if (big2) 288 else 240, CpmTerminalView.styleFor(machine.id)).apply {
+                if (blit) Native.setOption(handle, 0, if (prefs.getBoolean("blit_loop", true)) 1 else 0)
+                val v = CpmTerminalView(this, if (bitg) 768 else if (blit) 800 else if (big2) 640 else 560,
+                    if (bitg || blit) 1024 else if (big2) 288 else 240, CpmTerminalView.styleFor(machine.id)).apply {
                     onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
                     onMenu = { showMenu() }
                     onDisks = { showDiskMenu() }
+                    onMouse = { x, y -> synchronized(coreLock) { Native.setAnalog(handle, 0, x, y) } }
+                    onMouseButtons = { setTouch(0, it) }
                 }
                 workstation = v
                 setContentView(v)
@@ -489,9 +494,10 @@ class EmulatorActivity : Activity() {
             }
             Skin.WIDE_HANDHELD -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                val v = WideHandheldView(this).apply {
+                val v = WideHandheldView(this, machine.id == "bl339").apply {
                     onInput = { setTouch(0, it) }
                     onMenu = { showMenu() }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
                 }
                 wide = v
                 setContentView(v)
@@ -1969,7 +1975,7 @@ class EmulatorActivity : Activity() {
             prefs.edit().putBoolean("setup_hidden_${machine.id}", false).apply()
             setupBubble?.show(true)
         }
-        if (workstation != null && !machine.id.startsWith("bitgrp") && machine.skin != Skin.BK) items += "Disks..." to { showDiskMenu() }
+        if (workstation != null && !machine.id.startsWith("bitgrp") && machine.id != "blit" && machine.skin != Skin.BK) items += "Disks..." to { showDiskMenu() }
         if (machine.skin == Skin.BK) {
             items += "Programs (.bin)..." to { showBkMenu() }
             val col = prefs.getBoolean("bk_colour", true)
@@ -1978,10 +1984,11 @@ class EmulatorActivity : Activity() {
                 synchronized(coreLock) { Native.setOption(handle, 0, if (!col) 1 else 0) }
             }
         }
-        if (machine.id.startsWith("bitgrp")) {
-            val loop = prefs.getBoolean("bitgraph_loop", true)
+        if (machine.id.startsWith("bitgrp") || machine.id == "blit") {
+            val key = if (machine.id == "blit") "blit_loop" else "bitgraph_loop"
+            val loop = prefs.getBoolean(key, true)
             items += (if (loop) "Host port: loopback plug (tap for nothing)" else "Host port: nothing (tap for a loopback plug)") to {
-                prefs.edit().putBoolean("bitgraph_loop", !loop).apply()
+                prefs.edit().putBoolean(key, !loop).apply()
                 synchronized(coreLock) { Native.setOption(handle, 0, if (!loop) 1 else 0) }
             }
         }

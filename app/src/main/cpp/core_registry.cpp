@@ -56,6 +56,7 @@
 #include "cores/adam/adam.h"
 #include "cores/bit90/bit90.h"
 #include "cores/bk/bk.h"
+#include "cores/blit/blit.h"
 #include "cores/bitgraph/bitgraph.h"
 #include "cores/ngen/ngen.h"
 #include "cores/bigboard/bigboard.h"
@@ -163,6 +164,36 @@ Core* createCore(const std::string& id)
         c.bank412c = 0x04;
         return new Vt369Core(c);
     }
+    if (id == "bl339") {      // BaoBaoLong 339-in-1 handheld (VT42xx, 16 MB, address and data lines swapped)
+        Vt369Config c;
+        c.romName = "s29gl128n10tfi01.u3";
+        c.romSize = 0x1000000;
+        c.soc = 2;
+        c.palMode = 0;
+        c.ntscDmaBug = false;      // MAME force_bad_dma
+        c.descramble = [](std::vector<uint8_t>& rom) {
+            // MAME init_rfcp168: A12 <-> A13 and A14 <-> A15
+            for (size_t i = 0; i + 0x10000 <= rom.size(); i += 0x10000) {
+                uint8_t* b = &rom[i];
+                std::swap_ranges(b + 0x1000, b + 0x2000, b + 0x2000);
+                std::swap_ranges(b + 0x4000, b + 0x5000, b + 0x8000);
+                std::swap_ranges(b + 0x5000, b + 0x6000, b + 0xa000);
+                std::swap_ranges(b + 0x6000, b + 0x7000, b + 0x9000);
+                std::swap_ranges(b + 0x7000, b + 0x8000, b + 0xb000);
+                std::swap_ranges(b + 0xd000, b + 0xe000, b + 0xe000);
+            }
+            // init_bl339: more address lines, then the data lines
+            for (size_t i = 0; i + 0x1000 <= rom.size(); i += 0x1000) std::swap_ranges(&rom[i + 0x400], &rom[i + 0x800], &rom[i + 0x800]);
+            for (size_t i = 0; i + 0x10 <= rom.size(); i += 0x10) std::swap_ranges(&rom[i + 0x04], &rom[i + 0x08], &rom[i + 0x08]);
+            static const int from[16] = { 0, 8, 9, 11, 12, 5, 6, 14, 1, 2, 10, 3, 4, 13, 7, 15 };   // bit n <- bit from[n]
+            for (size_t i = 0; i + 1 < rom.size(); i += 2) {
+                uint16_t w = uint16_t(rom[i] | rom[i + 1] << 8), o = 0;
+                for (int b = 0; b < 16; b++) o |= uint16_t(((w >> from[b]) & 1) << b);
+                rom[i] = uint8_t(o); rom[i + 1] = uint8_t(o >> 8);
+            }
+        };
+        return new Vt369Core(c);
+    }
     if (id == "88in1joy") {   // Play Vision Joystick88 (VT02/03, 4 MB)
         Vt369Config c;
         c.romName = "88in1joystick.bin";
@@ -254,6 +285,7 @@ Core* createCore(const std::string& id)
         c.board = 4;
         return new Vt369Core(c);
     }
+    if (id == "blit") return new BlitCore();    // AT&T Blit bitmap terminal (68000)
     if (id == "bitgrpha" || id == "bitgrphb")   // BBN BitGraph graphics terminal (68000)
         return new BitGraphCore(id == "bitgrphb");
     if (id == "bk0010") return new BkCore(BkCore::BK0010);     // Elektronika BK-0010 (FOCAL)

@@ -699,6 +699,21 @@ object Machines {
             skin = Skin.HH,
         ),
         MachineDef(
+            id = "bmboxing",
+            title = "Knock-Out Boxing",
+            subtitle = "1979 two-boxer VFD game: each side has HIGH / MEDIUM / LOW punches and NORMAL / BACK / DUCKING "
+                + "positions; play the computer or a friend (Bambino Knock-Em Out Boxing; MAME set: bmboxing)",
+            chip = "Hitachi HD38750 (HMCS43)",
+            region = "Japan",
+            year = "1979",
+            roms = listOf(
+                RomSpec("hd38750a07", 0x880L, 0x7f33e259L),
+                RomSpec("bmboxing.svg", 257149L, 0xf8d38287L),
+            ),
+            skin = Skin.HH,
+            setup = listOf("ONE PLAYER keys are on the right; set PLAYERS to 2 for the left keys too. START/RESET starts a bout."),
+        ),
+        MachineDef(
             id = "backybbs",
             title = "Backyard Baseball & Soccer",
             subtitle = "2005 plug-and-play pad with two kids' sports games: the D-pad moves, X picks in the menus, "
@@ -919,6 +934,18 @@ object Machines {
             year = "2017",
             roms = listOf(RomSpec("bittboy_flash_read_s29gl256n-tf-v2.bin", 0x2000000L, 0x24c802d7L)),
             skin = Skin.MINI_FC,
+        ),
+        MachineDef(
+            id = "bl339",
+            title = "Peanut Handheld 339-in-1",
+            subtitle = "Blue-and-white handheld with 339 8-bit games sorted into six categories (shooting, action, fighting, "
+                + "sport, puzzle, roles); START opens a category and plays (BaoBaoLong Handheld Game Console 339-in-1; MAME set: bl339)",
+            chip = "VTxx NES-on-a-chip with $42xx registers, 16 MB flash with swapped address and data lines (MAME: not working)",
+            region = "China",
+            year = "201x",
+            roms = listOf(RomSpec("s29gl128n10tfi01.u3", 0x1000000L, 0x291cbd8cL)),
+            skin = Skin.WIDE_HANDHELD,
+            setup = listOf("START opens the highlighted category and starts the game; RESET goes back to the menu."),
         ),
         MachineDef(
             id = "bistro",
@@ -1680,6 +1707,21 @@ object Machines {
                 RomSpec("mp0166", 0x400L, 0xa78694dbL),
                 RomSpec("tms1000_common2_micro.pla", 0x363L, 0xd33da3cfL),
                 RomSpec("tms1000_arrball_output.pla", 0x16dL, 0xffc206fbL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "blastit",
+            title = "Brick Blaster",
+            subtitle = "1980 LED breakout: slide the paddle with the arrow keys and fire the ball up into three rows of bricks; "
+                + "the side switch picks AM or PRO (Entex Blast It; MAME set: blastit)",
+            chip = "TI TMS1000",
+            region = "USA",
+            year = "1980",
+            roms = listOf(
+                RomSpec("mp0230", 0x400L, 0x1eb5f473L),
+                RomSpec("tms1000_common2_micro.pla", 0x363L, 0xd33da3cfL),
+                RomSpec("tms1000_blastit_output.pla", 0x16dL, 0xfa8081dfL),
             ),
             skin = Skin.HH,
         ),
@@ -3219,6 +3261,28 @@ object Machines {
                 "Wait for rEAdY on the board's display.",
                 "For a colour demo type NEW, Ret, then LOAD0 (or LOAD1-3), Ret, then RUN, Ret.",
                 "The two red buttons by the screen are the joystick fire buttons.",
+            ),
+        ),
+        MachineDef(
+            id = "blit",
+            title = "Bitmap Window Terminal",
+            subtitle = "1981 Bell Labs 68000 terminal with an 800 x 1024 upright bitmap screen, a keyboard and a three-button mouse, "
+                + "built to run windowed programs loaded from a UNIX host; with the loopback plug what you type comes back (AT&T Blit; MAME set: blit)",
+            chip = "Motorola 68000 @ 8.25 MHz, 2 x 6850 ACIA, 256 KB RAM (MAME: not working, no keyboard or mouse)",
+            region = "USA",
+            year = "1981",
+            roms = listOf(
+                RomSpec("rom0.bin", 0x1000L, 0xe1cea320L),
+                RomSpec("rom1.bin", 0x1000L, 0xb717fa64L),
+                RomSpec("rom2.bin", 0x1000L, 0x8a80bf57L),
+                RomSpec("rom3.bin", 0x1000L, 0x846b742cL),
+                RomSpec("rom4.bin", 0x8bfL, 0x2af93f8bL),
+                RomSpec("rom5.bin", 0x8bfL, 0xd87f121fL),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "It is a terminal: with nothing on the host port it only shows what the host sends. The menu's host port setting plugs in a loopback so your typing comes back to it.",
+                "Drag on the screen to move the mouse and hold L / M / R on the red mouse for its buttons (only programs loaded from a host use it).",
             ),
         ),
         MachineDef(

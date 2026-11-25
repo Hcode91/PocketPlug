@@ -13,7 +13,7 @@ constexpr int OPT = 100;
 struct InBit { uint16_t mask; int src; };
 struct InRow { InBit bits[4]; };
 
-enum Kind { ALNATTCK, BAMBBALL, BBTIME, BDORAMON, BFRISKYT };
+enum Kind { ALNATTCK, BAMBBALL, BBTIME, BDORAMON, BFRISKYT, BMBOXING };
 
 }
 
@@ -60,6 +60,15 @@ const Hmcs40Game kGames[] = {
     // Bandai Frisky Tom (1981): HD38800A77, D11-D15 select the inputs on INT1; START (B2) is INT0
     { "bfriskyt", BFRISKYT, HMCS40::HMCS44, false, 400000, "hd38800a77", "bfriskyt.svg", 8, 22, 5, {
         { { { 0x01, B1 } } }, { { { 0x01, DOWN } } }, { { { 0x01, RIGHT } } }, { { { 0x01, UP } } }, { { { 0x01, LEFT } } },
+    } },
+    // Bambino Knock-Em Out Boxing (1979): HD38750A07, D9-D12 select the input rows read on R0x.
+    // Input bits: 0-2 P1 punch high / medium / low, 3-5 P1 normal / back / ducking, 6-11 the same
+    // for P2, 12 START (read on D2 with the players (option 0) and skill (option 1) switches)
+    { "bmboxing", BMBOXING, HMCS40::HMCS43, false, 400000, "hd38750a07", "bmboxing.svg", 9, 12, 4, {
+        { { { 0x01, 0 }, { 0x02, 1 }, { 0x04, 2 } } },
+        { { { 0x01, 3 }, { 0x02, 4 }, { 0x04, 5 } } },
+        { { { 0x01, 6 }, { 0x02, 7 }, { 0x04, 8 } } },
+        { { { 0x01, 9 }, { 0x02, 10 }, { 0x04, 11 } } },
     } },
 };
 
@@ -145,6 +154,7 @@ void HhHmcs40Core::updateDisplay()
 
 uint8_t HhHmcs40Core::readR(int index)
 {
+    if (m_g->kind == BMBOXING && index == 0) return uint8_t(readInputs(4));
     if (m_g->kind == BAMBBALL && index == 0) {
         // R0x: multiplexed inputs; D10 reads skill level (option 0: 0-2) and teams (option 1: 1 = two players)
         uint8_t r = uint8_t(readInputs(3));
@@ -174,6 +184,14 @@ void HhHmcs40Core::writeR(int index, uint8_t data)
             updateDisplay();
         }
         break;
+    case BMBOXING:
+        if (index >= 1 && index <= 3) {
+            // R1x-R3x: vfd plate
+            int shift = (index - 1) * 4;
+            m_s.plate = (m_s.plate & ~(uint64_t(0xf) << shift)) | (uint64_t(data) << shift);
+            updateDisplay();
+        }
+        break;
     case BDORAMON:
     case BFRISKYT:
         if (index < 4) {
@@ -199,6 +217,7 @@ uint16_t HhHmcs40Core::readD()
     switch (m_g->kind) {
     case ALNATTCK: return readInputs(7) & 0x20;   // D5: multiplexed inputs
     case BDORAMON: return uint16_t((in(UP) ? 0x10 : 0) | (in(RIGHT) ? 0x20 : 0) | (in(DOWN) ? 0x40 : 0));
+    case BMBOXING: return uint16_t((m_opt[0] ? 1 : 0) | (m_opt[1] ? 2 : 0) | (in(12) ? 4 : 0));
     default: break;
     }
     return m_g->cmos ? 0xffff : 0;
@@ -235,6 +254,12 @@ void HhHmcs40Core::writeD(uint16_t data, uint16_t mask)
         setInterrupt(1, readInputs(5) != 0);
         m_s.grid = data >> 8 & 0xff;                // D8-D15: vfd grid
         m_s.plate = (m_s.plate & 0xffff) | (uint64_t(data & 0x3f) << 16);   // D0-D5: plate
+        updateDisplay();
+        break;
+    case BMBOXING:
+        speaker(data >> 13 & 1);                    // D13: speaker
+        m_s.inpMux = data >> 9 & 0xf;               // D9-D12: input mux
+        m_s.grid = data >> 4 & 0x1ff;               // D4-D12: vfd grid
         updateDisplay();
         break;
     case BAMBBALL:

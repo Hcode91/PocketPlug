@@ -28,7 +28,11 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
         const val OFFICE = 2
         /** a tall graphics terminal: the portrait monitor straight over the keyboard, no drives (BitGraph) */
         const val PORTRAIT = 3
-        fun styleFor(id: String) = when (id) { "bigbord2" -> CASE; "x820" -> OFFICE; "bitgrpha", "bitgrphb" -> PORTRAIT; else -> BOARD }
+        /** the Blit / its successor's look (from a photo): a cream cabinet with a charcoal front round
+         *  the upright screen, a cream keyboard with grey keys, and a red three-button mouse on a
+         *  strip between them; dragging on the screen moves the mouse */
+        const val BLIT = 4
+        fun styleFor(id: String) = when (id) { "bigbord2" -> CASE; "x820" -> OFFICE; "bitgrpha", "bitgrphb" -> PORTRAIT; "blit" -> BLIT; else -> BOARD }
     }
 
     override var onKey: ((Int, Boolean) -> Unit)? = null
@@ -73,6 +77,14 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
     private val monitor = RectF(); private val screen = RectF(); private val glass = RectF()
     private val power = RectF(); private val cabinet = RectF(); private val keyboard = RectF()
     private val slots = arrayOf(RectF(), RectF())
+    private val tall = style == PORTRAIT || style == BLIT
+    var onMouse: ((Float, Float) -> Unit)? = null
+    var onMouseButtons: ((Int) -> Unit)? = null
+    private val mouseBtn = arrayOf(RectF(), RectF(), RectF())   // left, middle, right
+    private val mouseBody = RectF()
+    private var mouseHeld = 0
+    private val mousePointers = HashMap<Int, Int>()
+    private var screenPointer = -1
     private val pointers = HashMap<Int, Key>()
 
     override fun updateFrame(px: IntArray) {
@@ -92,7 +104,15 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
         glass.set(screen.left - mw * 0.03f, screen.top - mw * 0.03f, screen.right + mw * 0.03f, screen.bottom + mw * 0.03f)
         power.set(monitor.right - mw * 0.11f, monitor.bottom - mw * 0.06f, monitor.right - mw * 0.04f, monitor.bottom - mw * 0.025f)
         val ct = monitor.bottom + h * 0.008f
-        if (style == PORTRAIT) cabinet.set(ml, ct, ml + mw, ct) else
+        if (style == PORTRAIT) cabinet.set(ml, ct, ml + mw, ct) else if (style == BLIT) {
+            cabinet.set(ml, ct, ml + mw, ct + mw * 0.12f)
+            mouseBody.set(cabinet.right - mw * 0.3f, cabinet.top + cabinet.height() * 0.05f, cabinet.right - mw * 0.02f, cabinet.bottom - cabinet.height() * 0.05f)
+            val bw = mouseBody.width() * 0.28f
+            for (k in 0..2) {
+                val l = mouseBody.left + mouseBody.width() * 0.06f + k * (bw + mouseBody.width() * 0.04f)
+                mouseBtn[k].set(l, mouseBody.top + mouseBody.height() * 0.12f, l + bw, mouseBody.bottom - mouseBody.height() * 0.12f)
+            }
+        } else
         cabinet.set(ml + mw * 0.02f, ct, ml + mw * 0.98f, ct + mw * 0.17f)
         for (i in 0..1) {
             val l = cabinet.left + cabinet.width() * (0.05f + i * 0.48f)
@@ -120,13 +140,15 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
         // the monitor: light grey with a dark surround
         paint.color = 0x66000000
         c.drawRoundRect(monitor.left + mw * 0.01f, monitor.top + mw * 0.015f, monitor.right + mw * 0.01f, monitor.bottom + mw * 0.015f, mw * 0.035f, mw * 0.035f, paint)
-        val office = style == OFFICE
+        val office = style == OFFICE || style == BLIT
         paint.shader = LinearGradient(0f, monitor.top, 0f, monitor.bottom, if (office) 0xFFEAE4D4.toInt() else 0xFFD6D4CE.toInt(),
             if (office) 0xFFC8C0AC.toInt() else 0xFFAEABA3.toInt(), Shader.TileMode.CLAMP)
         c.drawRoundRect(monitor, mw * 0.035f, mw * 0.035f, paint); paint.shader = null
         stroke.color = 0xFF85827A.toInt(); stroke.strokeWidth = mw * 0.004f
         c.drawRoundRect(monitor, mw * 0.035f, mw * 0.035f, stroke)
-        paint.color = if (office) 0xFFB8B0A0.toInt() else 0xFF2E2F32.toInt(); c.drawRoundRect(glass, mw * 0.025f, mw * 0.025f, paint)
+        paint.color = if (style == OFFICE) 0xFFB8B0A0.toInt() else 0xFF2E2F32.toInt()
+        if (style == BLIT) c.drawRoundRect(glass.left - mw * 0.02f, glass.top - mw * 0.02f, glass.right + mw * 0.02f, glass.bottom + mw * 0.05f, mw * 0.03f, mw * 0.03f, paint)
+        else c.drawRoundRect(glass, mw * 0.025f, mw * 0.025f, paint)
         paint.color = 0xFF060707.toInt()
         c.drawRoundRect(screen.left - mw * 0.012f, screen.top - mw * 0.012f, screen.right + mw * 0.012f, screen.bottom + mw * 0.012f, mw * 0.02f, mw * 0.02f, paint)
         frame.setPixels(framePx, 0, fw, 0, 0, fw, fh)
@@ -143,8 +165,9 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
         paint.color = 0xFF46443F.toInt(); c.drawRoundRect(power, power.height() * 0.3f, power.height() * 0.3f, paint)
         paint.color = 0xFFE8A030.toInt(); c.drawCircle(power.left - mw * 0.025f, power.centerY(), mw * 0.007f, paint)
 
+        if (style == BLIT) drawMousePad(c, mw)
         // the drives (tap for the disk menu), in the style's housing
-        if (style != PORTRAIT) when (style) {
+        if (!tall) when (style) {
             BOARD -> {
                 // the blue board with rows of black chips, the two drives on its right
                 paint.color = 0xFF3A86B8.toInt(); c.drawRoundRect(cabinet, mw * 0.01f, mw * 0.01f, paint)
@@ -175,7 +198,7 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
                 c.drawRoundRect(cabinet.left + cabinet.width() * 0.03f, cabinet.top + cabinet.height() * 0.1f, cabinet.right - cabinet.width() * 0.03f, cabinet.bottom - cabinet.height() * 0.1f, mw * 0.008f, mw * 0.008f, paint)
             }
         }
-        if (style != PORTRAIT) for (i in 0..1) {
+        if (!tall) for (i in 0..1) {
             val s = slots[i]
             val face = RectF(s.left - mw * 0.01f, cabinet.top + cabinet.height() * 0.12f, s.right + mw * 0.01f, cabinet.bottom - cabinet.height() * 0.12f)
             if (style == BOARD) {      // the drives sit on the right of the board, smaller
@@ -202,7 +225,7 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
             text.color = if (style == BOARD) 0xFF3A3A3A.toInt() else 0xFFBDBDBD.toInt(); text.textSize = face.height() * 0.16f
             c.drawText(if (i == 0) "A" else "B", face.left + mw * 0.02f, face.top + face.height() * 0.24f, text)
         }
-        if (style != PORTRAIT) floppyLabel?.let {
+        if (!tall) floppyLabel?.let {
             text.color = 0xFFEDEBE5.toInt(); text.textSize = cabinet.height() * 0.13f
             c.drawText(it.take(28), slots[0].centerX(), cabinet.bottom - cabinet.height() * 0.02f, text)
         }
@@ -212,13 +235,13 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
         for (k in allKeys) {
             val d = k.down || (k.k.kind == Kind.SHIFT && shiftLatched) || (k.k.kind == Kind.CTRL && ctrlLatched) || (k.k.kind == Kind.LOCK && caps)
             val r = k.rect
-            val base = if (office) (when (k.k.kind) { Kind.CHAR, Kind.SPACE -> 0xFF3A3A3C.toInt(); else -> 0xFF5A5A5E.toInt() })
+            val base = if (style == OFFICE) (when (k.k.kind) { Kind.CHAR, Kind.SPACE -> 0xFF3A3A3C.toInt(); else -> 0xFF5A5A5E.toInt() })
                 else when (k.k.kind) { Kind.CHAR, Kind.SPACE -> 0xFFE6E2D8.toInt(); else -> 0xFF8C8A84.toInt() }
             paint.color = 0xFF111111.toInt(); c.drawRoundRect(r.left, r.top + r.height() * 0.06f, r.right, r.bottom + r.height() * 0.04f, r.height() * 0.12f, r.height() * 0.12f, paint)
             paint.color = if (d) darken(base) else base
             c.drawRoundRect(r.left, r.top + (if (d) r.height() * 0.05f else 0f), r.right, r.bottom - r.height() * 0.04f + (if (d) r.height() * 0.05f else 0f), r.height() * 0.12f, r.height() * 0.12f, paint)
             if (k.k.kind == Kind.LOCK && caps) { paint.color = 0xFFFF3A2A.toInt(); c.drawCircle(r.right - r.width() * 0.15f, r.top + r.height() * 0.2f, r.height() * 0.06f, paint) }
-            text.color = if (office) 0xFFEDEDED.toInt() else 0xFF1C1C1C.toInt()
+            text.color = if (style == OFFICE) 0xFFEDEDED.toInt() else 0xFF1C1C1C.toInt()
             val lines = k.k.label.split("\n")
             text.textSize = if (k.k.kind == Kind.CHAR) r.height() * 0.38f else r.height() * (if (lines.size > 1) 0.2f else 0.24f)
             val label = if (k.k.kind == Kind.CHAR && k.k.label[0].isLetter()) k.k.label.uppercase() else k.k.label
@@ -229,6 +252,31 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
             } else for ((i, l) in lines.withIndex())
                 c.drawText(l, r.centerX(), r.centerY() + text.textSize * (0.35f + (i - (lines.size - 1) / 2f) * 1.1f), text)
         }
+    }
+
+    private fun drawMousePad(c: Canvas, mw: Float) {
+        // a pale desk strip with the red mouse; its three buttons are held while touched
+        paint.color = 0xFFD8D4CA.toInt(); c.drawRoundRect(cabinet, mw * 0.015f, mw * 0.015f, paint)
+        text.color = 0xFF7A766C.toInt(); text.textSize = cabinet.height() * 0.22f
+        c.drawText("drag on the screen to move the mouse", cabinet.left + (mouseBody.left - cabinet.left) / 2, cabinet.centerY() + text.textSize * 0.35f, text)
+        paint.color = 0x40000000
+        c.drawRoundRect(mouseBody.left, mouseBody.top + mw * 0.006f, mouseBody.right, mouseBody.bottom + mw * 0.006f, mouseBody.height() / 2, mouseBody.height() / 2, paint)
+        paint.shader = RadialGradient(mouseBody.centerX() - mouseBody.width() * 0.2f, mouseBody.top, mouseBody.width() * 0.8f, 0xFFF0503C.toInt(), 0xFFB01E14.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(mouseBody, mouseBody.height() / 2, mouseBody.height() / 2, paint); paint.shader = null
+        val names = arrayOf("L", "M", "R")
+        for (k in 0..2) {
+            val down = mouseHeld and (4 shr k) != 0
+            paint.color = if (down) 0xFF8E140C.toInt() else 0xFFD8382A.toInt()
+            c.drawRoundRect(mouseBtn[k], mouseBtn[k].height() * 0.3f, mouseBtn[k].height() * 0.3f, paint)
+            text.color = 0xFFFFE0D8.toInt(); text.textSize = mouseBtn[k].height() * 0.4f
+            c.drawText(names[k], mouseBtn[k].centerX(), mouseBtn[k].centerY() + text.textSize * 0.35f, text)
+        }
+    }
+
+    private fun mouseUpdate() {
+        var m = 0
+        for (v in mousePointers.values) m = m or v
+        if (m != mouseHeld) { mouseHeld = m; onMouseButtons?.invoke(m); invalidate() }
     }
 
     private fun darken(c: Int) = Color.rgb(Color.red(c) * 7 / 10, Color.green(c) * 7 / 10, Color.blue(c) * 7 / 10)
@@ -260,6 +308,19 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val x = e.getX(i); val y = e.getY(i)
                 if (power.contains(x, y) || (y > power.top - 20 && y < monitor.bottom && x > power.left - 20)) { onMenu?.invoke(); return true }
+                if (style == BLIT) {
+                    if (screen.contains(x, y)) {
+                        screenPointer = id
+                        onMouse?.invoke((x - screen.left) / screen.width(), (y - screen.top) / screen.height())
+                        return true
+                    }
+                    for (k in 0..2) if (mouseBtn[k].contains(x, y)) {
+                        mousePointers[id] = 4 shr k
+                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        mouseUpdate(); return true
+                    }
+                    if (cabinet.contains(x, y)) return true
+                }
                 if (cabinet.contains(x, y)) { onDisks?.invoke(); return true }
                 val k = allKeys.firstOrNull { it.rect.contains(x, y) } ?: return true
                 k.down = true; pointers[id] = k
@@ -267,7 +328,16 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
                 press(k)
                 invalidate()
             }
+            MotionEvent.ACTION_MOVE -> {
+                if (screenPointer >= 0) {
+                    val pi = e.findPointerIndex(screenPointer)
+                    if (pi >= 0) onMouse?.invoke(((e.getX(pi) - screen.left) / screen.width()).coerceIn(0f, 1f), ((e.getY(pi) - screen.top) / screen.height()).coerceIn(0f, 1f))
+                }
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                if (id == screenPointer) screenPointer = -1
+                if (mousePointers.remove(id) != null) mouseUpdate()
+                if (e.actionMasked == MotionEvent.ACTION_CANCEL) { mousePointers.clear(); screenPointer = -1; mouseUpdate() }
                 pointers.remove(id)?.let { it.down = false; invalidate() }
                 if (e.actionMasked == MotionEvent.ACTION_CANCEL) { for (k in pointers.values) k.down = false; pointers.clear() }
             }

@@ -8,7 +8,7 @@
 #include <cstdlib>
 
 namespace {
-enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT, BBEAR, BCHEETAH, BIGTRAK };
+enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT, BBEAR, BCHEETAH, BIGTRAK, BLASTIT };
 // the guessed output PLA (O0 = bit 0 of the index)
 const uint16_t kAlphieOpla[0x20] = { 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1 };
 }
@@ -45,6 +45,8 @@ const Tms1kGame kGames[] = {
     // Milton Bradley Big Trak (1979): TMS1000, a programmable tank; the "display" is one row:
     // 0 IR LED, 1 lamp, 2 left motor forward, 3 left reverse, 4 right forward, 5 right reverse
     { "bigtrak", BIGTRAK, TMS1K::TMS1000, 200000, "mp3301a", "tms1000_common4_micro.pla", "tms1000_bigtrak_output.pla", nullptr, "", 1, 6 },
+    // Entex Blast It (1980): TMS1000, 3 digits + 49 LEDs (R1-R7 x O0-O6, digits R8-R10), 1-bit sound
+    { "blastit", BLASTIT, TMS1K::TMS1000, 425000, "mp0230", "tms1000_common2_micro.pla", "tms1000_blastit_output.pla", nullptr, "", 10, 7 },
     { "arcmania", ARCMANIA, TMS1K::TMS1100, 250000, "m34078a", "tms1100_common1_micro.pla", "tms1100_arcmania_output.pla", nullptr, "", 1, 9 },
 };
 const Tms1kGame* find(const std::string& id)
@@ -228,6 +230,9 @@ uint8_t HhTms1kCore::readK()
         if (m_s.gear < 0 && (m_s.r >> 7 & 1)) k |= 8;
         return k;
     }
+    case BLASTIT:
+        // R3: right, left, fire (bits 0-2), K8 difficulty (option 0: 1 = PRO)
+        return (m_s.inpMux & 1) ? uint8_t(in(0) | in(1) << 1 | in(2) << 2 | (m_opt[0] ? 0 : 8)) : 0;
     case ARCMANIA: {
         // O3: Alien Raiders (6), yellow 2 (7), Rattler (8); O4: Run Amuk (3), yellow 1 (4), Sneak Attack (5);
         // O6: orange 1-3 (0-2)
@@ -252,6 +257,7 @@ void HhTms1kCore::writeO(uint16_t o)
     case AMAZTRON: m_disp.matrix(now(), m_s.r, o & 0x7f); break;
     case ARRBALL: m_disp.matrix(now(), m_s.r & 0x7f, o & 0x7f); break;
     case BANKSHOT: m_disp.matrix(now(), m_s.r & 0x7fc, o & 0xff); break;
+    case BLASTIT: m_disp.matrix(now(), m_s.r >> 1, o & 0x7f); break;
     case ARCMANIA:
         speakerLevel(__builtin_popcount(unsigned(o & 7)) / 3.0);
         m_s.inpMux = uint16_t((o >> 3 & 3) | (o >> 4 & 4));
@@ -306,6 +312,12 @@ void HhTms1kCore::writeR(uint32_t r)
         if (off) setPower(false);
         break;
     }
+    case BLASTIT:
+        m_s.inpMux = uint16_t(r >> 3 & 1);
+        speaker(r & 1);
+        m_s.r = r;
+        m_disp.matrix(now(), r >> 1, m_s.o & 0x7f);
+        break;
     case ARCMANIA:
         m_disp.matrix(now(), 1, r >> 1);
         m_s.r = r;

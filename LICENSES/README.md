@@ -48,6 +48,7 @@ Individual files keep their own SPDX tags:
 | `app/src/main/cpp/cores/bit90/*` | BSD-3-Clause | Port of the bit90 parts of MAME's coleco/coleco.cpp (Mike Balfour, Ben Bruscella, Sean Young, Dirk Best, Curt Coder and contributors) |
 | `app/src/main/cpp/cores/bk/*` | BSD-3-Clause | Port of MAME's cpu/t11 (T-11 / K1801VM1 core; t11ops.hxx and t11table.hxx unchanged, Aaron Giles), ussr/bk.cpp, bk_m.cpp, 1801vp014.cpp and vm1timer.cpp (Miodrag Milanovic, Sergey Svishchev) |
 | `app/src/main/cpp/cores/bitgraph/*` | BSD-3-Clause | Port of MAME's skeleton/bitgraph.cpp (Sergey Svishchev); ER2055 behaviour from MAME's er2055.cpp (Aaron Giles); uses the shared Musashi 68000 |
+| `app/src/main/cpp/cores/blit/*` | BSD-3-Clause | Port of MAME's att/blit.cpp (Sergey Svishchev), I/O map from 9front's games/blit notes; uses the shared Musashi 68000 |
 | `app/src/main/cpp/cores/chess/beluga.*` | GPL-2.0-or-later | Port of MAME's novag/primo.cpp (hap), BSD-3 |
 | `app/src/main/cpp/common/chessboard.h` | BSD-3-Clause | Logic of MAME's sensorboard (hap) |
 | `app/src/main/cpp/common/w65c02.*` | GPL-2.0-or-later | Own W65C02S core |

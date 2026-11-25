@@ -107,6 +107,14 @@ class HhView(ctx: Context, private val skin: HhSkin, private val srcW: Int, priv
                 c.drawRoundRect(l.x - l.r * 0.3f, l.y - l.r, l.x + l.r * 0.3f, l.y + l.r, l.r * 0.1f, l.r * 0.1f, paint)
                 if (o) { paint.color = (l.color and 0x00FFFFFF) or 0x30000000; c.drawRoundRect(l.x - l.r * 0.7f, l.y - l.r * 1.3f, l.x + l.r * 0.7f, l.y + l.r * 1.3f, l.r * 0.5f, l.r * 0.5f, paint) }
             }
+            HhSkin.LedKind.HBAR -> {
+                // a flat lying lamp; l.r = half its width
+                val o = on(l.row, l.col)
+                val hh = l.r * 0.36f
+                paint.color = if (o) l.color else blendDark(l.color)
+                c.drawRoundRect(l.x - l.r, l.y - hh, l.x + l.r, l.y + hh, hh * 0.3f, hh * 0.3f, paint)
+                if (o) { paint.color = (l.color and 0x00FFFFFF) or 0x30000000; c.drawRoundRect(l.x - l.r * 1.25f, l.y - hh * 2.2f, l.x + l.r * 1.25f, l.y + hh * 2.2f, hh, hh, paint) }
+            }
             HhSkin.LedKind.DIGIT -> {
                 // 7 segments a-g on columns 0-6 of the row; l.r = digit height
                 val h = l.r; val w = h * 0.55f; val t = h * 0.12f
@@ -391,7 +399,7 @@ class HhSkin(
 ) {
     class ScreenPart(val srcTop: Float, val srcBottom: Float, val dst: RectF)
     enum class Kind { STICK, BUTTON, SWITCH }
-    enum class LedKind { ROUND, DIGIT, BAR }
+    enum class LedKind { ROUND, DIGIT, BAR, HBAR }
     class Led(val kind: LedKind, val row: Int, val col: Int, val x: Float, val y: Float, val r: Float, val color: Int = 0xFFFF2A20.toInt(),
               /** printed over a round lamp (e.g. its number) */
               val text: String = "", val textColor: Int = Color.WHITE)
@@ -419,11 +427,13 @@ class HhSkin(
         fun forMachine(id: String): HhSkin? = when (id) {
             "alnattck" -> alienAttack()
             "bambball" -> bambinoBasketball()
+            "bmboxing" -> bambinoBoxing()
             "alnchase" -> alienChase()
             "alphie" -> alphie()
             "amaztron" -> amazeATron()
             "arcmania" -> arcadeMania()
             "arrball" -> arrangeBall()
+            "blastit" -> blastIt()
             "bankshot" -> bankShot()
             "astrocmd" -> astroCommand()
             "atakaast" -> atakaAsteroidov()
@@ -557,6 +567,76 @@ class HhSkin(
                     for (i in 0 until 8) c.drawRoundRect(400f + i * 26f, 1300f, 412f + i * 26f, 1370f, 6f, 6f, p)
                     s.color = 0xFF5A5A62.toInt(); s.strokeWidth = 3f
                     c.drawRoundRect(30f, 40f, 970f, 1400f, 60f, 60f, s)
+                },
+            )
+        }
+
+        private fun blastIt(): HhSkin {
+            // Entex Blast It (from a photo): a tall off-white case widening toward the bottom, a
+            // recessed top panel with a black plate, the dark plum window (score box over a 7 x 7
+            // field of red lamps) in a raised square frame, three red keys below and a black plate
+            // under them; the AM / PRO switch on the left edge. MAME layout units -> design space.
+            fun lx(x: Float) = 250f + (x - 5f) * 7.576f
+            fun ly(y: Float) = 540f + (y - 4.5f) * 8.2f
+            val red = 0xFFFF2A40.toInt()
+            val leds = ArrayList<Led>()
+            for (i1 in 0 until 7) {
+                for ((k, i2) in listOf(6, 5, 4).withIndex())
+                    leds += Led(LedKind.HBAR, i1, i2, lx(10f + i1 * 8.5f + 2.5f), ly(30f + k * 7.3f + 0.85f), 19f, red)
+                for ((k, i2) in listOf(3, 2, 1).withIndex())
+                    leds += Led(LedKind.ROUND, i1, i2, lx(11.5f + i1 * 8.5f + 1f), ly(51.9f + k * 7.3f + 1f), 7f, red)
+                leds += Led(LedKind.HBAR, i1, 0, lx(10f + i1 * 8.5f + 2.5f), ly(73.8f + 0.85f), 19f, red)
+            }
+            for ((k, row) in listOf(7, 8, 9).withIndex()) leds += Led(LedKind.DIGIT, row, 0, lx(32f + k * 6f + 3f), ly(15.5f), 66f, 0xFFFF2038.toInt())
+            val cream = 0xFFEDE8DA.toInt()
+            return HhSkin(
+                1000f, 1900f, 0xFF2A6A34.toInt(),
+                screen = RectF(), bezel = 0, bezelPad = 0f,
+                menu = PointF(500f, 230f),
+                controls = listOf(
+                    Control(Kind.BUTTON, 300f, 1500f, 60f, color = 0xFFE8442E.toInt(), bit = 0x2, bw = 150f, bh = 95f, face = "◀", faceColor = 0xFF8A2014.toInt(), faceSize = 44f, shine = false),
+                    Control(Kind.BUTTON, 500f, 1480f, 60f, color = 0xFFE8442E.toInt(), bit = 0x4, bw = 110f, bh = 140f, face = "▲", faceColor = 0xFF8A2014.toInt(), faceSize = 44f, shine = false),
+                    Control(Kind.BUTTON, 700f, 1500f, 60f, color = 0xFFE8442E.toInt(), bit = 0x1, bw = 150f, bh = 95f, face = "▶", faceColor = 0xFF8A2014.toInt(), faceSize = 44f, shine = false),
+                    Control(Kind.SWITCH, 75f, 960f, 26f, color = 0xFFE8A0A0.toInt(), option = 0, vertical = true,
+                        positions = listOf("AM", "PRO"), initial = 0, sets = listOf(listOf(0 to 0), listOf(0 to 1)), labelColor = 0xFF6A6458.toInt(), labelSize = 24f),
+                ),
+                leds = leds,
+                drawBody = { c, p, s ->
+                    val body = Path().apply {
+                        moveTo(190f, 40f); lineTo(810f, 40f); quadTo(860f, 40f, 865f, 100f)
+                        lineTo(905f, 1820f); quadTo(905f, 1870f, 855f, 1870f); lineTo(145f, 1870f); quadTo(95f, 1870f, 95f, 1820f)
+                        lineTo(135f, 100f); quadTo(140f, 40f, 190f, 40f); close()
+                    }
+                    p.color = 0x55000000; c.save(); c.translate(10f, 14f); c.drawPath(body, p); c.restore()
+                    p.color = cream; c.drawPath(body, p)
+                    s.color = 0xFFC9C2B0.toInt(); s.strokeWidth = 4f; c.drawPath(body, s)
+                    // recessed top panel with the black plate (blank; tap for the menu)
+                    p.color = 0xFFE2DCCB.toInt(); c.drawRoundRect(190f, 90f, 810f, 400f, 40f, 40f, p)
+                    s.color = 0xFFCFC8B4.toInt(); s.strokeWidth = 6f; c.drawRoundRect(190f, 90f, 810f, 400f, 40f, 40f, s)
+                    p.color = 0xFF101014.toInt(); c.drawRoundRect(230f, 180f, 770f, 290f, 8f, 8f, p)
+                    s.color = 0xFF5A5A60.toInt(); s.strokeWidth = 3f; c.drawRoundRect(236f, 186f, 764f, 284f, 6f, 6f, s)
+                    // raised square frame round the window
+                    p.color = 0x33000000; c.drawRoundRect(196f, 470f, 816f, 1210f, 50f, 50f, p)
+                    p.color = 0xFFF4F0E4.toInt(); c.drawRoundRect(186f, 456f, 806f, 1196f, 50f, 50f, p)
+                    s.color = 0xFFD6D0BE.toInt(); s.strokeWidth = 5f; c.drawRoundRect(186f, 456f, 806f, 1196f, 50f, 50f, s)
+                    p.color = 0xFF0E0608.toInt(); c.drawRoundRect(lx(2f), ly(1.5f), lx(74f), ly(84f), 40f, 40f, p)
+                    p.shader = RadialGradient(lx(38f), ly(40f), 420f, 0xFF2A1220.toInt(), 0xFF120810.toInt(), Shader.TileMode.CLAMP)
+                    c.drawRoundRect(lx(2.5f), ly(2f), lx(73.5f), ly(83.5f), 36f, 36f, p); p.shader = null
+                    // score box
+                    s.color = 0xFFE07AB0.toInt(); s.strokeWidth = 5f; c.drawRect(lx(24.5f), ly(9f), lx(52f), ly(22f), s)
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT; typeface = Typeface.DEFAULT_BOLD; color = 0xFFE8E4E8.toInt(); textSize = 36f }
+                    c.drawText("SCORE", lx(22.5f), ly(17.3f), t)
+                    // faint printed field grid behind the lamps
+                    p.color = 0x22FF4060
+                    for (i in 0 until 7) for (j in 0 until 7) c.drawRect(lx(10f + i * 8.5f), ly(30f + j * 7.3f), lx(15f + i * 8.5f), ly(31.7f + j * 7.3f), p)
+                    // lower recess, the plate under the keys, the side switch slot
+                    p.color = 0xFFE2DCCB.toInt(); c.drawRoundRect(170f, 1300f, 830f, 1800f, 50f, 50f, p)
+                    s.color = 0xFFCFC8B4.toInt(); s.strokeWidth = 6f; c.drawRoundRect(170f, 1300f, 830f, 1800f, 50f, 50f, s)
+                    p.color = 0xFF101014.toInt(); c.drawRoundRect(330f, 1650f, 670f, 1740f, 6f, 6f, p)
+                    p.color = 0xFFF0C040.toInt()
+                    val bolt = Path().apply { moveTo(360f, 1662f); lineTo(395f, 1662f); lineTo(378f, 1690f); lineTo(398f, 1690f); lineTo(352f, 1730f); lineTo(368f, 1700f); lineTo(350f, 1700f); close() }
+                    c.drawPath(bolt, p)
+                    p.color = 0xFFD8D2C2.toInt(); c.drawRoundRect(92f, 860f, 118f, 1060f, 10f, 10f, p)
                 },
             )
         }
@@ -1702,6 +1782,86 @@ class HhSkin(
          *  a black front panel with the smoked VFD window, a silver strip with the
          *  SKILL 1 / OFF / SKILL 2 slide, orange FIRE and teal MOVE paddles, and the
          *  joystick disc with its four arrows. */
+        private fun bambinoBoxing(): HhSkin {
+            // Bambino Knock-Em Out Boxing (from a photo): a tan case shaped like a wide hat - the
+            // raised black centre with the title strip, the cyan tube behind a blue filter, a
+            // grille, the players / skill switches and the red START / RESET key - and a brown
+            // key panel on each wing with six green keys (TWO PLAYER left, ONE PLAYER right).
+            // Input bits: P1 high / medium / low / normal / back / ducking 0x1-0x20, P2 0x40-0x800,
+            // start 0x1000; option 0 players, 1 skill, 7 power.
+            val green = 0xFF9CCB2E.toInt(); val brown = 0xFF4A2A1A.toInt(); val label = 0xFFF2EEE0.toInt()
+            fun key(x: Float, y: Float, bit: Int, name: String) = Control(Kind.BUTTON, x, y, 34f, color = green, bit = bit, bw = 104f, bh = 66f,
+                label = name, labelAbove = true, labelColor = label, labelSize = 22f, shine = false)
+            return HhSkin(
+                1600f, 1000f, 0xFFE8DCDC.toInt(),
+                screen = RectF(530f, 250f, 1070f, 399f), bezel = 0xFF06100E.toInt(), bezelPad = 12f,
+                menu = PointF(800f, 925f),
+                landscape = true,
+                controls = listOf(
+                    // ONE PLAYER (right)
+                    key(1245f, 700f, 0x1, "HIGH"), key(1245f, 800f, 0x2, "MEDIUM"), key(1245f, 900f, 0x4, "LOW"),
+                    key(1405f, 650f, 0x10, "BACK"), key(1405f, 750f, 0x8, "NORMAL"), key(1405f, 850f, 0x20, "DUCKING"),
+                    // TWO PLAYER (left)
+                    key(195f, 700f, 0x400, "BACK"), key(195f, 800f, 0x200, "NORMAL"), key(195f, 900f, 0x800, "DUCKING"),
+                    key(355f, 650f, 0x40, "HIGH"), key(355f, 750f, 0x80, "MEDIUM"), key(355f, 850f, 0x100, "LOW"),
+                    Control(Kind.BUTTON, 930f, 560f, 34f, color = 0xFFF04A2A.toInt(), bit = 0x1000, bw = 110f, bh = 64f,
+                        label = "START/RESET", labelAbove = true, labelColor = label, labelSize = 22f, shine = false),
+                    Control(Kind.SWITCH, 680f, 520f, 16f, color = 0xFFDADADA.toInt(), option = 0,
+                        positions = listOf("1", "2"), initial = 0, labelColor = label, labelSize = 20f,
+                        plate = 0xFF1A1A1A.toInt(), plateW = 110f, plateH = 40f),
+                    Control(Kind.SWITCH, 680f, 620f, 16f, color = 0xFFDADADA.toInt(), option = 6,
+                        positions = listOf("1", "OFF", "2"), initial = 0, labelColor = label, labelSize = 20f,
+                        plate = 0xFF1A1A1A.toInt(), plateW = 160f, plateH = 40f,
+                        sets = listOf(listOf(1 to 0, 7 to 0), listOf(7 to 1), listOf(1 to 1, 7 to 0))),
+                ),
+                drawBody = { c, p, s ->
+                    val body = Path().apply {
+                        moveTo(590f, 70f); quadTo(800f, 50f, 1010f, 70f); quadTo(1050f, 75f, 1055f, 120f)
+                        lineTo(1080f, 420f); quadTo(1090f, 470f, 1150f, 470f); lineTo(1480f, 470f); quadTo(1540f, 470f, 1545f, 530f)
+                        lineTo(1570f, 930f); quadTo(1570f, 975f, 1520f, 975f); lineTo(80f, 975f); quadTo(30f, 975f, 30f, 930f)
+                        lineTo(55f, 530f); quadTo(60f, 470f, 120f, 470f); lineTo(450f, 470f); quadTo(510f, 470f, 520f, 420f)
+                        lineTo(545f, 120f); quadTo(550f, 75f, 590f, 70f); close()
+                    }
+                    p.color = 0x44000000; c.save(); c.translate(10f, 14f); c.drawPath(body, p); c.restore()
+                    p.shader = LinearGradient(0f, 60f, 0f, 980f, intArrayOf(0xFFF0D898.toInt(), 0xFFE2C47E.toInt(), 0xFFCFAE68.toInt()),
+                        floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP)
+                    c.drawPath(body, p); p.shader = null
+                    p.color = 0xFF6A3A24.toInt(); c.drawRect(60f, 960f, 1540f, 975f, p)
+                    s.color = 0xFFB8985A.toInt(); s.strokeWidth = 5f; c.drawPath(body, s)
+                    // the raised black centre
+                    p.color = 0xFFD8BC78.toInt(); c.drawRoundRect(565f, 95f, 1035f, 730f, 40f, 40f, p)
+                    p.color = 0xFF0A0C0C.toInt(); c.drawRoundRect(590f, 120f, 1010f, 705f, 30f, 30f, p)
+                    // title strip
+                    p.color = 0xFF14302C.toInt(); c.drawRect(560f, 160f, 1040f, 225f, p)
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = Color.WHITE; textSize = 44f }
+                    c.drawText("Boxing", 800f, 208f, t)
+                    // grille under the tube
+                    p.color = 0xFF1C1E1E.toInt()
+                    for (i in 0 until 26) c.drawRoundRect(620f + i * 14.5f, 432f, 628f + i * 14.5f, 470f, 3f, 3f, p)
+                    // switch / start panel
+                    p.color = 0xFF121414.toInt(); c.drawRoundRect(600f, 485f, 1000f, 690f, 16f, 16f, p)
+                    t.textSize = 20f; t.color = label
+                    c.drawText("PLAYERS", 680f, 500f, t); c.drawText("SKILL LEVEL", 680f, 600f, t)
+                    // the two key panels
+                    for ((x0, title) in listOf(90f to "TWO PLAYER", 1130f to "ONE PLAYER")) {
+                        p.color = 0x33000000; c.drawRoundRect(x0 - 6f, 532f, x0 + 386f, 950f, 22f, 22f, p)
+                        p.color = brown; c.drawRoundRect(x0, 540f, x0 + 380f, 945f, 18f, 18f, p)
+                        p.color = 0xFFEDE6C8.toInt(); c.drawRoundRect(x0 + 20f, 548f, x0 + 360f, 598f, 10f, 10f, p)
+                        t.color = 0xFF2A2018.toInt(); t.textSize = 26f; c.drawText(title, x0 + 190f, 583f, t)
+                        // the bracket lines joining the keys of each column
+                        s.color = 0xFFEDE6C8.toInt(); s.strokeWidth = 3f
+                        val bx = x0 + 190f
+                        c.drawLine(bx, 650f, bx, 900f, s); c.drawLine(bx - 30f, 775f, bx + 30f, 775f, s)
+                        c.drawLine(x0 + 105f, 935f, x0 + 265f, 935f, s)
+                        c.drawLine(x0 + 105f, 925f, x0 + 105f, 935f, s); c.drawLine(x0 + 265f, 925f, x0 + 265f, 935f, s)
+                    }
+                    // the small blue badge (blank; tap for the menu)
+                    p.color = 0xFF2E8ED8.toInt(); c.drawRoundRect(730f, 900f, 870f, 950f, 6f, 6f, p)
+                    s.color = 0xFFDDEEFF.toInt(); s.strokeWidth = 2f; c.drawRoundRect(736f, 906f, 864f, 944f, 4f, 4f, s)
+                },
+            )
+        }
+
         private fun bambinoBasketball() = HhSkin(
             1000f, 1500f, 0xFF140A0A.toInt(),
             screen = RectF(150f, 210f, 850f, 385f), bezel = 0xFF0C0606.toInt(), bezelPad = 14f,

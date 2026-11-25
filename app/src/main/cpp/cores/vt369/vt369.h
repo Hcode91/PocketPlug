@@ -13,6 +13,7 @@
 #include "../../common/chd/chd.h"
 #include <memory>
 #include <vector>
+#include <functional>
 
 struct Vt369Config {
     bool extProt = false;          // SH6578: TV Games Baseball's security chip on the EXT port (0x4026)
@@ -49,6 +50,8 @@ struct Vt369Config {
     int board = 0;
     // VT42xx boards with two 16 MB halves: a $412c bit (MAME bittboy_412c_w: 0x04) picks the half
     uint8_t bank412c = 0;
+    // boards with swapped address / data lines (MAME's init_ functions): run on the ROM after loading
+    std::function<void(std::vector<uint8_t>&)> descramble;
 };
 
 class Vt369Core : public Core {

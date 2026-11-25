@@ -87,6 +87,7 @@ bool Vt369Core::load(const std::vector<RomFile>& roms, std::string& error)
         m_rom.assign(m_cfg.romSize, 0xff);
         std::memcpy(m_rom.data(), r->data.data(), std::min(r->data.size(), (size_t)m_cfg.romSize));
     }
+    if (m_cfg.descramble) m_cfg.descramble(m_rom);
     for (auto& f : roms) {
         if (!m_cfg.internalRomName.empty() && f.name == m_cfg.internalRomName) m_internal = f.data;
         if (!m_cfg.protRomName.empty() && f.name == m_cfg.protRomName) m_protRom = f.data;
