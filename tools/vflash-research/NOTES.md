@@ -595,3 +595,26 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   struct.
 - py/padtest.sh runs one scripted-input test from menu.state and saves the
   frame.
+
+## Controller mapping and menu fixes
+
+- The pad object's update (0x10AF5298...) reads the unpacked struct: out[5]
+  and out[6] are **signed** axes with centre 0 (|v|*2, capped at 0xFF,
+  compared with a dead-zone at object +0x1C/+0x20) and become direction flags
+  0x10000000/0x20000000 (out[5] -/+) and 0x40000000/0x80000000 (out[6] +/-).
+  In the record: bits 4-11 = out[6] = vertical (+ = down in the menu),
+  bits 13-20 = out[5] = horizontal.
+- Confirmed from the menu state: stick down then confirm opens a different
+  screen than confirm alone, so the cursor moves. Confirm = button bit 2
+  (0x0004) or bit 12 (0x1000).
+- Driver timing: a record must arrive at least every 1.5 s or the pad is
+  dropped (1 s triggers a re-request). 0x10A1DB9C can also poll with raw
+  `00 03`, but the game relies on unsolicited records.
+- VFPADKEY mask: bits 0-15 buttons, 16-23 vertical axis, 24-31 horizontal
+  axis (signed bytes, 0 = centre).
+- Renderer: captured (0C) pieces are mirrored in y about their own origin
+  (consistent with register 0x50 = diag(1,-1,-1) at draw time); with that the
+  button text is upright. 256x128 textures below row 2048 are sampled 16 rows
+  lower (empirical, NOTEX16 turns it off). 4-bit textures (format bit 0x400)
+  are sampled low nibble first (untested). The four main-menu buttons now read
+  correctly; items on the two sub-screens are still garbled.

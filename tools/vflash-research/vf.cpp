@@ -94,7 +94,8 @@ struct VF : Bus {
         if (x1 < x0 || y1 < y0) return;
         int tw = 8 << (rn.fmt & 7), th = 8 << ((rn.fmt >> 3) & 7);
         int tx = (rn.tex & 0xfff) * 2, ty = (rn.tex >> 12) & 0xfff, px = (rn.pal & 0xfff) * 2, py = (rn.pal >> 12) & 0xfff;
-        if (ty >= 2048) ty -= 240; if (py >= 2048) py -= 240;      // rows 2048+ sit 240 rows lower in memory
+        if (ty >= 2048) ty -= 240; else if (!getenv("NOTEX16") && tw == 256 && th == 128) ty += 16;      // rows 2048+ sit 240 rows lower in memory; TEX16: experiment
+        if (py >= 2048) py -= 240;
         if (rnZ.empty()) rnZ.assign(1024 * 1024, 1e30f);
         rnTris++;
         for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) {
@@ -105,8 +106,10 @@ struct VF : Bus {
             float& zb = rnZ[(y & 1023) * 1024 + (x & 1023)]; if (z >= zb) continue;
             float u = (l0 * U[0] + l1 * U[1] + l2 * U[2]) * z, v = 1 - (l0 * V[0] + l1 * V[1] + l2 * V[2]) * z;
             int iu = ((int)floorf(u * tw) % tw + tw) % tw, iv = ((int)floorf(v * th) % th + th) % th;
-            u8* t = rn_byte(tx + iu, ty + iv); if (!t || !*t) continue;                 // palette entry 0 = transparent
-            u8* p = rn_byte(px + 2 * *t, py); if (!p) continue;
+            u8* t = (rn.fmt & 0x400) ? rn_byte(tx + iu / 2, ty + iv) : rn_byte(tx + iu, ty + iv); if (!t) continue;
+            int ti = (rn.fmt & 0x400) ? ((iu & 1) ? *t >> 4 : *t & 15) : *t;            // 0x400 = 4 bits per texel (low nibble first, assumed)
+            if (!ti) continue;                                                          // palette entry 0 = transparent
+            u8* p = rn_byte(px + 2 * ti, py); if (!p) continue;
             if (u16* d = vram_px(x, y)) { *d = u16(p[0] | p[1] << 8); zb = z; }
         }
     }
@@ -125,7 +128,7 @@ struct VF : Bus {
                 u32 w0 = rd32(va), w1 = rd32(va + 4), w3 = rd32(va + 12);
                 float p[3] = { rn_f(u16(w0)), rn_f(u16(w0 >> 16)), rn_f(u16(w1)) }, q[3];
                 if (rn.ident) { for (int j = 0; j < 3; j++) q[j] = p[j] * 4096.0f; }
-                else for (int j = 0; j < 3; j++) q[j] = (rn.M[j * 3] * p[0] * rn.S[0] + rn.M[j * 3 + 1] * p[1] * rn.S[1] + rn.M[j * 3 + 2] * p[2] * rn.S[2]) * 4096.0f + rn.T[j];
+                else for (int j = 0; j < 3; j++) q[j] = (rn.M[j * 3] * p[0] * rn.S[0] + rn.M[j * 3 + 1] * p[1] * rn.S[1] + rn.M[j * 3 + 2] * p[2] * rn.S[2]) * 4096.0f * ((rn.cap && !indexed && j == 1 && !getenv("NOCAPFLIP")) ? -1.0f : 1.0f) + rn.T[j];
                 vs[i] = { q[0], q[1], -q[2], rn_f(u16(w3)), rn_f(u16(w3 >> 16)) };
             }
             if (rn.cap && !indexed) {                       // 0C: write the transformed vertices back instead of drawing
@@ -489,7 +492,7 @@ struct VF : Bus {
         if (m == padMask && t - padLast < (getenv("VFPADSTICK") ? 50 : 500)) return;
         if (m != padMask) printf("pad0 -> buttons %04x t=%llu\n", m, t);
         padMask = m; padLast = t;
-        u64 rec = (u64(((m >> 16) & 0xff) ^ 0x80) << 4) | (u64(((m >> 24) & 0xff) ^ 0x80) << 13) | (u64(m & 0xffff) << 22);   // mask bits 16-23 / 24-31 = axis offsets from centre (two's complement)
+        u64 rec = (u64((m >> 16) & 0xff) << 4) | (u64((m >> 24) & 0xff) << 13) | (u64(m & 0xffff) << 22);   // mask bits 16-23 = vertical axis (signed, + = down), 24-31 = horizontal axis (signed), 0 = centre
         std::vector<u8> raw(6); for (int i = 0; i < 6; i++) raw[i] = u8(rec >> (8 * i));
         pad_send(0, raw);
         if (const char* e = getenv("VFPADSTICK")) {   // "ms:x:y,..." 12-bit values (hex): sent as the L=4 packet
