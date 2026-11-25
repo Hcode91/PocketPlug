@@ -184,6 +184,18 @@ class EmulatorActivity : Activity() {
                 setContentView(v)
                 attachDisks()
             }
+            Skin.CPM -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val big2 = machine.id == "bigbord2"
+                val v = CpmTerminalView(this, if (big2) 640 else 560, if (big2) 288 else 240).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onDisks = { showDiskMenu() }
+                }
+                workstation = v
+                setContentView(v)
+                attachDisks()
+            }
             Skin.ACORN -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val v = AcornView(this, machine.badge).apply {
@@ -861,7 +873,7 @@ class EmulatorActivity : Activity() {
 
     /** Winchester drive 0 always attached (a new one starts unformatted); the last floppy goes back in. */
     private fun attachDisks() {
-        Native.mediaInsert(handle, 1, hardDiskFile().absolutePath)?.let {
+        if (machine.skin != Skin.CPM) Native.mediaInsert(handle, 1, hardDiskFile().absolutePath)?.let {
             Toast.makeText(this, "Hard disk: $it", Toast.LENGTH_LONG).show()
         }
         val last = getSharedPreferences("settings", MODE_PRIVATE).getString("floppy_${machine.id}", null)
@@ -1462,7 +1474,7 @@ class EmulatorActivity : Activity() {
         }
         for (f in floppies) if (f != floppyFile) items += "Insert ${f.nameWithoutExtension}" to { insertFloppy(f) }
         if (floppyFile != null) items += "Eject ${floppyFile?.nameWithoutExtension}" to { ejectFloppy() }
-        items += "Hard disk: save a copy..." to {
+        if (machine.skin != Skin.CPM) items += "Hard disk: save a copy..." to {
             saveDisks()
             val i = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "application/octet-stream"
@@ -1470,13 +1482,13 @@ class EmulatorActivity : Activity() {
             }
             startActivityForResult(i, EXPORT_HD)
         }
-        items += "Hard disk: load a saved copy..." to {
+        if (machine.skin != Skin.CPM) items += "Hard disk: load a saved copy..." to {
             val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
             }
             startActivityForResult(i, IMPORT_HD)
         }
-        items += "Hard disk: erase (start over)" to {
+        if (machine.skin != Skin.CPM) items += "Hard disk: erase (start over)" to {
             paused = true
             AlertDialog.Builder(this)
                 .setMessage("Erase the hard disk? Everything installed on it is lost and the machine restarts.")
@@ -1781,11 +1793,11 @@ class EmulatorActivity : Activity() {
         val stateFile = cartFile?.let { RomStore.cartStateFile(this, machine, it) } ?: RomStore.stateFile(this, machine)
         val items = ArrayList<Pair<String, () -> Unit>>()
         items += "Resume" to {}
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC) items += "Save state" to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC && machine.skin != Skin.CPM) items += "Save state" to {
             val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
             Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
         }
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC && machine.skin != Skin.CPM) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
             if (stateFile.exists()) {
                 val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
                 Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()

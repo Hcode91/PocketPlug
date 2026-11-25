@@ -54,6 +54,8 @@
 #include "cores/advision/advision.h"
 #include "cores/adam/adam.h"
 #include "cores/ngen/ngen.h"
+#include "cores/bigboard/bigboard.h"
+#include "cores/bigboard/bigbord2.h"
 #include "cores/unixpc/unixpc.h"
 #include "cores/atari800/atari800.h"
 #include "cores/acorn/acorn.h"
@@ -500,6 +502,10 @@ Core* createCore(const std::string& id)
         return new AcornCore(AcornCore::kA7000Plus);
     if (id == "3b1")          // AT&T UNIX PC / PC 7300 / 3B1 (68010, FreeBee)
         return new UnixPcCore();
+    if (id == "bigboard" || id == "bigboard5" || id == "mk82" || id == "mojmikro" || id == "x820")   // Big Board family CP/M computers (Z80)
+        return new BigBoardCore(id);
+    if (id == "bigbord2")     // Big Board II (Z80, 6845, MB8877)
+        return new BigBoard2Core();
     if (id == "ngen")         // Convergent NGEN CP-001 / Burroughs B26 workstation (80186)
         return new NgenCore();
     if (id == "oceanpet")    // built-in original game, no ROM

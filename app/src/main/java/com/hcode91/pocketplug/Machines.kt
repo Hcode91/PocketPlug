@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN, CPM }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -1534,6 +1534,20 @@ object Machines {
             skin = Skin.HH,
         ),
         MachineDef(
+            id = "bgunf",
+            title = "Gun Duel VFD Game",
+            subtitle = "1980 wide tabletop with a colour VFD: two gunfighters face off across the desert, each moving up and down "
+                + "behind the cacti and firing; the PLAYERS slide sets Auto 1-3 against the machine or Manual for two (Bandai Gunfighter; MAME set: bgunf)",
+            chip = "NEC uPD553C (uCOM-43)",
+            region = "Japan",
+            year = "1980",
+            roms = listOf(
+                RomSpec("d553c_084", 0x800L, 0xa924ba9bL),
+                RomSpec("bgunf.svg", 140908L, 0x6bbeb80bL),
+            ),
+            skin = Skin.HH,
+        ),
+        MachineDef(
             id = "bcclimbr",
             title = "Building Climber VFD Game",
             subtitle = "1982 tall tabletop with a colour VFD: climb the skyscraper with a lever for each hand, "
@@ -1560,6 +1574,25 @@ object Machines {
                 RomSpec("bdoramon.svg", 624751L, 0xfc6ae4e4L),
             ),
             skin = Skin.HH,
+        ),
+        MachineDef(
+            id = "bigtrak",
+            title = "Programmable Tank",
+            subtitle = "1979 programmable six-wheel tank: key in up to 16 steps (moves, turns, fire, hold), press GO and watch it drive "
+                + "them on the floor above the keypad (Milton Bradley Big Trak; MAME set: bigtrak)",
+            chip = "TI TMS1000",
+            region = "USA",
+            year = "1979",
+            roms = listOf(
+                RomSpec("mp3301a", 0x400L, 0x1351bcddL),
+                RomSpec("tms1000_common4_micro.pla", 867L, 0x80912d0aL),
+                RomSpec("tms1000_bigtrak_output.pla", 365L, 0x63be45f6L),
+            ),
+            skin = Skin.HH,
+            setup = listOf(
+                "CLR clears the program. Then key a direction and a number: ▲ 3 drives forward 3 lengths, ◀ 15 turns a quarter left, FIRE 2 fires twice, HOLD 5 waits.",
+                "Press GO to run it; the tank drives on the floor (it wraps round at the edges). CK runs the last step, RPT repeats steps, TEST checks it.",
+            ),
         ),
         MachineDef(
             id = "bcheetah",
@@ -2999,6 +3032,107 @@ object Machines {
                 "Wait for rEAdY on the board's display.",
                 "For a colour demo type NEW, Ret, then LOAD0 (or LOAD1-3), Ret, then RUN, Ret.",
                 "The two red buttons by the screen are the joystick fire buttons.",
+            ),
+        ),
+        MachineDef(
+            id = "bigboard",
+            title = "Z80 CP/M Board Computer",
+            subtitle = "1980 single-board CP/M computer with its own 80 x 24 video, an ASCII keyboard and two 8\" drives; boots CP/M from disk (Digital Research Computers Big Board; MAME set: bigboard)",
+            chip = "Zilog Z80 @ 2.5 MHz, FD1771, Z80 PIO / CTC / SIO",
+            region = "USA",
+            year = "1980",
+            roms = listOf(
+                RomSpec("bigboard.u67", 0x800L, 0x5a85a228L),
+                RomSpec("bigboard.u73", 0x800L, 0x10bf0d81L),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "The monitor starts at the * prompt: D dumps memory (D 0 3F), B boots drive A.",
+                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 8\" single-density (77 x 26 x 128) image) in drive A, then type B and RETURN.",
+            ),
+        ),
+        MachineDef(
+            id = "bigboard5",
+            title = "Z80 CP/M Board Computer (5.25\" drives)",
+            subtitle = "The 1980 CP/M board computer on 5.25\" drives, a common field change (Digital Research Computers Big Board with SA-400 drives; MAME set: bigboard5)",
+            chip = "Zilog Z80 @ 2.5 MHz, FD1771, Z80 PIO / CTC / SIO",
+            region = "USA",
+            year = "1980",
+            roms = listOf(
+                RomSpec("bigboard.u67", 0x800L, 0x5a85a228L),
+                RomSpec("bigboard.u73", 0x800L, 0x10bf0d81L),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "The monitor starts at the * prompt: D dumps memory (D 0 3F), B boots drive A.",
+                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 5.25\" single-density (40 x 18 x 128) image) in drive A, then type B and RETURN.",
+            ),
+        ),
+        MachineDef(
+            id = "mk82",
+            title = "Z80 CP/M Board Computer (Italy)",
+            subtitle = "1982 Italian build of the CP/M board computer, same monitor and 8\" drives (Scomar MK-82; MAME set: mk82)",
+            chip = "Zilog Z80 @ 2.5 MHz, FD1771, Z80 PIO / CTC / SIO",
+            region = "Italy",
+            year = "1982",
+            roms = listOf(
+                RomSpec("bigboard.u67", 0x800L, 0x5a85a228L),
+                RomSpec("bigboard.u73", 0x800L, 0x10bf0d81L),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "The monitor starts at the * prompt: D dumps memory (D 0 3F), B boots drive A.",
+                "Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 8\" single-density (77 x 26 x 128) image) in drive A, then type B and RETURN.",
+            ),
+        ),
+        MachineDef(
+            id = "mojmikro",
+            title = "Z80 CP/M Board Computer (Slovenia)",
+            subtitle = "1985 Slovenian magazine build of the CP/M board computer with its own monitor and a Yugoslav character set (Moj mikro Slovenija; MAME set: mojmikro)",
+            chip = "Zilog Z80 @ 2.5 MHz, FD1771, Z80 PIO / CTC / SIO",
+            region = "Yugoslavia",
+            year = "1985",
+            roms = listOf(
+                RomSpec("mikro-s.u67", 0x800L, 0x56a329a8L),
+                RomSpec("mmschar-yu.u73", 0x800L, 0xebcc72d3L),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "The monitor starts at the * prompt. Tap the drive cabinet to insert a CP/M disk (.imd) in drive A.",
+            ),
+        ),
+        MachineDef(
+            id = "x820",
+            title = "Z80 Office CP/M Computer",
+            subtitle = "1981 office CP/M computer built on the same board, with 5.25\" drives; A boots the system, T is a typewriter mode (Xerox 820; MAME set: x820, monitor v2.0)",
+            chip = "Zilog Z80 @ 2.5 MHz, FD1771, Z80 PIO / CTC / SIO",
+            region = "USA",
+            year = "1981",
+            roms = listOf(
+                RomSpec("x820v20.u64", 0x800L, 0x2fc227e2L),
+                RomSpec("x820v20.u63", 0x800L, 0xbc11f834L),
+                RomSpec("x820.u92", 0x800L, 0xb823fa98L),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "The monitor menu: A boots drive A, T is a typewriter. Tap the drive cabinet to insert a CP/M disk (.imd, or a raw 5.25\" single-density image).",
+            ),
+        ),
+        MachineDef(
+            id = "bigbord2",
+            title = "Z80 CP/M Board Computer II",
+            subtitle = "1982 second-generation CP/M board computer: 4 MHz, 6845 video with attributes, double-density 8\" drives (Ferguson / Digital Research Computers Big Board II; MAME set: bigbord2)",
+            chip = "Zilog Z80 @ 4 MHz, MB8877, 6845 + CRT8002, 2 x CTC, SIO",
+            region = "USA",
+            year = "1982",
+            roms = listOf(
+                RomSpec("bigbrdii.u85", 0x1000L, 0xc588189eL),
+                RomSpec("8002.u52", 0x800L, 0xfdd6eb13L),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "The monitor starts at the * prompt: D dumps memory, B boots drive A, R reads a sector.",
+                "Tap the drive cabinet to insert a CP/M disk (.imd) in drive A, then type B and RETURN. (Its DMA and SASI hard disk aren't emulated.)",
             ),
         ),
         MachineDef(

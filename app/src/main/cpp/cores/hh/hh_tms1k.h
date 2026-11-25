@@ -43,5 +43,9 @@ private:
         uint8_t power;
         uint64_t idle;        // clocks passed while powered off
         uint32_t prevIn;
+        int32_t gear;         // Big Trak: the gearbox sensor wheel position (MAME's gearbox_sim_tick)
+        uint64_t gearT;
     } m_s;
+    void gearTo(uint64_t t);
+    void bigtrakOut();
 };

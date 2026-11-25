@@ -78,6 +78,7 @@ class HhView(ctx: Context, private val skin: HhSkin, private val srcW: Int, priv
         if (skin.leds.isNotEmpty()) {
             for (l in skin.leds) drawLed(c, l)
         } else drawScreen(c)
+        skin.overlay?.let { if (it(c, paint) { r, col -> on(r, col) }) postInvalidateOnAnimation() }
         val mask = touchMask or externalMask
         for (ctl in skin.controls) drawControl(c, ctl, mask)
         // menu dot
@@ -385,6 +386,8 @@ class HhSkin(
      *  These are LCDs with printed artwork under the glass: the body draws the print and
      *  only the dark segments are laid over it */
     val parts: List<ScreenPart> = emptyList(),
+    /** drawn after the lights: gets the light state (row, col); return true to be drawn again next frame */
+    val overlay: ((Canvas, Paint, (Int, Int) -> Boolean) -> Boolean)? = null,
 ) {
     class ScreenPart(val srcTop: Float, val srcBottom: Float, val dst: RectF)
     enum class Kind { STICK, BUTTON, SWITCH }
@@ -433,6 +436,8 @@ class HhSkin(
             "bdoramon" -> dorayaki()
             "bcheetah" -> cheetahCar()
             "bfriskyt" -> plumberTom()
+            "bigtrak" -> bigTrak()
+            "bgunf" -> gunDuel()
             "bgalaxn" -> beamGalaxy()
             else -> null
         }
@@ -1106,6 +1111,129 @@ class HhSkin(
                         lineTo(1010f, 470f + 145f); lineTo(992f, 488f); lineTo(1010f - 145f, 470f); lineTo(992f, 452f); close()
                     }
                     c.drawPath(star, p)
+                },
+            )
+        }
+
+        /** Big Trak (placeholder until a photo): the grey control deck with the 4 x 7 keypad (blue
+         *  moves, orange numbers, red / white / green functions) under a floor view where the tank
+         *  drives what you programmed: its motors are the outputs (row 0: 0 IR LED, 1 lamp, 2 left
+         *  forward, 3 left reverse, 4 right forward, 5 right reverse). One step is a body length,
+         *  15 turn steps a quarter turn, as on the real one. */
+        private fun bigTrak(): HhSkin {
+            fun key(x: Float, y: Float, bit: Int, label: String, color: Int) =
+                Control(Kind.BUTTON, x, y, 40f, color = color, bit = 1 shl bit, bw = 150f, bh = 92f, face = label,
+                    faceColor = if (color == 0xFFF2F2EE.toInt()) 0xFF1A1A1A.toInt() else Color.WHITE, faceSize = 32f, shine = false)
+            val blue = 0xFF2A5AB8.toInt(); val orange = 0xFFE8862A.toInt(); val red = 0xFFD8302A.toInt()
+            val white = 0xFFF2F2EE.toInt(); val green = 0xFF2E9A4A.toInt()
+            val cols = floatArrayOf(230f, 410f, 590f, 770f)
+            val rows = floatArrayOf(905f, 1015f, 1125f, 1235f, 1345f, 1455f, 1565f)
+            // the floor simulation (floor units: tank lengths; 0,0 the middle; heading 0 = up)
+            var tx = 0.0; var ty = 0.0; var th = 0.0; var last = 0L
+            val trail = ArrayList<FloatArray>()
+            val fl = RectF(70f, 70f, 930f, 760f)
+            val unit = 52f
+            return HhSkin(
+                1000f, 1720f, 0xFF1E2228.toInt(),
+                screen = RectF(), bezel = 0, bezelPad = 0f,
+                menu = PointF(500f, 1690f),
+                controls = listOf(
+                    key(cols[1], rows[0], 1, "▲", blue), key(cols[3], rows[0], 3, "CLR", red),
+                    key(cols[0], rows[1], 4, "◀", blue), key(cols[1], rows[1], 0, "HOLD", white), key(cols[2], rows[1], 6, "▶", blue), key(cols[3], rows[1], 2, "FIRE", red),
+                    key(cols[1], rows[2], 5, "▼", blue), key(cols[3], rows[2], 7, "CLS", red),
+                    key(cols[0], rows[3], 8, "7", orange), key(cols[1], rows[3], 9, "8", orange), key(cols[2], rows[3], 10, "9", orange), key(cols[3], rows[3], 11, "RPT", white),
+                    key(cols[0], rows[4], 12, "4", orange), key(cols[1], rows[4], 13, "5", orange), key(cols[2], rows[4], 14, "6", orange), key(cols[3], rows[4], 15, "TEST", white),
+                    key(cols[0], rows[5], 16, "1", orange), key(cols[1], rows[5], 17, "2", orange), key(cols[2], rows[5], 18, "3", orange), key(cols[3], rows[5], 19, "CK", white),
+                    key(cols[0], rows[6], 20, "IN", white), key(cols[1], rows[6], 21, "0", orange), key(cols[2], rows[6], 22, "OUT", white), key(cols[3], rows[6], 23, "GO", green),
+                ),
+                leds = listOf(Led(LedKind.ROUND, 0, 1, 900f, 830f, 16f, 0xFFFF4A2A.toInt())),
+                drawBody = { c, p, s ->
+                    // the floor
+                    p.color = 0xFFD9CBA8.toInt(); c.drawRoundRect(fl, 18f, 18f, p)
+                    s.color = 0x22000000; s.strokeWidth = 2f
+                    var gx = fl.centerX() - kotlin.math.floor((fl.centerX() - fl.left) / unit) * unit
+                    while (gx < fl.right) { if (gx > fl.left) c.drawLine(gx, fl.top, gx, fl.bottom, s); gx += unit }
+                    var gy = fl.centerY() - kotlin.math.floor((fl.centerY() - fl.top) / unit) * unit
+                    while (gy < fl.bottom) { if (gy > fl.top) c.drawLine(fl.left, gy, fl.right, gy, s); gy += unit }
+                    // the deck
+                    p.color = 0xFF5E6168.toInt(); c.drawRoundRect(60f, 790f, 940f, 1640f, 28f, 28f, p)
+                    p.color = 0xFF3C3F45.toInt(); c.drawRoundRect(110f, 840f, 890f, 1620f, 20f, 20f, p)
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFFDADADA.toInt(); textSize = 22f }
+                    c.drawText("LAMP", 900f, 870f, t)
+                },
+                overlay = { c, p, on ->
+                    val now = System.nanoTime()
+                    val dt = if (last == 0L) 0.0 else ((now - last) / 1e9).coerceAtMost(0.1)
+                    last = now
+                    val l = (if (on(0, 2)) 1 else 0) - (if (on(0, 3)) 1 else 0)
+                    val r = (if (on(0, 4)) 1 else 0) - (if (on(0, 5)) 1 else 0)
+                    val moving = l != 0 || r != 0
+                    if (moving) {
+                        th += (l - r) / 2.0 * Math.toRadians(4.8) * dt         // spin: 6 degrees a step
+                        val v = (l + r) / 2.0 * 0.8 * dt                          // a body length a step
+                        tx += kotlin.math.sin(th) * v; ty -= kotlin.math.cos(th) * v
+                        // wrap round the floor
+                        val hw = (fl.width() / 2 - 30f) / unit; val hh = (fl.height() / 2 - 30f) / unit
+                        if (tx > hw) tx -= 2 * hw; if (tx < -hw) tx += 2 * hw
+                        if (ty > hh) ty -= 2 * hh; if (ty < -hh) ty += 2 * hh
+                        val px = fl.centerX() + tx.toFloat() * unit; val py = fl.centerY() + ty.toFloat() * unit
+                        val lastPt = trail.lastOrNull()
+                        if (lastPt == null || kotlin.math.hypot(lastPt[0] - px, lastPt[1] - py) > 6f) {
+                            trail.add(floatArrayOf(px, py)); if (trail.size > 400) trail.removeAt(0)
+                        }
+                    }
+                    p.color = 0x553A2A10
+                    var prev: FloatArray? = null
+                    for (pt in trail) { val q = prev; if (q != null && kotlin.math.hypot(q[0] - pt[0], q[1] - pt[1]) < 60f) {
+                        val st = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x553A2A10; strokeWidth = 6f }; c.drawLine(q[0], q[1], pt[0], pt[1], st) }; prev = pt }
+                    // the tank, seen from above
+                    c.save()
+                    c.translate(fl.centerX() + tx.toFloat() * unit, fl.centerY() + ty.toFloat() * unit)
+                    c.rotate(Math.toDegrees(th).toFloat())
+                    p.color = 0xFF2A2A2A.toInt(); c.drawRoundRect(-30f, -40f, -18f, 40f, 4f, 4f, p); c.drawRoundRect(18f, -40f, 30f, 40f, 4f, 4f, p)
+                    p.color = 0xFFE8E8E4.toInt(); c.drawRoundRect(-20f, -44f, 20f, 42f, 8f, 8f, p)
+                    p.color = 0xFF3A6AC8.toInt(); c.drawRoundRect(-14f, -10f, 14f, 30f, 5f, 5f, p)
+                    p.color = if (on(0, 1)) 0xFFFF4A2A.toInt() else 0xFF7A2A20.toInt(); c.drawCircle(0f, -34f, 7f, p)
+                    if (on(0, 1)) { p.color = 0x66FF6A3A; c.drawCircle(0f, -60f, 18f, p) }
+                    c.restore()
+                    moving
+                },
+            )
+        }
+
+        /** Gunfighter duel (placeholder until a photo): a wide tabletop with the VFD between the two
+         *  players' ends, each with an up / down lever and a FIRE key, and the PLAYERS slide (Auto 1 /
+         *  2 / 3 against the machine, or Manual for two players). Left player: bits 0, 1, 4; right: 8, 9, 5. */
+        private fun gunDuel(): HhSkin {
+            val wood = 0xFF6A3E1E.toInt()
+            fun lever(x: Float, up: Int, down: Int) = listOf(
+                Control(Kind.BUTTON, x, 300f, 34f, color = 0xFFE8D8B0.toInt(), bit = 1 shl up, bw = 110f, bh = 80f, face = "▲", faceColor = 0xFF3A2410.toInt(), faceSize = 34f, shine = false),
+                Control(Kind.BUTTON, x, 420f, 34f, color = 0xFFE8D8B0.toInt(), bit = 1 shl down, bw = 110f, bh = 80f, face = "▼", faceColor = 0xFF3A2410.toInt(), faceSize = 34f, shine = false))
+            return HhSkin(
+                1600f, 720f, 0xFF16120E.toInt(),
+                screen = RectF(250f, 220f, 1350f, 522f), bezel = 0xFF050505.toInt(), bezelPad = 10f,
+                menu = PointF(800f, 690f),
+                landscape = true,
+                controls = lever(130f, 0, 1) + lever(1470f, 8, 9) + listOf(
+                    Control(Kind.BUTTON, 130f, 570f, 46f, color = 0xFFD8302A.toInt(), base = 0xFF7A1410.toInt(), bit = 1 shl 4,
+                        label = "FIRE", labelAbove = true, labelColor = 0xFFF2E2B8.toInt(), labelSize = 24f),
+                    Control(Kind.BUTTON, 1470f, 570f, 46f, color = 0xFFD8302A.toInt(), base = 0xFF7A1410.toInt(), bit = 1 shl 5,
+                        label = "FIRE", labelAbove = true, labelColor = 0xFFF2E2B8.toInt(), labelSize = 24f),
+                    Control(Kind.SWITCH, 800f, 610f, 26f, color = 0xFFE8D8B0.toInt(), option = 0, positions = listOf("A1", "A2", "A3", "M"),
+                        labelColor = 0xFFF2E2B8.toInt(), labelSize = 20f),
+                ),
+                drawBody = { c, p, s ->
+                    p.color = 0xFF2A1A0E.toInt(); c.drawRoundRect(20f, 60f, 1580f, 690f, 30f, 30f, p)
+                    p.color = wood; c.drawRoundRect(30f, 50f, 1570f, 670f, 30f, 30f, p)
+                    s.color = 0x18000000; s.strokeWidth = 3f
+                    var y = 70f; while (y < 660f) { c.drawLine(40f, y, 1560f, y + 8f, s); y += 22f }
+                    p.color = 0xFFD8A848.toInt(); c.drawRoundRect(220f, 190f, 1380f, 552f, 16f, 16f, p)
+                    p.color = 0xFF1A1208.toInt(); c.drawRoundRect(236f, 206f, 1364f, 536f, 10f, 10f, p)
+                    p.color = 0xFF3A2410.toInt(); c.drawRoundRect(60f, 230f, 200f, 490f, 16f, 16f, p); c.drawRoundRect(1400f, 230f, 1540f, 490f, 16f, 16f, p)
+                    val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = 0xFFF2E2B8.toInt(); textSize = 24f }
+                    c.drawText("PLAYERS", 800f, 575f, t)
+                    p.color = 0xFFD8A848.toInt(); for (x in listOf(260f, 1340f)) { c.drawCircle(x, 120f, 10f, p) }
+                    c.drawRect(280f, 116f, 1320f, 124f, p)
                 },
             )
         }

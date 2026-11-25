@@ -99,6 +99,7 @@ object SkinPreview {
         Skin.UNIVERSITY_BOARD -> UniversityBoardView(ctx, m.id == "990189v")
         Skin.WORKSTATION -> WorkstationView(ctx)
         Skin.DESKTOP_3B1 -> Desktop3b1View(ctx)
+        Skin.CPM -> CpmTerminalView(ctx, if (m.id == "bigbord2") 640 else 560, if (m.id == "bigbord2") 288 else 240)
         Skin.ATARI_XL -> AtariXlView(ctx, when (m.badge) {
             "130xe", "65xe", "800xe" -> AtariXlView.MODEL_XE
             "400" -> AtariXlView.MODEL_400

@@ -8,7 +8,7 @@
 #include <cstdlib>
 
 namespace {
-enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT, BBEAR, BCHEETAH };
+enum Kind { ALPHIE, AMAZTRON, ARCMANIA, ARRBALL, BANKSHOT, BBEAR, BCHEETAH, BIGTRAK };
 // the guessed output PLA (O0 = bit 0 of the index)
 const uint16_t kAlphieOpla[0x20] = { 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1 };
 }
@@ -42,6 +42,9 @@ const Tms1kGame kGames[] = {
     // Bandai System Control Car: Cheetah (1979): TMS1000, a programmable buggy; the "display" is its
     // motors: column 0 steer left (O0), 1 drive (O1), 2 steer right (O2)
     { "bcheetah", BCHEETAH, TMS1K::TMS1000, 350000, "mp0915", "tms1000_common2_micro.pla", "tms1000_bcheetah_output.pla", nullptr, "", 1, 3 },
+    // Milton Bradley Big Trak (1979): TMS1000, a programmable tank; the "display" is one row:
+    // 0 IR LED, 1 lamp, 2 left motor forward, 3 left reverse, 4 right forward, 5 right reverse
+    { "bigtrak", BIGTRAK, TMS1K::TMS1000, 200000, "mp3301a", "tms1000_common4_micro.pla", "tms1000_bigtrak_output.pla", nullptr, "", 1, 6 },
     { "arcmania", ARCMANIA, TMS1K::TMS1100, 250000, "m34078a", "tms1100_common1_micro.pla", "tms1100_arcmania_output.pla", nullptr, "", 1, 9 },
 };
 const Tms1kGame* find(const std::string& id)
@@ -216,6 +219,15 @@ uint8_t HhTms1kCore::readK()
         uint8_t sensors = uint8_t((in(6) ? 1 : 0) | (in(4) ? 0 : 4) | (in(5) ? 0 : 8));
         return uint8_t((m_s.inpMux & sensors) | m_tms.ctl_r() | (m_s.r & 0xf));
     }
+    case BIGTRAK: {
+        // R0-R5: keypad rows (input bit row * 4 + column), R8: the accessory input (bit 24); K8: the gearbox IR sensor
+        gearTo(now());
+        uint8_t k = 0;
+        for (int row = 0; row < 6; row++) if (m_s.inpMux >> row & 1) k |= uint8_t(m_in >> (row * 4) & 0xf);
+        if (m_s.inpMux & 0x40) k |= uint8_t(in(24) << 2);
+        if (m_s.gear < 0 && (m_s.r >> 7 & 1)) k |= 8;
+        return k;
+    }
     case ARCMANIA: {
         // O3: Alien Raiders (6), yellow 2 (7), Rattler (8); O4: Run Amuk (3), yellow 1 (4), Sneak Attack (5);
         // O6: orange 1-3 (0-2)
@@ -236,6 +248,7 @@ void HhTms1kCore::writeO(uint16_t o)
     case ALPHIE: speaker(o & 1); break;
     case BBEAR: m_s.inpMux = uint16_t((m_s.inpMux & ~1) | (o & 1)); break;   // O0: input mux low
     case BCHEETAH: m_disp.matrix(now(), 1, o & 7); break;                       // the motors
+    case BIGTRAK: gearTo(now()); m_s.o = o; bigtrakOut(); break;
     case AMAZTRON: m_disp.matrix(now(), m_s.r, o & 0x7f); break;
     case ARRBALL: m_disp.matrix(now(), m_s.r & 0x7f, o & 0x7f); break;
     case BANKSHOT: m_disp.matrix(now(), m_s.r & 0x7fc, o & 0xff); break;
@@ -297,6 +310,33 @@ void HhTms1kCore::writeR(uint32_t r)
         m_disp.matrix(now(), 1, r >> 1);
         m_s.r = r;
         break;
+    case BIGTRAK:
+        m_s.inpMux = uint16_t((r & 0x3f) | (r >> 2 & 0x40));   // R0-R5, R8
+        m_s.r = r;
+        bigtrakOut();
+        break;
+    default: break;
+    }
+}
+
+void HhTms1kCore::bigtrakOut()
+{
+    // O0, O7, R10 tied together: a 4-level speaker; R7 IR LED, R9 lamp, O1-O4 the motors
+    unsigned spk = (m_s.o & 1) | (m_s.o >> 6 & 2) | (m_s.r >> 8 & 4);
+    speakerLevel(__builtin_popcount(spk) / 3.0);
+    m_disp.matrix(now(), 1, (m_s.r >> 7 & 1) | (m_s.r >> 8 & 2) | ((m_s.o >> 1 & 0xf) << 2));
+}
+
+void HhTms1kCore::gearTo(uint64_t t)
+{
+    // the last gear has 12 holes between an IR LED and receiver: once a millisecond while a motor
+    // runs the wheel moves on a step (period 34 steps, half of it blocking the light)
+    const uint64_t ms = uint64_t(m_g->clock / 1000);
+    if (t < m_s.gearT) m_s.gearT = t;
+    while (m_s.gearT + ms <= t) {
+        m_s.gearT += ms;
+        if (m_s.gear >= 17) m_s.gear = -17;
+        if (m_s.o & 0x1e) m_s.gear++;
     }
 }
 

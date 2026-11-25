@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace {
-enum Kind { ALNCHASE, ASTROCMD, BCCLIMBR, BGALAXN };
+enum Kind { ALNCHASE, ASTROCMD, BCCLIMBR, BGALAXN, BGUNF };
 }
 
 struct Ucom4Game {
@@ -30,6 +30,8 @@ const Ucom4Game kGames[] = {
     { "bcclimbr", BCCLIMBR, UCOM4::UCOM43, false, 400000, "d553c_170", 0x800, "bcclimbr.svg", 6, 20 },
     // Bandai Galaxian (1981): uPD553C, VFD; FIRE is the INT line
     { "bgalaxn", BGALAXN, UCOM4::UCOM43, false, 400000, "d553c_103", 0x800, "bgalaxn.svg", 9, 16 },
+    // Bandai Gunfighter (1980): uPD553C, VFD; two players face to face
+    { "bgunf", BGUNF, UCOM4::UCOM43, false, 400000, "d553c_084", 0x800, "bgunf.svg", 9, 16 },
 };
 const Ucom4Game* find(const std::string& id)
 {
@@ -92,6 +94,17 @@ uint8_t HhUcom4Core::input(int port)
         // A: right, left, factory test (off), difficulty (option 0)
         if (port == UCOM4::PA) return uint8_t(in(3) | in(2) << 1 | (m_opt[0] ? 8 : 0));
         return 0;
+    case BGUNF:
+        // A: G0 selects the right-hand player (up 8, down 9, fire 5), G1 the left (up 0, down 1, fire 4)
+        // B: players switch, option 0: Auto 1 / Auto 2 / Auto 3 / Manual
+        if (port == UCOM4::PA) {
+            uint8_t v = 0;
+            if (m_s.inpMux & 1) v |= uint8_t(in(8) | in(9) << 1 | in(5) << 2);
+            if (m_s.inpMux & 2) v |= uint8_t(in(0) | in(1) << 1 | in(4) << 2);
+            return v;
+        }
+        if (port == UCOM4::PB) return uint8_t(1 << (m_opt[0] & 3));
+        return 0;
     }
     return 0;
 }
@@ -149,6 +162,19 @@ void HhUcom4Core::output(int port, uint8_t data)
         } else if (port >= UCOM4::PE && port <= UCOM4::PH) {
             int shift = (port - UCOM4::PE) * 4;
             m_s.plate = (m_s.plate & ~(0xfu << shift)) | (uint32_t(data) << shift);
+        }
+        m_disp.matrix(now(), m_s.grid, m_s.plate);
+        break;
+    case BGUNF:
+        // C, D, E, F: plate; G, H, I0: grid (G0-1 also the input mux, I1 the speaker)
+        if (port >= UCOM4::PC && port <= UCOM4::PF) {
+            int shift = (port - UCOM4::PC) * 4;
+            m_s.plate = (m_s.plate & ~(0xfu << shift)) | (uint32_t(data) << shift);
+        } else if (port >= UCOM4::PG && port <= UCOM4::PI) {
+            if (port == UCOM4::PG) m_s.inpMux = data & 3;
+            if (port == UCOM4::PI) speaker(data >> 1 & 1);
+            int shift = (port - UCOM4::PG) * 4;
+            m_s.grid = ((m_s.grid & ~(0xfu << shift)) | (uint32_t(data) << shift)) & 0x1ff;
         }
         m_disp.matrix(now(), m_s.grid, m_s.plate);
         break;

@@ -18,6 +18,8 @@ controller.
 | 240-in-1 Mini Arcade (palm-sized cabinet) | `240in1ar` | VT369 + sound CPU, scrambled opcodes, 128 MB | Menu, sports, puzzle and arcade games match MAME pixel-for-pixel in every tested frame; sampled music via the sound CPU (ADPCM, mixer, DACs) |
 | A6Plus Mini Arcade (912-in-1, SD card) | `a6plus` | VT369 + SD card controller, SPI flash writes, I2C security chip | Menu and games run, including the ones loaded from the card into flash (MAME's driver does not get past the start) |
 | 265-in-1 Handheld | `265games` | SunPlus SPG2xx (u'nSP CPU), 256 MB in 32 banks | Menu and games match MAME pixel-for-pixel in every tested frame; SPU sound (ADPCM, envelopes) matches MAME's level |
+| Big Board, Big Board (5.25"), MK-82, Moj mikro, Xerox 820 | `bigboard`, `bigboard5`, `mk82`, `mojmikro`, `x820` | Zilog Z80 + PIO / CTC / SIO (own models), FD1771 (the NGEN WD core), 80 x 24 video RAM | The monitors run with the keyboard; boots disks (.imd or raw single density) through the HALT-gated NMI; no serial devices |
+| Big Board II | `bigbord2` | Zilog Z80 at 4 MHz, 2 x CTC, SIO, MC6845 + CRT8002 attributes, MB8877 | The V1.1 monitor runs with the keyboard; floppies through the NMI path (its Z80 DMA and SASI port are not emulated) |
 | NGEN CP-001 Workstation (Convergent NGEN / Burroughs B26) | `ngen` | Intel 80186 + 8259 / 8254 / 8251, MC6845 text video, WD2797 floppy, WD1010 winchester | Boots BTOS 4.0 from floppy, installs it onto the emulated 10 MB hard disk and boots from there (MAME's driver does not boot) |
 | 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
@@ -52,7 +54,9 @@ controller.
 | Dokodemo Dorayaki Doraemon (Bandai, 1983) | `bdoramon` | Hitachi HD38800 (own HMCS40 core) | VFD, joystick, one button |
 | Frisky Tom (Bandai, 1981) | `bfriskyt` | Hitachi HD38800 (own HMCS40 core) | VFD, joystick, START and one button |
 | Galaxian (Bandai, 1981) | `bgalaxn` | NEC uPD553C (own uCOM-4 core) | VFD, left / right and FIRE, 2-level sound |
+| Gunfighter (Bandai, 1980) | `bgunf` | NEC uPD553C (own uCOM-4 core) | VFD, two players (up / down / fire each), Auto 1-3 or Manual |
 | System Control Car: Cheetah (Bandai, 1979) | `bcheetah` | TI TMS1000 (own core) | Programmable buggy: its motors are shown as lights |
+| Big Trak (Milton Bradley, 1979) | `bigtrak` | TI TMS1000 (own core) | Programmable tank: the keypad, the gearbox sensor and 4-level sound; the skin drives it round a floor from its motor outputs |
 | Bridge Companion (Unicard, 1985) | `bbcbc` | Z80 + Z80 PIO + TMS9129 (port of MAME's unicard/bbcbc.cpp) | Runs to its "plug in cartridge" screen; needs cartridge dumps to play |
 | Advanced Pico BEENA (Sega Toys, 2005) | `beena` | Big-endian ARM7TDMI on DidjDroid's ARM926 interpreter (word-invariant big-endian mode); port of MAME's sega_beena.cpp: tile layers with per-line palettes and scroll, sprites, direct bitmap, fades, AP2010 PCM FIFO, memory cache protocol, pen / page / pad sensors, RTC | BIOS and cartridges boot and play (tested: Futari wa Pretty Cure Max Heart) with speech and sound effects; no MIDI music (not emulated in MAME either), no card readers |
 | Beijue 220-in-1 16-bit handheld | `beijuehh` | GeneralPlus GPL16218B: u'nSP 2.0 (the shared u'nSP core gains the 1.2 / 2.0 instructions), port of MAME's GPL162xx SoC, video, renderer, DMA and timebase; the SPG2xx sound device with its control registers connected and the beat interrupt on IRQ4 (MAME leaves both off); ROM banking on ports B / D | Menu and games play with sound (tested: Table Tennis). The Beam Box (GPL16258VB + NAND) is in the same core but its NAND loader doesn't start yet (MAME doesn't run it either) |
@@ -143,6 +147,10 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | A6Plus Mini Arcade | `a6plus` | `w25q64jv.u3` | 8 MB (8,388,608 bytes) | `c62f9570` |
 | | | `a6plus.chd` (the SD card, imported on its own) | about 95 MB (CHD v5) | data SHA1 `ce8fb234` |
 | 265-in-1 Handheld | `265games` | `265games.bin` | 256 MB (268,435,456 bytes) | `761c92cb` |
+| Big Board (and 5.25", MK-82) | `bigboard`, `bigboard5`, `mk82` | `bigboard.u67`, `bigboard.u73` | 2,048 / 2,048 bytes | `5a85a228`, `10bf0d81` |
+| Moj mikro Slovenija | `mojmikro` | `mikro-s.u67`, `mmschar-yu.u73` | 2,048 / 2,048 bytes | `56a329a8`, `ebcc72d3` |
+| Xerox 820 | `x820` | `x820v20.u64`, `x820v20.u63`, `x820.u92` | 2,048 each | `2fc227e2`, `bc11f834`, `b823fa98` |
+| Big Board II | `bigbord2` | `bigbrdii.u85`, `8002.u52` | 4,096 / 2,048 bytes | `c588189e`, `fdd6eb13` |
 | NGEN CP-001 Workstation | `ngen` | `72-00414_80186_cpu.bin` | 4 KB (4,096 bytes) | `e1387a03` |
 | | | `72-00415_80186_cpu.bin` | 4 KB (4,096 bytes) | `a6dde7d9` |
 | | | `72-00422_10mb_disk.bin` | 4 KB (4,096 bytes) | `f5b046b6` |
@@ -181,7 +189,9 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Dokodemo Dorayaki Doraemon | `bdoramon` | `hd38800b43`, `bdoramon.svg` | 4,352 / 624,751 bytes | `9387ca42`, `fc6ae4e4` |
 | Frisky Tom (Bandai) | `bfriskyt` | `hd38800a77`, `bfriskyt.svg` | 4,352 / 413,553 bytes | `a2445c4f`, `8c7e96f9` |
 | Galaxian (Bandai) | `bgalaxn` | `d553c_103`, `bgalaxn.svg` | 2,048 / 153,620 bytes | `a6330519`, `6ef7249d` |
+| Gunfighter (Bandai) | `bgunf` | `d553c_084`, `bgunf.svg` | 2,048 / 140,908 bytes | `a924ba9b`, `6bbeb80b` |
 | System Control Car: Cheetah | `bcheetah` | `mp0915`, `tms1000_common2_micro.pla`, `tms1000_bcheetah_output.pla` | 1,024 / 867 / 365 bytes | `2968c81e`, `d33da3cf`, `cc6d1ecd` |
+| Big Trak | `bigtrak` | `mp3301a`, `tms1000_common4_micro.pla`, `tms1000_bigtrak_output.pla` | 1,024 / 867 / 365 bytes | `1351bcdd`, `80912d0a`, `63be45f6` |
 | Bridge Companion | `bbcbc` | `br_4_1.ic3`, `br_4_2.ic4` (plus your cartridge dumps, MAME software list `bbcbc`) | 8,192 / 8,192 bytes | `7c880d75`, `16a33aef` |
 | Advanced Pico BEENA | `beena` | `9h0-0008.bios.ic1`, `9h0-0008.midipcm.ic1` (plus your cartridge dumps, MAME software list `sega_beena_cart`) | 131,072 / 32,768 bytes | `5471aaf8`, `ed336d29` |
 | Beijue 220-in-1 handheld | `beijuehh` | `beijeu.bin` | 134,217,728 bytes | `e7b968af` |
