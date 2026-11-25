@@ -486,12 +486,17 @@ struct VF : Bus {
         if (!padScriptInit) { padScriptInit = true; if (const char* e = getenv("VFPADKEY")) { while (*e) { u64 t = strtoull(e, (char**)&e, 10); if (*e != ':') break; u32 m = u32(strtoul(e + 1, (char**)&e, 16)); padScript.push_back({ t, m }); if (*e == ',') e++; } } }
         u64 t = cycles / 150000; u32 m = 0;
         for (auto& ps : padScript) if (t >= ps.first) m = ps.second;
-        if (m == padMask && t - padLast < 500) return;
+        if (m == padMask && t - padLast < (getenv("VFPADSTICK") ? 50 : 500)) return;
         if (m != padMask) printf("pad0 -> buttons %04x t=%llu\n", m, t);
         padMask = m; padLast = t;
-        u64 rec = (u64(0x80) << 4) | (u64(0x80) << 13) | (u64(m & 0xffff) << 22);
+        u64 rec = (u64(((m >> 16) & 0xff) ^ 0x80) << 4) | (u64(((m >> 24) & 0xff) ^ 0x80) << 13) | (u64(m & 0xffff) << 22);   // mask bits 16-23 / 24-31 = axis offsets from centre (two's complement)
         std::vector<u8> raw(6); for (int i = 0; i < 6; i++) raw[i] = u8(rec >> (8 * i));
         pad_send(0, raw);
+        if (const char* e = getenv("VFPADSTICK")) {   // "ms:x:y,..." 12-bit values (hex): sent as the L=4 packet
+            u32 x = 0x800, y = 0x800;
+            while (*e) { u64 ts = strtoull(e, (char**)&e, 10); if (*e != ':') break; u32 sx = u32(strtoul(e + 1, (char**)&e, 16)); if (*e != ':') break; u32 sy = u32(strtoul(e + 1, (char**)&e, 16)); if (t >= ts) { x = sx; y = sy; } if (*e == ',') e++; }
+            pad_send(0, { u8(x), u8(((x >> 8) & 0xf) | ((y & 0xf) << 4)), u8(y >> 4), 0 });
+        }
     }
     void pad_tx(int p, u8 b) {
         auto& t = padTx[p];

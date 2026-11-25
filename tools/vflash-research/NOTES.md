@@ -574,3 +574,24 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   `VFLOAD=menu.state VFRENDER=212050 ./vf rom 6951000` renders menu frames in
   about a second instead of a 25-minute boot.
 - The renderer no longer transforms vertices while it is only tracking state.
+
+## Controller input reaches the game
+
+- State records are accepted: after a record with button mask 0x0008 the
+  driver's "last buttons" word (0x10B7A310) reads 0x0008. Buttons are active
+  high.
+- The driver regroups the 16 button bits into bytes of an output struct
+  (0x10A1C668..): out[3] <- bits 0x0001, 0x0002, 0x0008; out[4] <- 0x8000;
+  out[0] <- 0x0004, 0x0400, 0x0100, 0x0200; out[2] <- 0x0800, 0x1000, 0x2000,
+  0x4000; out[1] <- 0x0010, 0x0020, 0x0040, 0x0080; out[5]/out[6] = the two
+  8-bit axes.
+- Tested from the menu save state, one bit at a time (300 ms press, frame
+  compared with a no-input run): bits 2 (0x0004) and 12 (0x1000) act as
+  confirm - the menu board flips to a second screen; bit 8 only changes the
+  animated model; no other single bit changes the menu picture.
+- Not found yet: what moves the menu cursor. Record axes (centre 0x80 or 0),
+  the L=4 analog packet (VFPADSTICK="ms:x:y") and single button bits did not
+  visibly move it. Next step is to read the code that consumes the output
+  struct.
+- py/padtest.sh runs one scripted-input test from menu.state and saves the
+  frame.
