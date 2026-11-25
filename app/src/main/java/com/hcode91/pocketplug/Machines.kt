@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN, CPM }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN, CPM, MINI_FC, BIT90 }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -52,7 +52,7 @@ data class MachineDef(
 val MachineDef.category: String
     get() = when (skin) {
         Skin.DANCE_MAT, Skin.ABL_TV, Skin.LETS_TV, Skin.JOYSTICK_TV, Skin.FLIGHT_STICK, Skin.TV_CONSOLE, Skin.PLUG_PAD -> "TV games"
-        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC, Skin.BEIJUE, Skin.BASIC_FUN -> "Handhelds"
+        Skin.PHONE_CASE, Skin.HANDHELD, Skin.WIDE_HANDHELD, Skin.TABLETOP, Skin.ARCADE_CABINET, Skin.KEYCHAIN, Skin.HH, Skin.MINI_ARCADE, Skin.ARCADE_GENIUS, Skin.GIZMONDO, Skin.ZODIAC, Skin.BEIJUE, Skin.BASIC_FUN, Skin.MINI_FC -> "Handhelds"
         Skin.EGG_PET -> "Pets"
         Skin.APVS_1292, Skin.APF, Skin.ASTROCADE, Skin.HYPERSCAN, Skin.PLAYDIA, Skin.GAME_WAVE, Skin.BRIDGE, Skin.BEENA -> "Consoles"
         Skin.CHESS, Skin.NIXIE_CLOCK, Skin.BACKGAMMON -> "Chess & clocks"
@@ -908,6 +908,29 @@ object Machines {
             roms = listOf(RomSpec("bkgj.u2", 0x400000L, 0xa59ce23cL)),
             skin = Skin.LETS_TV,
             badge = "explorer",
+        ),
+        MachineDef(
+            id = "bittboy",
+            title = "Pocket FC 300-in-1",
+            subtitle = "2017 pocket handheld with 300 8-bit games on a menu of ten a page (left / right pages, START plays) "
+                + "(BittBoy Mini FC 300 in 1; MAME set: bittboy)",
+            chip = "VTxx NES-on-a-chip with $42xx registers, 2 x 16 MB flash",
+            region = "China",
+            year = "2017",
+            roms = listOf(RomSpec("bittboy_flash_read_s29gl256n-tf-v2.bin", 0x2000000L, 0x24c802d7L)),
+            skin = Skin.MINI_FC,
+        ),
+        MachineDef(
+            id = "bistro",
+            title = "Kids' TV Kitchen",
+            subtitle = "2001 Japanese plug-into-the-TV cooking game: the chef walks you through recipes; the blue key "
+                + "moves along the menus and the red key picks (Sega Toys Bistro Kids: Boku mo Watashi mo Kok-san!; MAME set: bistro)",
+            chip = "SSD XaviX (6502 core, own emulation)",
+            region = "Japan",
+            year = "2001",
+            roms = listOf(RomSpec("bistro.u2", 0x200000L, 0x40865e05L)),
+            skin = Skin.ABL_TV,
+            badge = "bistro",
         ),
         MachineDef(
             id = "ban_krrj",
@@ -1838,6 +1861,28 @@ object Machines {
             roms = listOf(RomSpec("atariflashbackmini7800.bin", 0x100000L, 0xda4d9483L)),
             skin = Skin.ABL_TV,
             badge = "flashback",
+        ),
+        MachineDef(
+            id = "bit90",
+            title = "Home Computer 90",
+            subtitle = "1983 Taiwanese BASIC home computer that also plays ColecoVision cartridges: BIT90 BASIC with sound and "
+                + "graphics keywords on a green-key keyboard; the controller strip plays cartridges (Bit Corporation Bit90; MAME set: bit90)",
+            chip = "Zilog Z80 @ 3.58 MHz, TMS9929A, SN76489A",
+            region = "Taiwan",
+            year = "1983",
+            roms = listOf(
+                RomSpec("d32522e.u2", 0x2000L, 0x66fc66b0L),
+                RomSpec("d32351e.u4", 0x2000L, 0xd00c7137L),
+                RomSpec("d32521e.u3", 0x2000L, 0xf6401dd8L),
+                RomSpec("bit90b3.u2", 0x2000L, 0xb992b940L),
+                RomSpec("bit90b3.u4", 0x2000L, 0x06d21fc2L),
+                RomSpec("bit90b3.u3", 0x2000L, 0x61fdccbbL),
+            ),
+            skin = Skin.BIT90,
+            setup = listOf(
+                "It starts in BASIC 3.1 (the menu switches to 3.0): try PRINT 2+3 and RETURN. SHIFT and CTRL hold for the next key.",
+                "For games, add a ColecoVision cartridge from the menu (Cartridges...); the stick, fire buttons and keypad are the strip under the TV.",
+            ),
         ),
         MachineDef(
             id = "adam",
@@ -3032,6 +3077,39 @@ object Machines {
                 "Wait for rEAdY on the board's display.",
                 "For a colour demo type NEW, Ret, then LOAD0 (or LOAD1-3), Ret, then RUN, Ret.",
                 "The two red buttons by the screen are the joystick fire buttons.",
+            ),
+        ),
+        MachineDef(
+            id = "bitgrpha",
+            title = "Bitmap Graphics Terminal (rev A)",
+            subtitle = "1981 American 68000 graphics terminal with a 768 x 1024 upright bitmap screen and an ASCII keyboard; "
+                + "with the loopback plug on its host port what you type comes back to it (BBN BitGraph rev A, ROM 1.25; MAME set: bitgrpha)",
+            chip = "Motorola 68000 @ 6.9 MHz, 3 + 1 x 6850 ACIA, 6821 PIA, AY-3-8912, ER2055 EAROM",
+            region = "USA",
+            year = "1981",
+            roms = listOf(RomSpec("bg125.rom", 0x8000L, 0xb86c974eL)),
+            skin = Skin.CPM,
+            setup = listOf(
+                "It is a terminal: with nothing on the host port it only shows what the host sends. The menu's host port setting plugs in a loopback so your typing (and escape sequences) come back to it.",
+            ),
+        ),
+        MachineDef(
+            id = "bitgrphb",
+            title = "Bitmap Graphics Terminal (rev B)",
+            subtitle = "1982 revision of the 68000 graphics terminal: more memory, a faster clock and a mouse pointer "
+                + "(BBN BitGraph rev B, ROM 2.33 alpha or 3.0P; MAME set: bitgrphb, not working there)",
+            chip = "Motorola 68000 @ 6.9 MHz, 3 x 6850 ACIA, 6821 PIA, AY-3-8912, ER2055 EAROM",
+            region = "USA",
+            year = "1982",
+            roms = listOf(
+                RomSpec("bg2.32hi_u13.bin", 0x2000L, 0x731df44fL),
+                RomSpec("bg2.32lo_u11.bin", 0x2000L, 0x46912afdL),
+                RomSpec("bg2.32hi_u12.bin", 0x2000L, 0xa282a2c8L),
+                RomSpec("bg2.32lo_u10.bin", 0x2000L, 0x6a702a96L),
+            ),
+            skin = Skin.CPM,
+            setup = listOf(
+                "It is a terminal: the menu's host port setting plugs in a loopback so your typing comes back to it.",
             ),
         ),
         MachineDef(

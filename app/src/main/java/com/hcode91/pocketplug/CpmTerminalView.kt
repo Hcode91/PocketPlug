@@ -26,7 +26,9 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
         const val CASE = 1
         /** cream office monitor, drive unit with a black front and a cream keyboard with dark keys (Xerox 820) */
         const val OFFICE = 2
-        fun styleFor(id: String) = when (id) { "bigbord2" -> CASE; "x820" -> OFFICE; else -> BOARD }
+        /** a tall graphics terminal: the portrait monitor straight over the keyboard, no drives (BitGraph) */
+        const val PORTRAIT = 3
+        fun styleFor(id: String) = when (id) { "bigbord2" -> CASE; "x820" -> OFFICE; "bitgrpha", "bitgrphb" -> PORTRAIT; else -> BOARD }
     }
 
     override var onKey: ((Int, Boolean) -> Unit)? = null
@@ -80,15 +82,17 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
     }
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
-        val mw = w * 0.97f
-        val sw = mw * 0.88f
-        val sh = sw * fh / fw * 1.25f            // the cells are taller than wide on the tube
+        var mw = w * 0.97f
+        var sw = mw * 0.88f
+        var sh = sw * fh / fw * (if (fh > fw) 1f else 1.25f)   // text cells are taller than wide on the tube
+        if (sh > h * 0.6f) { val k = h * 0.6f / sh; sh *= k; sw *= k; mw *= k }
         val ml = (w - mw) / 2; val mt = h * 0.012f
         monitor.set(ml, mt, ml + mw, mt + sh + mw * 0.14f)
         screen.set(w / 2f - sw / 2, mt + mw * 0.05f, w / 2f + sw / 2, mt + mw * 0.05f + sh)
         glass.set(screen.left - mw * 0.03f, screen.top - mw * 0.03f, screen.right + mw * 0.03f, screen.bottom + mw * 0.03f)
         power.set(monitor.right - mw * 0.11f, monitor.bottom - mw * 0.06f, monitor.right - mw * 0.04f, monitor.bottom - mw * 0.025f)
         val ct = monitor.bottom + h * 0.008f
+        if (style == PORTRAIT) cabinet.set(ml, ct, ml + mw, ct) else
         cabinet.set(ml + mw * 0.02f, ct, ml + mw * 0.98f, ct + mw * 0.17f)
         for (i in 0..1) {
             val l = cabinet.left + cabinet.width() * (0.05f + i * 0.48f)
@@ -140,7 +144,7 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
         paint.color = 0xFFE8A030.toInt(); c.drawCircle(power.left - mw * 0.025f, power.centerY(), mw * 0.007f, paint)
 
         // the drives (tap for the disk menu), in the style's housing
-        when (style) {
+        if (style != PORTRAIT) when (style) {
             BOARD -> {
                 // the blue board with rows of black chips, the two drives on its right
                 paint.color = 0xFF3A86B8.toInt(); c.drawRoundRect(cabinet, mw * 0.01f, mw * 0.01f, paint)
@@ -171,7 +175,7 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
                 c.drawRoundRect(cabinet.left + cabinet.width() * 0.03f, cabinet.top + cabinet.height() * 0.1f, cabinet.right - cabinet.width() * 0.03f, cabinet.bottom - cabinet.height() * 0.1f, mw * 0.008f, mw * 0.008f, paint)
             }
         }
-        for (i in 0..1) {
+        if (style != PORTRAIT) for (i in 0..1) {
             val s = slots[i]
             val face = RectF(s.left - mw * 0.01f, cabinet.top + cabinet.height() * 0.12f, s.right + mw * 0.01f, cabinet.bottom - cabinet.height() * 0.12f)
             if (style == BOARD) {      // the drives sit on the right of the board, smaller
@@ -198,7 +202,7 @@ class CpmTerminalView(ctx: Context, private val fw: Int, private val fh: Int, pr
             text.color = if (style == BOARD) 0xFF3A3A3A.toInt() else 0xFFBDBDBD.toInt(); text.textSize = face.height() * 0.16f
             c.drawText(if (i == 0) "A" else "B", face.left + mw * 0.02f, face.top + face.height() * 0.24f, text)
         }
-        floppyLabel?.let {
+        if (style != PORTRAIT) floppyLabel?.let {
             text.color = 0xFFEDEBE5.toInt(); text.textSize = cabinet.height() * 0.13f
             c.drawText(it.take(28), slots[0].centerX(), cabinet.bottom - cabinet.height() * 0.02f, text)
         }

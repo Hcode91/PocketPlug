@@ -47,6 +47,9 @@ import kotlin.math.hypot
  *  - "keroro":   a green octagonal floor mat with four round pads in a row:
  *                X (cancel), red (left), green (right) and O (OK); XaviX IN0
  *                bits 0-3.
+ *  - "bistro":   a placeholder for the cooking set's handheld unit: a red
+ *                board with the big red key (choose, IN0 bit 0) and the blue
+ *                key (move on, bit 5).
  *
  * No maker's name or logo is drawn.
  */
@@ -72,6 +75,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
         const val G_PAUSE = 0x01; const val G_PUNCH = 0x10; const val G_KICK = 0x20; const val G_GUARD = 0x40; const val G_JAB = 0x80; const val G_SPIN = 0x200
         const val Y_A = 0x10; const val Y_B = 0x20; const val Y_X = 0x40; const val Y_Y = 0x80; const val Y_PAUSE = 0x100
         const val K_X = 0x01; const val K_RED = 0x02; const val K_GREEN = 0x04; const val K_O = 0x08
+        const val BK_RED = 0x01; const val BK_BLUE = 0x20
         const val M_BLUE = 0x10; const val M_YELLOW = 0x20; const val M_RED = 0x40; const val M_GREEN = 0x80; const val M_SELECT = 0x100
         const val L_PUNCH = 0x80; const val R_PUNCH = 0x100; const val L_KICK = 0x200; const val R_KICK = 0x400; const val GUARD = 0x800
 
@@ -102,6 +106,12 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_BUTTON_L1 -> K_RED
                 KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_BUTTON_R1 -> K_GREEN
                 KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_Z -> K_O
+                else -> 0
+            }
+            if (style == "bistro") return when (code) {
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_Z -> BK_RED
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_X, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_S -> BK_BLUE
                 else -> 0
             }
             if (style == "mattore") return when (code) {
@@ -294,6 +304,10 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 circle(Y_X, "X", cx - d, cy, r); circle(Y_B, "B", cx + d, cy, r)
                 rect(Y_PAUSE, "PAUSE", l + bw * 0.44f, t + bh * 0.3f, l + bw * 0.56f, t + bh * 0.37f)
             }
+            "bistro" -> {
+                circle(BK_BLUE, "", l + bw * 0.3f, t + bh * 0.55f, bh * 0.2f)
+                circle(BK_RED, "", l + bw * 0.7f, t + bh * 0.55f, bh * 0.2f)
+            }
             "keroro" -> {
                 val cy = t + bh * 0.55f; val r = bh * 0.17f
                 circle(K_X, "✕", l + bw * 0.2f, cy, r)
@@ -354,6 +368,7 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
             "backyard" -> drawBackyard(c, held)
             "mattore" -> drawMattore(c, held)
             "keroro" -> drawKeroro(c, held)
+            "bistro" -> drawBistro(c, held)
         }
     }
 
@@ -781,6 +796,27 @@ class AblPadView(ctx: Context, private val style: String) : View(ctx) {
                 c.drawRoundRect(k.rect, k.rect.height() / 2, k.rect.height() / 2, paint)
                 label(c, k.label, k.rect.centerX(), k.rect.bottom + k.rect.height() * 0.9f, k.rect.height() * 0.7f, 0xFFF5F5E0.toInt())
             }
+        }
+    }
+
+    private fun drawBistro(c: Canvas, held: Int) {
+        val bw = body.width(); val bh = body.height()
+        val r = RectF(body.left + bw * 0.04f, body.top + bh * 0.12f, body.right - bw * 0.04f, body.bottom - bh * 0.06f)
+        paint.color = 0x55000000; c.drawRoundRect(r.left, r.top + bh * 0.03f, r.right, r.bottom + bh * 0.03f, bh * 0.2f, bh * 0.2f, paint)
+        paint.shader = LinearGradient(0f, r.top, 0f, r.bottom, 0xFFE8473A.toInt(), 0xFFB82A22.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(r, bh * 0.2f, bh * 0.2f, paint); paint.shader = null
+        // a white checked cloth band behind the keys
+        paint.color = 0xFFF6F2EA.toInt()
+        c.drawRoundRect(r.left + bw * 0.08f, r.top + bh * 0.12f, r.right - bw * 0.08f, r.bottom - bh * 0.1f, bh * 0.16f, bh * 0.16f, paint)
+        paint.color = 0x22D8352A
+        val sq = bh * 0.06f; var y = r.top + bh * 0.12f; var row = 0
+        while (y < r.bottom - bh * 0.1f) { var x = r.left + bw * 0.08f + (if (row % 2 == 0) 0f else sq)
+            while (x < r.right - bw * 0.08f - sq) { c.drawRect(x, y, x + sq, minOf(y + sq, r.bottom - bh * 0.1f), paint); x += sq * 2 }
+            y += sq; row++ }
+        for (kk in ctls) {
+            val d = held and kk.bit != 0
+            if (kk.bit == BK_RED) shade(c, kk.cx, kk.cy, kk.r, 0xFFFF5A4A.toInt(), 0xFFA0140E.toInt(), d)
+            else shade(c, kk.cx, kk.cy, kk.r, 0xFF5A8CF0.toInt(), 0xFF1C3FA0.toInt(), d)
         }
     }
 

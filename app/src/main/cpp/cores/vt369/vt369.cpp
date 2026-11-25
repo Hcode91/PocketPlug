@@ -987,6 +987,7 @@ void Vt369Core::cpuWrite(uint16_t a, uint8_t d)
                 if (r < 0x10 || r >= 0x1b) return;
                 a = uint16_t(0x2000 | r);
             } else if (a < 0x4000) return;
+            if (a == 0x412c && m_cfg.bank412c) { m_s.ahigh = (d & m_cfg.bank412c) ? (1u << 24) : 0; return; }   // the external 16 MB half
             if (m_cfg.board == 4 && a >= 0x6000) { afbWrite(a, d); return; }
             if (a >= 0x6000 && a < 0x8000) { m_s.ram6000[a & 0x1fff] = d; return; }
         } else {

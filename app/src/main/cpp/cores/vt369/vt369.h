@@ -47,6 +47,8 @@ struct Vt369Config {
     // 4 = Atari Flashback mini (plain NES clone, nes_clone.cpp's afbm7800 mapper:
     // MMC3 with outer banks at $6000-$6003, 32 KB of CHR RAM)
     int board = 0;
+    // VT42xx boards with two 16 MB halves: a $412c bit (MAME bittboy_412c_w: 0x04) picks the half
+    uint8_t bank412c = 0;
 };
 
 class Vt369Core : public Core {
@@ -273,7 +275,7 @@ private:
     std::vector<int16_t> m_audio;
     int64_t m_cpuDot = 0;          // CPU's position (dots) within the frame loop
 
-    uint8_t progRead(uint32_t addr) const { addr = (addr & 0x1ffffff) | m_s.ahigh; return m_rom[addr & (m_rom.size() - 1)]; }
+    uint8_t progRead(uint32_t addr) const { addr = (addr & (m_cfg.bank412c ? 0xffffffu : 0x1ffffffu)) | m_s.ahigh; return m_rom[addr & (m_rom.size() - 1)]; }
     int relative() const { return (m_s.relative[0] + ((m_s.relative[1] & 0x0f) << 8)) * 0x2000; }
 
     // SoC

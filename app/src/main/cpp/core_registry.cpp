@@ -53,6 +53,8 @@
 #include "cores/eu3a05/eu3a14.h"
 #include "cores/advision/advision.h"
 #include "cores/adam/adam.h"
+#include "cores/bit90/bit90.h"
+#include "cores/bitgraph/bitgraph.h"
 #include "cores/ngen/ngen.h"
 #include "cores/bigboard/bigboard.h"
 #include "cores/bigboard/bigbord2.h"
@@ -149,6 +151,16 @@ Core* createCore(const std::string& id)
         c.spiFlashWrites = true;
         return new Vt369Core(c);
     }
+    if (id == "bittboy") {    // BittBoy Mini FC 300-in-1 (VT42xx: VT02/03 with $42xx registers, 2 x 16 MB)
+        Vt369Config c;
+        c.romName = "bittboy_flash_read_s29gl256n-tf-v2.bin";
+        c.romSize = 0x2000000;
+        c.soc = 2;
+        c.palMode = 0;
+        c.ntscDmaBug = false;      // MAME force_bad_dma
+        c.bank412c = 0x04;
+        return new Vt369Core(c);
+    }
     if (id == "88in1joy") {   // Play Vision Joystick88 (VT02/03, 4 MB)
         Vt369Config c;
         c.romName = "88in1joystick.bin";
@@ -240,6 +252,10 @@ Core* createCore(const std::string& id)
         c.board = 4;
         return new Vt369Core(c);
     }
+    if (id == "bitgrpha" || id == "bitgrphb")   // BBN BitGraph graphics terminal (68000)
+        return new BitGraphCore(id == "bitgrphb");
+    if (id == "bit90")        // Bit Corporation Bit90 (ColecoVision-compatible BASIC computer)
+        return new Bit90Core();
     if (id == "adam")         // Coleco ADAM (SmartWriter, ColecoVision cartridges)
         return new AdamCore();
     if (id == "advision")     // Entex Adventure Vision (BIOS + cartridge)
@@ -333,6 +349,12 @@ Core* createCore(const std::string& id)
         c.superXavix = true;
         c.i2cSize = 0x200;
         c.i2cPage = 16;   // controls: IN0 bit 0 the gun's trigger, bits 1 / 2 the mat's right / left panels
+        return new XavixCore(c);
+    }
+    if (id == "bistro") {     // Sega Toys Bistro Kids (SSD XaviX, 2 MB)
+        XavixCore::Config c;
+        c.romName = "bistro.u2";
+        c.romSize = 0x200000;
         return new XavixCore(c);
     }
     if (id == "ban_krrj") {   // Keroro (SSD XaviX, 4 MB)

@@ -57,9 +57,11 @@ class EmulatorActivity : Activity() {
     private var kit: KitBoardView? = null
     private var tabletop: TabletopView? = null
     private var adam: AdamView? = null
+    private var bit90: Bit90View? = null
     private var aim: AimView? = null
     private var altair: AltairView? = null
     private var wide: WideHandheldView? = null
+    private var miniFc: MiniFcView? = null
     private var beijue: BeijueView? = null
     private var genius: ArcadeGeniusView? = null
     private var giz: GizmondoView? = null
@@ -189,7 +191,9 @@ class EmulatorActivity : Activity() {
             Skin.CPM -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val big2 = machine.id == "bigbord2"
-                val v = CpmTerminalView(this, if (big2) 640 else 560, if (big2) 288 else 240, CpmTerminalView.styleFor(machine.id)).apply {
+                val bitg = machine.id.startsWith("bitgrp")
+                if (bitg) Native.setOption(handle, 0, if (prefs.getBoolean("bitgraph_loop", true)) 1 else 0)
+                val v = CpmTerminalView(this, if (bitg) 768 else if (big2) 640 else 560, if (bitg) 1024 else if (big2) 288 else 240, CpmTerminalView.styleFor(machine.id)).apply {
                     onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
                     onMenu = { showMenu() }
                     onDisks = { showDiskMenu() }
@@ -330,6 +334,18 @@ class EmulatorActivity : Activity() {
                 adam = v
                 setContentView(v)
             }
+            Skin.BIT90 -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                Native.setOption(handle, 0, prefs.getInt("bit90_basic", 1))
+                val v = Bit90View(this).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
+                }
+                bit90 = v
+                setContentView(v)
+            }
             Skin.ALTAIR -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 val vt = prefs.getInt("altair_term", 0)
@@ -447,6 +463,15 @@ class EmulatorActivity : Activity() {
                     onMenu = { showMenu() }
                 }
                 beijue = v
+                setContentView(v)
+            }
+            Skin.MINI_FC -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = MiniFcView(this).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                miniFc = v
                 setContentView(v)
             }
             Skin.WIDE_HANDHELD -> {
@@ -1240,12 +1265,13 @@ class EmulatorActivity : Activity() {
         paused = true
         val files = adamDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
         val items = ArrayList<Pair<String, () -> Unit>>()
-        items += "Add a disk (.dsk) or cartridge (.col .rom .bin)..." to {
+        val cartsOnly = machine.skin == Skin.BIT90
+        items += (if (cartsOnly) "Add a ColecoVision cartridge (.col .rom .bin)..." else "Add a disk (.dsk) or cartridge (.col .rom .bin)...") to {
             startActivityForResult(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
             }, PICK_ADAM)
         }
-        for (f in files.filter { isAdamDisk(it) }) items += "Disk: ${f.nameWithoutExtension}" to { loadAdamDisk(f, restart = true) }
+        if (!cartsOnly) for (f in files.filter { isAdamDisk(it) }) items += "Disk: ${f.nameWithoutExtension}" to { loadAdamDisk(f, restart = true) }
         for (f in files.filter { !isAdamDisk(it) }) items += "Cartridge: ${f.nameWithoutExtension}" to { loadAdamCart(f) }
         if (adamDisk != null) items += "Eject the disk" to {
             saveDisks()
@@ -1793,9 +1819,11 @@ class EmulatorActivity : Activity() {
             else if (kit != null) kit?.updateFrame(pixels)
             else if (tabletop != null) tabletop?.updateFrame(pixels)
             else if (adam != null) adam?.updateFrame(pixels)
+            else if (bit90 != null) bit90?.updateFrame(pixels)
             else if (aim != null) aim?.updateFrame(pixels)
             else if (altair != null) altair?.updateFrame(pixels)
             else if (wide != null) wide?.updateFrame(pixels)
+            else if (miniFc != null) miniFc?.updateFrame(pixels)
             else if (beijue != null) beijue?.updateFrame(pixels)
             else if (genius != null) genius?.updateFrame(pixels)
             else if (giz != null) giz?.updateFrame(pixels)
@@ -1874,8 +1902,24 @@ class EmulatorActivity : Activity() {
             prefs.edit().putBoolean("setup_hidden_${machine.id}", false).apply()
             setupBubble?.show(true)
         }
-        if (workstation != null) items += "Disks..." to { showDiskMenu() }
+        if (workstation != null && !machine.id.startsWith("bitgrp")) items += "Disks..." to { showDiskMenu() }
+        if (machine.id.startsWith("bitgrp")) {
+            val loop = prefs.getBoolean("bitgraph_loop", true)
+            items += (if (loop) "Host port: loopback plug (tap for nothing)" else "Host port: nothing (tap for a loopback plug)") to {
+                prefs.edit().putBoolean("bitgraph_loop", !loop).apply()
+                synchronized(coreLock) { Native.setOption(handle, 0, if (!loop) 1 else 0) }
+            }
+        }
         if (atari != null) items += "Disks & cartridges..." to { showAtariMenu() }
+        if (bit90 != null) {
+            items += "Cartridges..." to { showAdamMenu() }
+            val basic = prefs.getInt("bit90_basic", 1)
+            items += (if (basic == 1) "BASIC 3.1 (tap for 3.0, restarts)" else "BASIC 3.0 (tap for 3.1, restarts)") to {
+                val nb = 1 - basic
+                prefs.edit().putInt("bit90_basic", nb).apply()
+                synchronized(coreLock) { Native.setOption(handle, 0, nb) }
+            }
+        }
         if (acorn != null) items += "Disks & files..." to { showAcornMenu() }
         if (bbc != null) {
             items += "Discs & tapes..." to { showBbcMenu() }
@@ -1945,7 +1989,14 @@ class EmulatorActivity : Activity() {
         Skin.EGG_PET -> petKeyBit(code)
         Skin.PHONE_CASE, Skin.ARCADE_CABINET, Skin.BASIC_FUN -> caseKeyBit(code)
         Skin.HANDHELD -> handheldKeyBit(code)
-        Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD -> caseKeyBit(code)
+        Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD, Skin.MINI_FC -> caseKeyBit(code)
+        Skin.BIT90 -> when (code) {
+            KeyEvent.KEYCODE_DPAD_UP -> 0x01; KeyEvent.KEYCODE_DPAD_DOWN -> 0x02
+            KeyEvent.KEYCODE_DPAD_LEFT -> 0x04; KeyEvent.KEYCODE_DPAD_RIGHT -> 0x08
+            KeyEvent.KEYCODE_BUTTON_A -> 0x10; KeyEvent.KEYCODE_BUTTON_B -> 0x20
+            KeyEvent.KEYCODE_BUTTON_START -> 1 shl 9; KeyEvent.KEYCODE_BUTTON_SELECT -> 1 shl 10
+            else -> 0
+        }
         Skin.ABL_TV -> AblPadView.keyBit(machine.badge, code)
         Skin.LETS_TV -> LetsTvView.keyBit(machine.badge, code)
         Skin.FLIGHT_STICK -> FlightStickView.keyBit(code)
@@ -2563,6 +2614,8 @@ class EmulatorActivity : Activity() {
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
+        miniFc?.externalMask = keyInputs or stickMask
+        bit90?.externalMask = keyInputs or stickMask
         beijue?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask
@@ -2649,6 +2702,8 @@ class EmulatorActivity : Activity() {
         keychain?.externalMask = keyInputs
         hh?.externalMask = keyInputs
         wide?.externalMask = keyInputs or stickMask
+        miniFc?.externalMask = keyInputs or stickMask
+        bit90?.externalMask = keyInputs or stickMask
         beijue?.externalMask = keyInputs or stickMask
         genius?.externalMask = keyInputs or stickMask
         giz?.externalMask = keyInputs or stickMask

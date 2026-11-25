@@ -24,6 +24,7 @@ controller.
 | 4004 Nixie Clock (2008 home-built clock) | `4004clk` | Intel 4004 (own core) + 4001 ROM / 4002 RAM I/O | Matches MAME's tube and dot output frame-for-frame through power-on, start and the setting menus; set from the phone's clock; tick-tock sound |
 | 500-in-1 Handheld Game | `500in1hh` | VT "4FFx" (NES-on-a-chip, scrambled opcodes), 16 MB | Language select, menu and games match MAME pixel-for-pixel in tested frames (MAME marks it not working, but it runs in both); NES APU sound |
 | Joystick88 (Play Vision plug-and-play joystick) | `88in1joy` | VT02 / VT03 | Menu and games match MAME pixel-for-pixel in every tested frame |
+| BittBoy Mini FC 300 in 1 | `bittboy` | VT42xx (VT02 / VT03 core with the $412c 16 MB half select) | The 300-game menu and games from both 16 MB halves play with sound |
 | Mephisto Academy chess computer (Hegener + Glaser) | `academy` | W65C02 (own core), HD44780 LCD, magnet sensor board | Boots to its LCD title, plays (book moves, clock display), board LEDs and key LEDs as in MAME |
 | Mephisto Almeria 16 Bit / 32 Bit chess modules (Hegener + Glaser) | `alm16`, `alm16a`, `alm32` | Motorola 68000 / 68020 (Musashi), HD44780 LCD, magnet sensor board | All three boot to the same LCD as MAME and answer 1. e2-e4 with e7-e5 (same LEDs and LCD as MAME's alm32) |
 | Mephisto Berlin 68000 / Berlin Professional 68020 (Hegener + Glaser) | `berl16`, `berl16a`, `berlinp`, `berlinpl` | Motorola 68000 / 68EC020 (Musashi), HD44780 LCD, button board with 64 LEDs | Boot to the LCD and answer 1. e2-e4 (with c7-c5 / e7-e5) |
@@ -77,6 +78,8 @@ controller.
 | Backgammon Challenger (Fidelity, 1979) | `backgamc` | Zilog Z80 (own Z80 core), NE591 LED latch, 4x4 keypad | Same digits as MAME frame for frame through start-up and the first roll; checkers are moved by hand on the drawn board |
 | (Advanced) Voice Chess Challenger (Fidelity, 1979 / 1980) | `vcc`, `avcc` | Z80 + 8255, 4-digit LED, TSI S14001A speech (own ports) | Same digits as MAME through start-up, CL, EN and LV; the speech matches MAME's sound |
 | Coleco Adam | `adam` | Z80 (superzazu/z80) + TMS9928A + SN76489A, ADAMnet: master, keyboard, printer and disk drive 6801s (own 6801 port with the serial interface), WD2793 | Boots SmartWriter and types, matching MAME's screen; boots 160 KB disks as MAME does; ColecoVision cartridges run (a homebrew cart matches MAME's frame). No tape drive yet |
+| Bit90 (Bit Corporation) | `bit90` | Z80 + TMS9929A + SN76489A (as the Adam), the BASIC ROM banks and the 8 x 8 keyboard | BIT90 BASIC 3.1 and 3.0 boot and run typed lines; ColecoVision cartridges with the controller strip |
+| BitGraph rev A / rev B (BBN) | `bitgrpha`, `bitgrphb` | Motorola 68000 (Musashi), 6850 ACIAs, 6821 PIA, AY-3-8912 (tones and noise), ER2055 EAROM, 1024 x 768 bitmap shown upright | Rev A 1.25, rev B 2.33 alpha and 3.0P boot to their banners and draw what the host sends (a loopback plug echoes the keyboard); rev B is not working in MAME |
 | Air-Blaster Joystick (Advance Bright, 2005) | `airblsjs` | Elan EU3A05 (6502 SoC: banked 4 MB ROM, DMA, tile/sprite video, 6 ADPCM channels) | Menu and the games run (tested: the first 3D stage); identical to MAME's frames on the title. Enemy patterns differ run to run (the chip's random register) |
 | Altair 8800b (MITS, 1976) | `al8800b` | Intel 8080, front panel (LEDs, address/data and control switches), 88-2SIO terminal, 88-DCDD 8" disks | Front panel works (examine, deposit, run, single step, accumulator switches; the bus lights while running), Kill the Bit built in; terminal and disks as on the turnkey (booting disks uses the turnkey's boot PROM) |
 | Altair 8800b Turnkey (MITS, 1977) | `al8800bt` | Intel 8080, turnkey monitor and disk boot PROMs, 88-2SIO terminal (VT100 or ADM-3A codes), 88-DCDD 8" disks | Monitor runs; boots CP/M 2.2, Disk BASIC and their games from SIMH-style `.dsk` images (MAME doesn't run this set) |
@@ -110,6 +113,7 @@ controller.
 | Daikaijuu Battle (Bandai, 2007) | `ban_um2j` | SuperXaviX with the camera on the extra ports, 24C04 | Hands over Start begin the game; battles follow your hands |
 | Mission Start (Boukenger) (Bandai, 2006) | `ban_bkgj` | SSD 2002 SuperXaviX, 4 MB, 24C04 EEPROM; the toy gun's trigger and the floor mat's two pads | Plays: story missions and free play; step left / right to aim and choose, the trigger shoots and picks (MAME's driver doesn't map the controls) |
 | Keroro Dotabata Daikessen (Bandai, 2006) | `ban_krrj` | SSD XaviX: own 6502 core with code / data banks and far calls, tilemaps, sprites, HSL palette, 16-voice wavetable sound | Same picture as MAME frame for frame from boot through the menus; the mini-games play with sound |
+| Bistro Kids (Sega Toys, 2001) | `bistro` | SSD XaviX (the same core) | Boots through the Sega Toys and Telekids logos to the chef and the mode menu (blue key moves, red key picks); MAME marks it not working |
 | Kick Boxing (Advance Bright) | `ablkickb` | SunPlus SPG24x (encrypted ROM) + the limb sensor receiver | Menus, fighter select and fights; punches, kicks and guard from the on-screen gloves and feet (MAME's driver has no working sensors) |
 | Millennium Arcade 3D 15-in-1 | `arcade3d` | SunPlus SPG24x (JungleTac encrypted ROM) | Title, game menu and games (Deep Storm) run; not in MAME 0.264 to compare against |
 | Mini Arcade Console 10-in-1 (Fizz Creations) | `arcade10` | Sitronix ST2302U (W65C02 core + own SoC port), ST7735 LCD, SPI flash | Boot, menu and games match MAME's current driver frame for frame (built from MAME's source to compare) |
@@ -158,6 +162,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | 4004 Nixie Clock | `4004clk` | `clock.u30` to `clock.u45` (16 files) | 256 bytes each | `3d8608a5` ... `a8d419ef` (checked one by one) |
 | 500-in-1 Handheld Game | `500in1hh` | `500in1.bin` | 16 MB (16,777,216 bytes) | `50f44c1a` |
 | Joystick88 | `88in1joy` | `88in1joystick.bin` | 4 MB (4,194,304 bytes) | `86b8d819` |
+| BittBoy Mini FC 300 in 1 | `bittboy` | `bittboy_flash_read_s29gl256n-tf-v2.bin` | 32 MB | `24c802d7` |
 | Mephisto Academy | `academy` | `academy_engl.16k`, `academy_engl.32k` | 32 KB each | `ebda6674`, `a967922b` |
 | | | `hd44780_a00.bin` (from MAME's `hd44780` zip) | 4 KB (4,096 bytes) | `e459877c` |
 | Mephisto Almeria 32 Bit | `alm32` | `alm32.bin` + `hd44780_a00.bin` | 128 KB (131,072 bytes) | `38f4b305` |
@@ -216,6 +221,9 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Voice Chess Challenger | `vcc` | `cn19256n_101-32013`, `cn19174n_vcc_2`, `cn19175n_vcc_3`, `101-32107` | 4 KB each | `257bb5ab`, `f33095e7`, `624f0cd5`, `f35784f9` |
 | Advanced Voice Chess Challenger | `avcc` | `101-64017`, `101-32010` (= `cn19175n_vcc_3`), `101-32107` (both from the `vcc` zip) | 8 / 4 / 4 KB | `f1133abf`, `624f0cd5`, `f35784f9` |
 | Coleco Adam | `adam` | `os7.u2`, `eos 6 rev 57 08dd.u22`, `wp_r80.rom` (adam zip) | 8 KB, 16 KB, 32 KB | `3aa93ef3`, `ef6403c5`, `58d86a2a` |
+| Bit90 | `bit90` | `d32522e.u2`, `d32351e.u4`, `d32521e.u3` (BASIC 3.1), `bit90b3.u2`, `bit90b3.u4`, `bit90b3.u3` (3.0) | 8 KB each | `66fc66b0`, `d00c7137`, `f6401dd8`, `b992b940`, `06d21fc2`, `61fdccbb` |
+| BitGraph rev A | `bitgrpha` | `bg125.rom` | 32 KB | `b86c974e` |
+| BitGraph rev B | `bitgrphb` | `bg2.32hi_u13.bin`, `bg2.32lo_u11.bin`, `bg2.32hi_u12.bin`, `bg2.32lo_u10.bin` (2.33 alpha; or the `bg517x` 3.0P set) | 8 KB each | `731df44f`, `46912afd`, `a282a2c8`, `6a702a96` |
 | | | `master rev a 174b.u6` (adam zip), `keyboard.u2` (adam_kb), `printer.u2` (adam_prn) | 2 KB each | `035a7a3d`, `ef204746`, `e8db783b` |
 | | | `adam disk u10 ad 31 rev a 09-27-84.u10` (adam_fdc) | 4 KB | `4b0b7143` |
 | Air-Blaster Joystick | `airblsjs` | `airblsjs.bin` | 4 MB (4,194,304 bytes) | `d10a6a84` |
@@ -252,6 +260,7 @@ What each machine needs, with the checksums PocketPlug checks on import. A MAME 
 | Daikaijuu Battle | `ban_um2j` | `um2j.u1` | 8 MB | `88ea8e50` |
 | Mission Start (Boukenger) | `ban_bkgj` | `bkgj.u2` | 4 MB | `a59ce23c` |
 | Keroro Dotabata Daikessen | `ban_krrj` | `krrj.u2` | 4 MB | `16f0fe78` |
+| Bistro Kids | `bistro` | `bistro.u2` | 2 MB | `40865e05` |
 | Kick Boxing | `ablkickb` | `ablkickboxing.bin` | 8 MB (8,388,608 bytes) | `61394c45` |
 | Arcade 3D 15-in-1 | `arcade3d` | `arcade3d.u3` | 8 MB (8,388,608 bytes) | `130843a5` |
 | Mini Arcade Console 10-in-1 | `arcade10` | `st2x_internal_type1.bin`, `25q40.bin` | 8 KB, 512 KB | `f4dc1fc2`, `62784666` |
