@@ -5,7 +5,7 @@ mem=np.frombuffer(raw,dtype=np.uint8)
 B=0x48000
 def s16(v): return v-65536 if v&0x8000 else v
 lines=open('/home/claude/vft/g21.txt').read().split('\n')[269:836]
-M=np.eye(3); T=np.zeros(3); S=np.ones(3); tex=(0,0); fmt=0; pal=(0,0); meshes=[]
+M=np.eye(3); T=np.zeros(3); S=np.ones(3); tex=(0,0); fmt=0; pal=(0,0); meshes=[]; cap=0; mvb=0
 for l in lines:
     if not l.startswith('L '): continue
     ws=[int(x,16) for x in l.split()[2:]]; k=1
@@ -21,16 +21,20 @@ for l in lines:
             k+=1+nw; continue
         if op==0x87: tex=(w&0xfff,(w>>12)&0xfff)
         if op==0x8f: pal=(w&0xfff,(w>>12)&0xfff)
+        if op==0x0c: cap=ws[k+1]; k+=2; continue
+        if op==0x0a: mvb=ws[k+1]; k+=2; continue
         if op==0x86: fmt=w&0xffffff
-        if w==0x09000000: meshes.append((ws[k+1],M.copy(),T.copy(),S.copy(),(tex,pal),fmt)); k+=2; continue
+        if w==0x09000000: meshes.append((ws[k+1],M.copy(),T.copy(),S.copy(),(tex,pal,cap,mvb),fmt)); cap=0; mvb=0; k+=2; continue
         k+=1
 def blk(X,Y): return B+(Y//8)*16384+(X//64)*512+(Y%8)*64+X%64
 def texture(tp,fmt):
-    (tx,ty),(cx,cy)=tp
+    (tx,ty),(cx,cy)=tp[:2]
+    if ty>=2048: ty-=240      # rows 2048+ sit 240 rows lower in memory
+    if cy>=2048: cy-=240
     w=8<<(fmt&7); h=8<<((fmt>>3)&7)
     X=np.arange(w)+tx*2; Y=np.arange(h)[:,None]+ty
     ind=mem[blk(X,Y)].astype(int)
-    PX=np.arange(256)*2+cx*2; a=blk(PX,max(cy-240,0))
+    PX=np.arange(256)*2+cx*2; a=blk(PX,cy)
     p=mem[a].astype(int)|(mem[a+1].astype(int)<<8)
     rgb=np.stack([(p&31)<<3,((p>>5)&31)<<3,((p>>10)&31)<<3],1).astype(np.float32)
     out=rgb[ind]; out[ind==0]=-1
@@ -46,6 +50,8 @@ def f16(buf,count,offset):
     return np.where(h&0x8000,-v,v)
 def r32(a): return struct.unpack_from('<I',raw,a-0x10000000)[0]
 VB=[0]
+BUF={}
+ZERO=np.zeros(10)
 def prims(tg):
     a=tg; vb=VB[0]; out=[]
     for _ in range(4000):
@@ -57,24 +63,33 @@ def prims(tg):
             if fl&0x40:
                 idx=np.frombuffer(raw,dtype='<u2',count=n,offset=a+4-0x10000000)//5
                 nv=int(idx.max())+1 if n else 0
-                v=f16(raw,nv*10,vb-0x10000000).reshape(nv,10)
+                if vb in BUF:
+                    v=np.array([BUF.get(vb+20*i,ZERO) for i in range(nv)])
+                else: v=f16(raw,nv*10,vb-0x10000000).reshape(nv,10)
                 a+=4+4*((n+1)//2)
             else:
                 v=f16(raw,n*10,a+4-0x10000000).reshape(n,10); idx=np.arange(n)
                 a+=4+20*n
-            out.append((op,idx,v)); continue
+            out.append((op,idx,v,vb in BUF and bool(fl&0x40))); continue
         if op!=0x04: unk[op]=unk.get(op,0)+1
         break
     return out
 for tg,M_,T_,S_,tx,fm in meshes:
     t=texture(tx,fm)
+    if tx[3]: VB[0]=tx[3]
     pr=prims(tg)
-    if not T_.any(): continue
-    for op,idx,v in pr:
-        if len(idx)<3: continue
+    for op,idx,v,frombuf in pr:
         v=np.nan_to_num(v)
-        p=(v[:,0:3]*S_*K)@M_.T+T_; z=-p[:,2]
+        if frombuf: p=v[:,0:3]*K
+        else: p=(v[:,0:3]*S_*K)@M_.T+T_
+        if tx[2] and not frombuf:
+            o=v.copy(); o[:,0:3]=p/K; o[:,7]=1-o[:,7]   # buffer-drawn pieces need v the other way up (reason unknown)
+            for i in range(len(o)): BUF[tx[2]+20*i]=o[i]
+            continue
+        if len(idx)<3: continue
+        z=-p[:,2]
         if op==0x44: tl=[idx[i:i+3] for i in range(0,len(idx)-2,3)]
+        elif frombuf and len(sys.argv)>2: tl=[np.array([idx[0],idx[i+1],idx[i+2]]) for i in range(0,len(idx)-2)]
         else: tl=[idx[i:i+3] for i in range(0,len(idx)-2)]
         for tri in tl:
             a_,b_,c_=tri

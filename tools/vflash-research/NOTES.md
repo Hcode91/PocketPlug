@@ -481,3 +481,20 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   strips from it with registers 0x3C/0x40 set to 0x3E00 (1.0 in the vertex
   float format) and zero translation: that is the "zero translation" group
   (animated models and probably the button faces).
+
+## High rows, output buffers in practice
+
+- **Rows 2048 and up sit 240 rows lower in memory**, for textures and palettes
+  alike (y >= 2048 -> y - 240). So the "palette bias" above is really this:
+  e.g. texture (0,2064) 256x128 with palette (0,2308) is the "Game Zone"
+  button at rows 1824.. with its palette at row 2068. Dynamic-looking
+  positions (2176, 2240) are ordinary rows of VFF segment 3 as well.
+- `0A000000 addr` also appears in main lists, not only inside sublists.
+- Output buffers: captures are laid end to end from 0x10DE8DF0 (20 bytes per
+  vertex) and later draws index into the whole run from that base. Storing
+  camera-space positions there and drawing them with an identity transform
+  puts the menu buttons and other pieces in the right places (strips, not
+  fans). Their texture V axis is still wrong (button text upside down).
+- py/render.py now draws the room with walls, ceiling, pictures, pillars,
+  score board and the four buttons (New Game / Load Saved Game / Options /
+  Game Zone).
