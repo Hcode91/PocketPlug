@@ -440,3 +440,22 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   0x10048000), exact projection (0x6C, 0x78), lighting, the 40/6F record types.
 - New harness switches: VFFLOW=lo,hi (with VFTRACE window) logs every
   non-sequential PC in a range; VFBASE logs writes to 0xA800008C-A4; VFFRAME.
+
+## Palettes (solved) and draw records
+
+- **Palette rows are biased by 240**: the palette for a texture is the 256
+  16-bit entries at (cx, cy - 240) in the same block-linear space. Game
+  palettes (cy 2288-2342) are therefore rows 2048-2102 = the tail of VFF
+  segment 3 (0x10448000 onward), not module code. With that, the 8 bpp game
+  textures decode in full colour. (Why 240: unknown, it equals the buffer
+  height in registers 0x90/0x94; the texture position itself has no bias.
+  A handful of textures still look wrong: probably 4 bpp or shared palettes.)
+- Sublist commands: `0A000000 addr` selects a vertex buffer (it stays selected
+  across sublists); primitive header `TTFFNNNN`: TT = 0x44 triangle list,
+  0x40 and 0x6F other topologies (strip/fan, not confirmed), FF bit 6 set =
+  N 16-bit indices follow (padded to a word), clear = N inline 5-word
+  vertices follow; `04000000` ends the sublist.
+- Packet `10000000 addr` appears once per frame (address 0x10AFB34C, zeros in
+  the dump): purpose unknown.
+- 21 of the 96 meshes per frame are drawn with a zero translation: probably
+  the 2D/overlay layer, with a different transform set-up.
