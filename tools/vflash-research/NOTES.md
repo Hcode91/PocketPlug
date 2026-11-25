@@ -381,3 +381,27 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   8N1, FIFO on, receive interrupt on) - the controller ports.
 - 0xDC000000 interrupt mask in the game: 0x00365146.
 - The engine submits ~60,000 tiny command lists per second.
+
+## Intro video and sound (in progress)
+
+- MJP video frames decode offline: swap bytes in pairs, take the JPEG headers
+  (DQT, SOF 320x160 4:2:0, DHT, SOS) from frame 0; later `00dc` chunks start
+  directly at their SOS. The scan data has **no 0xFF00 byte stuffing** and no
+  EOI: add both and any JPEG decoder accepts it. (A few frames still fail,
+  probably odd-length chunk alignment.)
+- Why the engine loops on MAIN01.MJP: the stream fills the 20-sector ring
+  (mark moved two sectors ahead each time, 0x84 = 0), nothing consumes it, so
+  the driver stops the transfer (0x40 bit 2 off), seeks back to the first
+  unconsumed sector (target 12:18:35 = LBA 55235), reads two sectors and tries
+  again. The CD side is behaving; the MJP player is not pulling data yet.
+- Sound is not the blocker. The engine queues commands in a ring at
+  0x10AF96D0 (read index 0x10AF96CC, write index 0x10AF96C8) and handles one
+  per tick (0x109DFA54, command 5 = key-on). Voices 1/2 are re-keyed every
+  ~171 ms and 16-21 / 45-48 in groups: a note sequencer playing samples from
+  VFF segment 2. Harness model: key-on 0x1010/0x1014, key-off 0x1018/0x101C,
+  +0x34 bit 16 while a voice is busy (looping when control & 0x1E0), length
+  from end-start at 44100 bytes/s * pitch/0x1000 (a guess). VFSND logs it.
+- Display base (0xB8000160) is rewritten 60 times a second with 0x1004A000,
+  0x100C0000 or 0x100C2000, but the loader screen is *rendered* ~1077 times a
+  second (each state change or primitive is its own tiny list): frame pacing
+  is not tied to the display yet - worth checking against the vblank status.

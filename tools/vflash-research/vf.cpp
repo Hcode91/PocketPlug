@@ -255,7 +255,7 @@ struct VF : Bus {
                 printf("%s %08x = %08x  pc %08x t=%llu\n", k, a, v, pc, cycles / 150000);
             return;
         }
-        if (getenv("VFB8") && (a >> 24) == 0xb8 && k[0] == 'W') { printf("%s %08x = %08x  pc %08x\n", k, a, v, pc); return; }
+        if (getenv("VFB8") && (a >> 24) == 0xb8 && k[0] == 'W') { printf("%s %08x = %08x  pc %08x t=%llu\n", k, a, v, pc, cycles / 150000); return; }
         if (getenv("VFBC") && (a >> 24) == 0xbc) { printf("%s %08x = %08x  pc %08x t=%llu\n", k, a, v, pc, cycles / 150000); return; }
         if (getenv("VFC4") && (a >> 24) == 0xc4) { printf("%s %08x = %08x  pc %08x  t=%llu\n", k, a, v, pc, cycles / 150000); return; }
         if ((novel || getenv("VFALL")) && logged < logLimit) { logged++; printf("%s %08x = %08x  pc %08x\n", k, a, v, pc); }
@@ -344,7 +344,19 @@ struct VF : Bus {
     }
     void tick32k() { tp_advance(0, 703); tp_advance(1, 114); }
 
+    // ---- sound chip (0xB0000000): 64 voices x 0x40; guessed timing model ----
+    bool sndOn[64] = {}; u64 sndAt[64] = {};
+    bool snd_busy(int v) {
+        if (!sndOn[v]) return false;
+        u32 b = 0xb0000000 + v * 0x40, len = regs[b + 4] - regs[b], pitch = regs[b + 0x10] & 0x1fff;
+        if (!pitch) pitch = 0x1000;
+        if (regs[b + 12] & 0x1e0) return true;      // looping voice: busy until keyed off
+        double rate = (getenv("SNDRATE") ? atof(getenv("SNDRATE")) : 44100.0) * pitch / 4096.0;   // bytes per second
+        if (double(cycles - sndAt[v]) / 150e6 * rate >= double(len)) { sndOn[v] = false; if (getenv("VFSND")) printf("snd voice %d ended t=%llu\n", v, cycles / 150000); }
+        return sndOn[v];
+    }
     u32 io_read(u32 a) {
+        if (a >= 0xb0000000 && a < 0xb0001000 && (a & 0x3f) == 0x34) return snd_busy((a >> 6) & 63) ? 0x10000 : 0;
         if (a >= 0xb8000800 && a < 0xb8001000) { u32 v; memcpy(&v, &sram[a - 0xb8000000], 4); return v; }
         if ((a >> 24) == 0xdc) { u32 v = int_read(a); log("R", a, v); return v; }
         u32 dev = a >> 16;
@@ -377,6 +389,13 @@ struct VF : Bus {
             u64& c = regionCount[(a >> 24) == 0xa8 || (a >> 24) == 0xa4 ? a : a & 0xfffff000];
             if (!c) printf("region %08x first write %08x = %08x pc %08x t=%llu\n", a & 0xfffff000, a, v, cpu->r[15], cycles / 150000);
             c++;
+        }
+        if (a == 0xb0001010 || a == 0xb0001014 || a == 0xb0001018 || a == 0xb000101c) {
+            int base = (a & 4) ? 32 : 0; bool on = a < 0xb0001018;
+            for (int i = 0; i < 32; i++) if (v >> i & 1) {
+                sndOn[base + i] = on; sndAt[base + i] = cycles;
+                if (getenv("VFSND")) { u32 b = 0xb0000000 + (base + i) * 0x40; printf("snd key %s voice %d %08x..%08x loop %08x ctrl %x pitch %x pc %08x t=%llu\n", on ? "on" : "off", base + i, regs[b], regs[b + 4], regs[b + 8], regs[b + 12], regs[b + 16], cpu->r[15], cycles / 150000); }
+            }
         }
         if (a == 0xb8000000) { lcdStatus &= ~v; lcd_int(); log("W", a, v); return; }
         if (a == 0xc4000014) {
