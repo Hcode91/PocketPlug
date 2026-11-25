@@ -76,6 +76,7 @@ struct VF : Bus {
     // ---- experimental 3D renderer (VFRENDER=ms: rasterise lists from that time on; see NOTES "first menu render") ----
     // Vertex floats: 1 sign, 6 exponent (bias 31), 9 mantissa. Projection constants are guesses.
     struct RnState { float M[9] = {1,0,0,0,1,0,0,0,1}, T[3] = {0,0,0}, S[3] = {1,1,1}; bool ident = false; u32 tex = 0, fmt = 0, pal = 0, vb = 0, cap = 0, org = 0, clip0 = 0, clip1 = 0x000ef1ff; } rn;
+    u32 rnM84 = 0, rnM88 = 0, rnM1c = 0, rnM1e = 0;   // not in save states (the RnState layout is part of the state file)
     std::vector<float> rnZ; long long rnTris = 0, rnFrames = 0;
     static float rn_f(u16 h) { int e = (h >> 9) & 63; if (!e) return 0; float v = (1 + (h & 511) / 512.0f) * ldexpf(1.0f, e - 31); return (h & 0x8000) ? -v : v; }
     static u16 rn_enc(float f) { if (f == 0 || f != f) return 0; u16 s = f < 0 ? 0x8000 : 0; f = fabsf(f); int e; float m = frexpf(f, &e); /* f = m * 2^e, m in [0.5,1) */ int ex = e - 1 + 31; if (ex <= 0) return 0; if (ex > 63) ex = 63; int man = int((m * 2 - 1) * 512); if (man > 511) man = 511; return s | u16(ex << 9) | u16(man); }
@@ -140,6 +141,11 @@ struct VF : Bus {
                     u16 vv = rn_enc(1 - vs[i].v); memcpy(&sdram[o + 14], &vv, 2);     // empirical: captured pieces need v the other way up
                 }
             } else if (draw) {
+                if (getenv("VFRNLOG")) {
+                    float ox = float(rn.org & 0xfff), oy = float((rn.org >> 12) & 0xfff), x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+                    for (auto& v : vs) if (v.z > 40) { float X = ox + 420 * v.x / v.z, Y = oy + 0.47f * 420 * v.y / v.z; x0 = std::min(x0, X); x1 = std::max(x1, X); y0 = std::min(y0, Y); y1 = std::max(y1, Y); }
+                    printf("mesh %08x op %02x fl %02x n %u tex %06x fmt %06x pal %06x ident %d box %.0f,%.0f-%.0f,%.0f clip %06x misc %06x %06x %06x %06x frame %lld\n", a, op, fl, n, rn.tex, rn.fmt, rn.pal, rn.ident, x0 - (rn.clip0 & 0xfff), y0 - ((rn.clip0 >> 12) & 0xfff), x1 - (rn.clip0 & 0xfff), y1 - ((rn.clip0 >> 12) & 0xfff), rn.clip0, rnM84, rnM88, rnM1c, rnM1e, rnFrames);
+                }
                 if (op == 0x44) { for (u32 i = 0; i + 2 < n; i += 3) rn_tri(vs[i], vs[i + 1], vs[i + 2]); }
                 else for (u32 i = 0; i + 2 < n; i++) rn_tri(vs[i], vs[i + 1], vs[i + 2]);
             }
@@ -161,6 +167,10 @@ struct VF : Bus {
             if (op == 0xd3) { if (rd32(la + 4 * (k + 1)) == 0 && draw) { std::fill(rnZ.begin(), rnZ.end(), 1e30f); rnFrames++; } k += w & 0xffff; continue; }
             if (op == 0x82) rn.clip0 = w & 0xffffff;
             if (op == 0x81) rn.org = w & 0xffffff;
+            if (op == 0x84) rnM84 = w & 0xffffff;
+            if (op == 0x88) rnM88 = w & 0xffffff;
+            if (op == 0x1c) rnM1c = w & 0xffffff;
+            if (op == 0x1e) rnM1e = w & 0xffffff;
             if (op == 0x83) rn.clip1 = w & 0xffffff;
             if (op == 0x87) rn.tex = w & 0xffffff;
             if (op == 0x86) rn.fmt = w & 0xffffff;
@@ -738,8 +748,8 @@ int main(int argc, char** argv) {
         if (i % 546 == 0) vf.vblank();        // ~60 Hz
         hot[cpu.r[15] & ~0xffu]++;
         if (getenv("VFSAMPLE") && i % 3 == 0 && vf.cycles / 150000 >= (u64)atoll(getenv("VFSAMPLE")) && (cpu.r[15] < 0x10010900 || cpu.r[15] >= 0x10010a00) && !(cpu.r[15] >= 0x10999d74 && cpu.r[15] <= 0x10999d88)) {
-            printf("sample t=%llu pc %08x lr %08x", vf.cycles / 150000, cpu.r[15], cpu.r[14]);
-            if (getenv("VFSTACK")) { u32 sp = cpu.r[13]; for (int k = 0; k < 96; k++) { u32 w, a = sp + k * 4; if (a < 0x10000000 || a >= 0x14000000) break; memcpy(&w, &vf.sdram[a - 0x10000000], 4); if (w >= 0x10010000 && w < 0x100b0000) printf(" %08x", w); } }
+            printf("sample t=%llu pc %08x lr %08x sp %08x m %02x", vf.cycles / 150000, cpu.r[15], cpu.r[14], cpu.r[13], cpu.cpsr & 0x1f);
+            if (getenv("VFSTACK")) { u32 sp = cpu.r[13]; for (int k = 0; k < 400; k++) { u32 w, a = sp + k * 4; if (a < 0x10000000 || a >= 0x12000000) break; memcpy(&w, &vf.sdram[a - 0x10000000], 4); if ((w >= 0x10010000 && w < 0x100b0000) || (w >= 0x104b8000 && w < 0x10646000) || (w >= 0x10999000 && w < 0x10b00000)) printf(" %08x", w); } }
             printf("\n");
         }
     }

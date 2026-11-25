@@ -618,3 +618,29 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   lower (empirical, NOTEX16 turns it off). 4-bit textures (format bit 0x400)
   are sampled low nibble first (untested). The four main-menu buttons now read
   correctly; items on the two sub-screens are still garbled.
+
+## The screen behind "New Game" (stuck here)
+
+- Confirm with the cursor on the first menu item opens a board with a music
+  icon, an X icon, a "Save Game" plate, a row of six gold pieces of growing
+  size and a purple plate; confirm on any of the other three items opens a
+  different board. The textures and meshes for these decode correctly (the
+  gold pieces are real 3D objects, texture (704,2192) 64x64).
+- On that board nothing reacts: every button bit, both stick axes and repeated
+  confirms leave the picture unchanged, even several seconds after the
+  transition sounds (voices 56-59) have ended. The pad is still polled
+  (0x10A1C348 keeps being called) and frames keep animating.
+- Ruled out: the MJP video player (0x109A2900-0x109A4900 never runs), texture
+  uploads (no D4 packets), new hardware accesses (only the periodic timer,
+  RTC and GPIO reads at 0x90000018/58/98/D8, which the harness answers with 0).
+- PC samples with stack words (VFSAMPLE + VFSTACK, now fixed and deeper) show
+  no return addresses inside the VFF module's code on the main thread: the
+  menu flow is driven by engine code, with module data (display lists) as
+  arguments.
+- Leads: the texture set has "Memory card error. No saved game.", "inserted",
+  "Overwrite?", "Saving" strings, so this is probably the save-slot step and
+  it may be waiting on a memory-card check; GPIO inputs are the first thing to
+  try.
+- Harness additions: VFRNLOG (one line per drawn mesh with texture, format,
+  palette, screen box), second state sg.state at 215000 ms on this board,
+  py/sgtest.sh.
