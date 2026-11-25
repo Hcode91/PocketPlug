@@ -337,3 +337,46 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   3D records carry half-float vertices and 0x7FFF colours.
 - No CPU or DMA writes go to unmodelled regions besides small register blocks
   at 0xA1000000 and 0xB0000000 (OS boot).
+
+## Texture memory layout (solved) and where the game stands
+
+- The 2D space is 2048 bytes wide but **block-linear**: blocks of 64 bytes x
+  8 rows (32 x 8 pixels at 16 bpp), 32 blocks per block row.
+  `addr = 0x10048000 + (y/8)*16384 + (xb/64)*512 + (y%8)*64 + xb%64`, with
+  `xb = x*2` (descriptor x is in 16-bit pixels, also for 8 bpp textures).
+  Found from statistics: byte autocorrelation peaks at lag 64, a seam every 8
+  strips, block below = +32 blocks, block right = +1.
+  (Whether the framebuffers use the same blocking is untested: only fills so far.)
+- MAIN.VFF ("vfD0") header at 0x104B8000: +0x10 bss start 0x10646000, +0x14
+  bss size, +0x20 entry 0x104BC890, +0x2C segment count, then
+  {address, size, 0, 0} per segment. Segment 3 (0x101B8000 = row 736) is a
+  ready-made texture page in the layout above; the engine (BOOT.BIN, at
+  0x109xxxxx-0x10Axxxxx) creates ~190 texture objects from a 0x2C-byte
+  descriptor table in segment 1 (0x105418CC...) via 0x10AA1EA8 ->
+  0x10A35ED4, with no pixel source = "already in place", so nothing is uploaded.
+  With the layout above all 8 bpp game textures decode (menu buttons, level
+  icons, title text).
+- Texture format word (0x10A361F8): log2 size codes for w (bits 0-2) and h
+  (bits 3-5), 0x200 = 8 bpp, 0x400 = 4 bpp, +0x100|0x40000 when descriptor
+  +0x10 is set.
+- **Open: palettes.** Game palettes sit at rows 2288-2342 (x = 0/256/512/768),
+  i.e. 0x104C0000-0x104DC000, which still holds the module's start-up code;
+  rows 2104-2272 (dynamic textures) are still empty too, and the module's bss is
+  untouched. So the module has not really started: palettes/dynamic textures
+  are presumably written once it runs.
+- What the engine is doing instead: it loops on the intro video. After
+  MAIN.VFF it reads MAIN01.MJP sectors 0-19, then 0-1, about every 1.4 s.
+- MJP container: "MIAV", u32 header size 0x40, u32 payload size, 0, u32 frame
+  count (300), u16 fps (20), u16 1, u16 width (320), u16 height (160); then
+  chunks {tag, u32 0, u32 size}: `00dc` video (JPEG, bytes swapped in pairs,
+  headers only in... first frame carries DQT/SOF/DHT), `01wb`/`02wb` audio
+  (612 bytes per frame each).
+- Sound chip at 0xB0000000: 64 voices x 0x40 bytes: +0 start, +4 end, +8 loop
+  address, +0xC control (bit 4 tested), +0x10 pitch (13 bits), +0x14.. volume/
+  envelope words, +0x34 status (bits 16-18 non-zero = voice busy).
+  0x1008/0x100C status pair, 0x1010/0x1014 key-on masks (voices 0-31 / 32-63),
+  0x1018/0x101C key-off or acknowledge. Not modelled yet (reads return 0).
+- 0x90020000 / 0x90030000: two 16550 UARTs set up at t=207 s (divisor 0xF4,
+  8N1, FIFO on, receive interrupt on) - the controller ports.
+- 0xDC000000 interrupt mask in the game: 0x00365146.
+- The engine submits ~60,000 tiny command lists per second.

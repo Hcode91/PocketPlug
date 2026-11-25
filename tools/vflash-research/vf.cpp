@@ -57,7 +57,18 @@ struct VF : Bus {
     u16* vram_px(int x, int y) { u32 a = VRAM_BASE + u32(y) * 2048 + u32(x) * 2; if (x < 0 || y < 0 || x >= 1024 || a + 2 > 0x10000000 + sdram.size()) return nullptr; return (u16*)&sdram[a - 0x10000000]; }
     u32 rd32(u32 a) { u32 w = 0; if (a >= 0x10000000 && a + 4 <= 0x10000000 + sdram.size()) memcpy(&w, &sdram[a - 0x10000000], 4); return w; }
     u32 fillPos = 0, fillSize = 0, fillColour = 0;
+    std::map<u32, int> seenSub;
+    void d4_scan(u32 a, int n, int depth) {
+        for (int k = 0; k < n; k++) {
+            u32 w = rd32(a + 4 * k);
+            if (depth == 0 && k > 0 && (w & 0xff0000ff) == 0x14000001) break;
+            if ((w >> 24) == 0xd4 && (rd32(a + 4 * k + 12) >> 24) == 0x0e)
+                printf("upload %08x pos %08x size %08x %08x src %08x end %08x at %08x t=%llu\n", w, rd32(a + 4 * k + 4), rd32(a + 4 * k + 8), rd32(a + 4 * k + 12), rd32(a + 4 * k + 16), rd32(a + 4 * k + 20), a + 4 * k, cycles / 150000);
+            if (w == 0x09000000 && depth < 3) { u32 t = rd32(a + 4 * k + 4); if (t >= 0x10000000 && t < 0x12000000) d4_scan(t, 64, depth + 1); k++; }
+        }
+    }
     void gfx_run(u32 la) {
+        if (getenv("VFD4")) d4_scan(la + 4, 4096, 0);
         for (int k = 1; k < 4096; k++) {
             u32 w = rd32(la + 4 * k), op = w >> 24;
             if ((w & 0xff0000ff) == 0x14000001) break;
@@ -271,7 +282,7 @@ struct VF : Bus {
             case 0x04: return status;
             case 0x08: case 0x0c: return mask[g];
             case 0x20: { int c = current(g); return c < 0 ? 0 : c; }
-            case 0x24: { int c = current(g); if (c >= 0) claims[c]++; if (c < 0) c = 0; prev_limit[g] = prio_limit[g]; prio_limit[g] = prio[c]; return c; }
+            case 0x24: { int c = current(g); if (c >= 0 && (!getenv("VFCLAIMFROM") || cycles / 150000 >= (u64)atoll(getenv("VFCLAIMFROM")))) claims[c]++; if (c < 0) c = 0; prev_limit[g] = prio_limit[g]; prio_limit[g] = prio[c]; return c; }
             case 0x28: { int c = current(g); if (c < 0 && cpu) { if (g) cpu->set_fiq(false); else cpu->set_irq(false); } return prev_limit[g]; }
             case 0x2c: return prio_limit[g];
             }
@@ -477,7 +488,7 @@ int main(int argc, char** argv) {
                 if (const char* pk = getenv("VFPEEK")) {   // VFPEEK=addr,...: memory words shown at each hit
                     while (*pk) { u32 a = u32(strtoul(pk, (char**)&pk, 16)); u32 w = 0; if (a >= 0x10000000 && a < 0x14000000) memcpy(&w, &gvf->sdram[a - 0x10000000], 4); printf(" [%08x]=%08x", a, w); if (*pk == ',') pk++; else break; }
                 }
-                if (getenv("VFWBT")) { u32 sp = c->r[13]; printf(" bt:"); for (int k = 0; k < 80; k++) { u32 w, a = sp + k * 4; if (a < 0x10000000 || a >= 0x14000000) break; memcpy(&w, &gvf->sdram[a - 0x10000000], 4); if (w >= 0x10010000 && w < 0x100b0000) printf(" %08x", w); } }
+                if (getenv("VFWBT")) { u32 sp = c->r[13]; printf(" bt:"); for (int k = 0; k < 80; k++) { u32 w, a = sp + k * 4; if (a < 0x10000000 || a >= 0x14000000) break; memcpy(&w, &gvf->sdram[a - 0x10000000], 4); if ((w >= 0x10010000 && w < 0x100b0000) || (w >= 0x104b8000 && w < 0x10646000) || (w >= 0x10999000 && w < 0x10ae0000)) printf(" %08x", w); } }
                 printf("\n");
             }
             return false;
@@ -501,7 +512,7 @@ int main(int argc, char** argv) {
         }
         if (i % 546 == 0) vf.vblank();        // ~60 Hz
         hot[cpu.r[15] & ~0xffu]++;
-        if (getenv("VFSAMPLE") && i % 3 == 0 && (cpu.r[15] < 0x10010900 || cpu.r[15] >= 0x10010a00)) {
+        if (getenv("VFSAMPLE") && i % 3 == 0 && vf.cycles / 150000 >= (u64)atoll(getenv("VFSAMPLE")) && (cpu.r[15] < 0x10010900 || cpu.r[15] >= 0x10010a00) && !(cpu.r[15] >= 0x10999d74 && cpu.r[15] <= 0x10999d88)) {
             printf("sample t=%llu pc %08x lr %08x", vf.cycles / 150000, cpu.r[15], cpu.r[14]);
             if (getenv("VFSTACK")) { u32 sp = cpu.r[13]; for (int k = 0; k < 96; k++) { u32 w, a = sp + k * 4; if (a < 0x10000000 || a >= 0x14000000) break; memcpy(&w, &vf.sdram[a - 0x10000000], 4); if (w >= 0x10010000 && w < 0x100b0000) printf(" %08x", w); } }
             printf("\n");
