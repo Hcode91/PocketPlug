@@ -498,3 +498,21 @@ Screen state after the load: framebuffer clears only; 09 primitive records
 - py/render.py now draws the room with walls, ceiling, pictures, pillars,
   score board and the four buttons (New Game / Load Saved Game / Options /
   Game Zone).
+
+## Open points on the menu buttons (observations, not solved)
+
+- The shared button mesh (sublist 0x105C926C, 118 vertices) has its front face
+  at local z = +0.022 with local +y = top and v = 0.08 (top) .. 0.49 (bottom);
+  the back/side faces use v 0.63 .. 0.92. Elsewhere in the scene camera-space
+  +y is down the screen and sampling row = (1 - v) * height reads correctly
+  ("Score", digits), so captured pieces need something extra: at draw time
+  register 0x50 is diag(1, -1, -1) (4.12) while 0x3C/0x40 are 1.0 in the
+  vertex float format.
+- In memory the button art starts 16 rows below the descriptor position
+  ((128,1408) 256x128: face at rows 1422-1492, state strips below, and the
+  strips run 6 rows into the next texture), while the "High/Score" texture
+  (576,1728) is exact. So either v is offset by 0.125 for these draws or the
+  format word matters (buttons 0x60265, banner 0x40264).
+- Texture descriptors are packed tightly (x in 16-bit units even for 8 bpp:
+  an 8 bpp texture W wide occupies W/2 units), e.g. (128,1392,512x16),
+  (128,1408,256x128), (128,1536,...), (128,1664,...), (0,2064,...).
