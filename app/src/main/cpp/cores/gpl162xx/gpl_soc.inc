@@ -669,7 +669,8 @@ u16 Gpl162xxCore::timer_ctrl_r()
 template<int Timer>
 void Gpl162xxCore::timer_ctrl_w(u16 data)
 {
-	
+	// SPI type: TM*IF is write-1-to-clear (the timers themselves aren't run, so it never sets)
+	if (m_kind == SPISPI) { m_timer_ctrl[Timer] = u16((data & 0x7fff) | (m_timer_ctrl[Timer] & 0x8000 & ~data)); return; }
 	m_timer_ctrl[Timer] = data;
 }
 
@@ -952,7 +953,11 @@ void Gpl162xxCore::rtc_int_ctrl_w(u16 data)
 // these are related to the accelerometer values on jak_g500 (8-bit signed) and also the SPI reads for bkrankp
 u16 Gpl162xxCore::spi_7944_rxdata_r()
 {
-	
+	if (m_kind == SPISPI) {
+		if (m_spi.rx.empty()) return 0xff;
+		u8 v = m_spi.rx.front(); m_spi.rx.pop_front();
+		return v;
+	}
 	return rand();
 }
 
@@ -964,7 +969,9 @@ u16 Gpl162xxCore::spi_7945_misc_control_reg_r()
 
 void Gpl162xxCore::spi_7942_txdata_w(u16 data)
 {
-	
+	if (m_kind == SPISPI) {
+		spiTx(uint8_t(data));
+	}
 }
 
 // **************************************** 796x unknown *************************************************
@@ -1192,6 +1199,7 @@ u16 Gpl162xxCore::nand_ecc_err1_lb_r()
 
 u16 Gpl162xxCore::spi_rxstatus_r()
 {
+	if (m_kind == SPISPI) return u16(std::min<size_t>(m_spi.rx.size(), 7));
 	return 0x0007;
 }
 

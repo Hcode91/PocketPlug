@@ -188,6 +188,17 @@ class EmulatorActivity : Activity() {
                 setContentView(v)
                 attachDisks()
             }
+            Skin.BK -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                Native.setOption(handle, 0, if (prefs.getBoolean("bk_colour", true)) 1 else 0)
+                val v = BkView(this, machine.id.startsWith("bk0011")).apply {
+                    onKey = { code, down -> keyQueue.add(code or (if (down) 0x100 else 0)) }
+                    onMenu = { showMenu() }
+                    onDisks = { showBkMenu() }
+                }
+                workstation = v
+                setContentView(v)
+            }
             Skin.CPM -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 val big2 = machine.id == "bigbord2"
@@ -961,7 +972,7 @@ class EmulatorActivity : Activity() {
             adamDisk?.let { f -> synchronized(coreLock) { Native.mediaSave(handle, 0, f.absolutePath) } }
             return
         }
-        if (workstation == null || handle == 0L) return
+        if (workstation == null || handle == 0L || machine.skin == Skin.BK) return
         synchronized(coreLock) {
             floppyFile?.let { Native.mediaSave(handle, 0, it.absolutePath) }
             if (machine.skin == Skin.CPM) floppyFileB?.let { Native.mediaSave(handle, 1, it.absolutePath) }
@@ -1254,6 +1265,40 @@ class EmulatorActivity : Activity() {
     private val PICK_ACORN_HOSTFS = 47
 
     private val PICK_ADAM = 48
+
+    // ---- BK: .bin programs, loaded into memory and started (drive 2) ----
+    private val PICK_BK = 63
+    private fun bkDir() = java.io.File(filesDir, "bk").apply { mkdirs() }
+    private fun showBkMenu() {
+        paused = true
+        val files = bkDir().listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Add a program (.bin)..." to {
+            startActivityForResult(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "*/*"
+            }, PICK_BK)
+        }
+        for (f in files) items += "Run: ${f.nameWithoutExtension}" to { loadBkProgram(f) }
+        if (files.isNotEmpty()) items += "Delete a program from the list..." to {
+            paused = true
+            AlertDialog.Builder(this)
+                .setTitle("Delete which program?")
+                .setItems(files.map { it.name }.toTypedArray()) { _, w -> files[w].delete(); paused = false }
+                .setOnCancelListener { paused = false }
+                .show()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Programs")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which -> paused = false; items[which].second() }
+            .setOnCancelListener { paused = false }
+            .show()
+    }
+    private fun loadBkProgram(f: java.io.File) {
+        val err = synchronized(coreLock) { Native.mediaInsert(handle, 2, f.absolutePath) }
+        if (err != null) { Toast.makeText(this, err, Toast.LENGTH_LONG).show(); return }
+        workstation?.floppyLabel = f.nameWithoutExtension
+        Toast.makeText(this, "${f.nameWithoutExtension} loaded and started", Toast.LENGTH_SHORT).show()
+    }
 
     // ---- ADAM: disks (.dsk) and ColecoVision cartridges; tapes to come ----
     private fun adamDir() = java.io.File(filesDir, "adam").apply { mkdirs() }
@@ -1613,6 +1658,16 @@ class EmulatorActivity : Activity() {
                     dest = java.io.File(altairDir(), dest.nameWithoutExtension + ".dsk").also { dest.renameTo(it) }
                 if (dest.extension.equals("dsk", true)) pickAltairDrive(dest) else loadAltairProgram(dest)
             }
+            PICK_BK -> {
+                var name = "program.bin"
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) name = it.getString(0) ?: name
+                }
+                val safe = name.replace(Regex("[^A-Za-z0-9._ ()-]"), "_").ifEmpty { "program.bin" }
+                val dest = java.io.File(bkDir(), safe)
+                runCatching { contentResolver.openInputStream(uri)?.use { i -> dest.outputStream().use { i.copyTo(it) } } }
+                loadBkProgram(dest)
+            }
             PICK_ADAM -> {
                 var name = "cartridge"
                 contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
@@ -1850,11 +1905,11 @@ class EmulatorActivity : Activity() {
         val stateFile = cartFile?.let { RomStore.cartStateFile(this, machine, it) } ?: RomStore.stateFile(this, machine)
         val items = ArrayList<Pair<String, () -> Unit>>()
         items += "Resume" to {}
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC && machine.skin != Skin.CPM) items += "Save state" to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC && machine.skin != Skin.CPM && machine.skin != Skin.BK) items += "Save state" to {
             val ok = synchronized(coreLock) { Native.saveState(handle, stateFile.absolutePath) }
             Toast.makeText(this, if (ok) "State saved" else "Couldn't save state", Toast.LENGTH_SHORT).show()
         }
-        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC && machine.skin != Skin.CPM) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
+        if (machine.skin != Skin.DESKTOP_3B1 && machine.skin != Skin.ACORN && machine.skin != Skin.KIDS_LAPTOP && machine.skin != Skin.BBC && machine.skin != Skin.CPM && machine.skin != Skin.BK) items += (if (stateFile.exists()) "Load state" else "Load state (none saved)") to {
             if (stateFile.exists()) {
                 val ok = synchronized(coreLock) { Native.loadState(handle, stateFile.absolutePath) }
                 Toast.makeText(this, if (ok) "State loaded" else "Couldn't load state", Toast.LENGTH_SHORT).show()
@@ -1902,7 +1957,15 @@ class EmulatorActivity : Activity() {
             prefs.edit().putBoolean("setup_hidden_${machine.id}", false).apply()
             setupBubble?.show(true)
         }
-        if (workstation != null && !machine.id.startsWith("bitgrp")) items += "Disks..." to { showDiskMenu() }
+        if (workstation != null && !machine.id.startsWith("bitgrp") && machine.skin != Skin.BK) items += "Disks..." to { showDiskMenu() }
+        if (machine.skin == Skin.BK) {
+            items += "Programs (.bin)..." to { showBkMenu() }
+            val col = prefs.getBoolean("bk_colour", true)
+            items += (if (col) "Monitor: colour (tap for black and white)" else "Monitor: black and white (tap for colour)") to {
+                prefs.edit().putBoolean("bk_colour", !col).apply()
+                synchronized(coreLock) { Native.setOption(handle, 0, if (!col) 1 else 0) }
+            }
+        }
         if (machine.id.startsWith("bitgrp")) {
             val loop = prefs.getBoolean("bitgraph_loop", true)
             items += (if (loop) "Host port: loopback plug (tap for nothing)" else "Host port: nothing (tap for a loopback plug)") to {
@@ -2271,7 +2334,30 @@ class EmulatorActivity : Activity() {
         else -> 0
     }
 
-    private fun deskKey(code: Int): Int = if (machine.skin == Skin.DESKTOP_3B1) key3b1(code) else ngenKey(code)
+    private fun deskKey(code: Int): Int = if (machine.skin == Skin.DESKTOP_3B1) key3b1(code) else if (machine.skin == Skin.BK) bkKey(code) else ngenKey(code)
+
+    /** A real keyboard on the BK: KOI-7 codes (capitals), BK control keys on the spare PC keys. */
+    private fun bkKey(code: Int): Int = when (code) {
+        in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> 0x41 + (code - KeyEvent.KEYCODE_A)
+        in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> 0x30 + (code - KeyEvent.KEYCODE_0)
+        KeyEvent.KEYCODE_SPACE -> 0x20
+        KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> 0x0a
+        KeyEvent.KEYCODE_DEL -> 0x18                      // ЗБ
+        KeyEvent.KEYCODE_TAB -> 0x09
+        KeyEvent.KEYCODE_ESCAPE -> 0x03                   // КТ
+        KeyEvent.KEYCODE_BREAK, KeyEvent.KEYCODE_F12 -> 0x80   // СТОП
+        KeyEvent.KEYCODE_DPAD_LEFT -> 0x08; KeyEvent.KEYCODE_DPAD_RIGHT -> 0x19
+        KeyEvent.KEYCODE_DPAD_UP -> 0x1a; KeyEvent.KEYCODE_DPAD_DOWN -> 0x1b
+        KeyEvent.KEYCODE_PAGE_UP -> 0x0e; KeyEvent.KEYCODE_PAGE_DOWN -> 0x0f   // РУС / ЛАТ
+        KeyEvent.KEYCODE_F1 -> 0x01; KeyEvent.KEYCODE_F2 -> 0x0b; KeyEvent.KEYCODE_F3 -> 0x16; KeyEvent.KEYCODE_F4 -> 0x17
+        KeyEvent.KEYCODE_F5 -> 0x02; KeyEvent.KEYCODE_F6 -> 0x04; KeyEvent.KEYCODE_F7 -> 0x00; KeyEvent.KEYCODE_F8 -> 0x0c
+        KeyEvent.KEYCODE_INSERT -> 0x13
+        KeyEvent.KEYCODE_MINUS -> 0x2d; KeyEvent.KEYCODE_EQUALS -> 0x3d; KeyEvent.KEYCODE_SEMICOLON -> 0x3b
+        KeyEvent.KEYCODE_COMMA -> 0x2c; KeyEvent.KEYCODE_PERIOD -> 0x2e; KeyEvent.KEYCODE_SLASH -> 0x2f
+        KeyEvent.KEYCODE_LEFT_BRACKET -> 0x5b; KeyEvent.KEYCODE_RIGHT_BRACKET -> 0x5d; KeyEvent.KEYCODE_BACKSLASH -> 0x5c
+        KeyEvent.KEYCODE_APOSTROPHE -> 0x27
+        else -> -1
+    }
 
     /** A real keyboard on the 3B1's (scan codes as freebee/keyboard.c; office keys on the spare PC keys). */
     private fun key3b1(code: Int): Int = when (code) {

@@ -34,6 +34,7 @@
 #include "cores/beena/beena.h"
 #include "cores/gpl162xx/gpl162xx.h"
 #include "cores/gpl162xx/gpl951.h"
+#include "cores/gpl162xx/gpllcd.h"
 #include "cores/chess/beluga.h"
 #include "cores/chess/bkc.h"
 #include "cores/xavix/xavix.h"
@@ -54,6 +55,7 @@
 #include "cores/advision/advision.h"
 #include "cores/adam/adam.h"
 #include "cores/bit90/bit90.h"
+#include "cores/bk/bk.h"
 #include "cores/bitgraph/bitgraph.h"
 #include "cores/ngen/ngen.h"
 #include "cores/bigboard/bigboard.h"
@@ -254,6 +256,11 @@ Core* createCore(const std::string& id)
     }
     if (id == "bitgrpha" || id == "bitgrphb")   // BBN BitGraph graphics terminal (68000)
         return new BitGraphCore(id == "bitgrphb");
+    if (id == "bk0010") return new BkCore(BkCore::BK0010);     // Elektronika BK-0010 (FOCAL)
+    if (id == "bk001001") return new BkCore(BkCore::BK001001); // BK-0010.01 (BASIC)
+    if (id == "bk0010fd") return new BkCore(BkCore::BK0010FD); // BK-0010 with the floppy controller
+    if (id == "bk0011") return new BkCore(BkCore::BK0011);
+    if (id == "bk0011m") return new BkCore(BkCore::BK0011M);
     if (id == "bit90")        // Bit Corporation Bit90 (ColecoVision-compatible BASIC computer)
         return new Bit90Core();
     if (id == "adam")         // Coleco ADAM (SmartWriter, ColecoVision cartridges)
@@ -509,8 +516,11 @@ Core* createCore(const std::string& id)
         return new BelugaCore();
     if (id == "beijuehh")      // Beijue 220-in-1 handheld (GPL16218B)
         return new Gpl162xxCore(Gpl162xxCore::BEIJUEHH);
+    if (id == "bkrankp") return new Gpl162xxCore(Gpl162xxCore::SPISPI);
     if (id == "beambox")       // Rescue Bots Beam Box (GPL16258VB + NAND)
         return new Gpl162xxCore(Gpl162xxCore::BEAMBOX);
+    if (id == "bkid218")      // BornKid BC-19 218-in-1 (GPL162xx with an LCD controller)
+        return new GplLcdCore("218n1_25q64csig_c84017.bin", 0x800000);
     if (id == "bfmpac" || id == "bfgalaga" || id == "bfdigdug" || id == "bfpacman" ||
         id == "bfspyhnt" || id == "bftetris")   // Basic Fun mini arcades (GPL951xx)
         return new Gpl951Core(id);

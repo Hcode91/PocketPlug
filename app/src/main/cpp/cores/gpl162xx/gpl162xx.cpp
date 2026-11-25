@@ -18,7 +18,8 @@ static bool dbg() { static int d = getenv("GPLDBG") ? 1 : 0; return d; }
 
 Gpl162xxCore::Gpl162xxCore(Kind k) : m_kind(k)
 {
-    m_cpuClock = (k == BEIJUEHH) ? 96000000 : 48000000;
+    m_cpuClock = (k == BEAMBOX) ? 48000000 : 96000000;
+    if (k == SPISPI) m_ramTop = 0x7000;
     m_mainspace.c = this;
     m_csspace.c = this;
     m_machine.m_icountptr = &m_cpu.m_core->m_icount;
@@ -84,7 +85,14 @@ bool Gpl162xxCore::load(const std::vector<RomFile>& roms, std::string& error)
         m_rom = m_romCopy.data();
         m_romWords = m_romCopy.size();
     }
-    if (m_kind == BEIJUEHH) {
+    if (m_kind == SPISPI) {
+        // the boot ROM's vectors go through the jump table the program puts at 6fea (the RAM
+        // ends at 6fff on these); MAME's init_spi uses 2fe0, which the first stage never fills
+        m_vectorbase = 0x6fe0;
+        // external RAM on the chip selects (MAME: "CS0 should be RAM on these?")
+        m_sdram.assign(0x400000, 0);
+        m_sdram2.assign(0x10000, 0);
+    } else if (m_kind == BEIJUEHH) {
         // the dump's words are little-endian (ROM_LOAD16_WORD_SWAP of the big-endian region): used as they are
     } else {
         nandInit();
@@ -144,6 +152,20 @@ void Gpl162xxCore::reset()
     if (m_kind == BEIJUEHH) {
         m_portb_data = 0; m_portd_data = 0; m_bank = 0; m_upperbase = 0;
         cs_callback(0, 0, 0, 0, 0);
+    } else if (m_kind == SPISPI) {
+        cs_callback(0, 0, 0, 0, 0);
+        m_spi = SpiFlash();
+        // init_spi: copy the first 0x2000 words to the address in header byte 0x15, point the
+        // boot vector at dest + 0x20 and the other vectors at the RAM table at 2fe0
+        const uint8_t* b = (const uint8_t*)m_rom;
+        int dest = b[0x15] << 8;
+        for (int i = 0; i < 0x2000 && uint64_t(i) < m_romWords; i++) write_word(uint32_t(dest + i), m_rom[i]);
+        memset(m_internal, 0, sizeof(m_internal));
+        m_internal[0x7ff5] = u16(m_vectorbase + 0x0a);
+        m_internal[0x7ff6] = u16(m_vectorbase + 0x0c);
+        m_internal[0x7ff7] = u16(dest + 0x20);
+        for (int i = 0; i < 8; i++) m_internal[0x7ff8 + i] = u16(m_vectorbase + 0x10 + i * 2);
+        m_boot_mode = 0;
     } else {
         write_word(0x007820, 0x0047);
         write_word(0x007821, 0xff47);
@@ -177,7 +199,7 @@ void Gpl162xxCore::reset()
 uint16_t Gpl162xxCore::read_word(uint32_t a)
 {
     a &= 0x3fffff;
-    if (a < 0x3000) return m_mainram[a];
+    if (a < m_ramTop) return m_mainram[a];
     if (a < 0x7000) return 0;
     if (a < 0x8000) return m_kind == BEIJUEHH ? io_read_16218b(a) : io_read_16258vb(a);
     if (a < 0x10000) return m_kind == BEIJUEHH ? cs_space_boot_mirror_r(a - 0x8000) : internalrom_lower32_r(a - 0x8000);
@@ -189,7 +211,7 @@ uint16_t Gpl162xxCore::read_word(uint32_t a)
 void Gpl162xxCore::write_word(uint32_t a, uint16_t d)
 {
     a &= 0x3fffff;
-    if (a < 0x3000) { m_mainram[a] = d; return; }
+    if (a < m_ramTop) { m_mainram[a] = d; return; }
     if (a < 0x7000) return;
     if (a < 0x8000) { if (m_kind == BEIJUEHH) io_write_16218b(a, d); else io_write_16258vb(a, d); return; }
     if (a < 0x20000) return;
@@ -213,14 +235,14 @@ void Gpl162xxCore::cs_callback(u16 cs0, u16 cs1, u16 cs2, u16 cs3, u16 cs4)
 u16 Gpl162xxCore::cs_read(u32 a)
 {
     if (a <= m_csEnd[0]) return cs0_r(a - m_csStart[0]);
-    if (a >= m_csStart[1] && a <= m_csEnd[1]) return cs1_r(a - m_csStart[1]);
+    if (a >= m_csStart[1] && (a <= m_csEnd[1] || m_kind == SPISPI)) return cs1_r(a - m_csStart[1]);
     return 0;
 }
 
 void Gpl162xxCore::cs_write(u32 a, u16 d)
 {
     if (a <= m_csEnd[0]) { cs0_w(a - m_csStart[0], d); return; }
-    if (a >= m_csStart[1] && a <= m_csEnd[1]) { cs1_w(a - m_csStart[1], d); return; }
+    if (a >= m_csStart[1] && (a <= m_csEnd[1] || m_kind == SPISPI)) { cs1_w(a - m_csStart[1], d); return; }
 }
 
 u16 Gpl162xxCore::cs0_r(offs_t offset)
@@ -248,8 +270,9 @@ void Gpl162xxCore::cs1_w(offs_t offset, u16 data)
 // ---------------------------------------------------------------------------------------------
 // ports
 
-u16 Gpl162xxCore::porta_in() { return 0; }
-u16 Gpl162xxCore::portb_in() { return 0; }
+// SPI type (bkrankp): buttons on port A bits 10-15 and port B bits 10-11, active high
+u16 Gpl162xxCore::porta_in() { return m_kind == SPISPI ? u16((m_inputs & 0x3f) << 10) : 0; }
+u16 Gpl162xxCore::portb_in() { return m_kind == SPISPI ? u16(((m_inputs >> 6) & 3) << 10) : 0; }
 u16 Gpl162xxCore::portc_in()
 {
     if (m_kind != BEIJUEHH) return 0xffff;
@@ -346,10 +369,11 @@ void Gpl162xxCore::trigger_systemm_dma(int channel)
     length &= 0x0fffffff;
     for (u32 i = 0; i < length; i++) {
         u16 val;
-        if (mode & 0x1000) { val = u16((read_space(source) & 0xff) | (read_space(source) << 8)); i++; }
+        if (mode & 0x1000) { u16 lo = read_space(source) & 0xff; u16 hi = read_space(source); val = u16(lo | (hi << 8)); i++; }
         else val = read_space(source);
         source += sourcedelta;
         if (mode & 0x2000) {
+            if (m_kind == SPISPI && !(mode & 0x1000)) i++;   // byte lengths (the SPI DMA pairs)
             write_space(dest, val & 0xff);
             dest += destdelta;
             write_space(dest, val >> 8);
@@ -501,4 +525,35 @@ size_t Gpl162xxCore::readAudio(int16_t* out, size_t maxSamples)
     memcpy(out, m_samples.data(), n * sizeof(int16_t));
     m_samples.erase(m_samples.begin(), m_samples.begin() + long(n));
     return n;
+}
+
+// ---------------------------------------------------------------------------------------------
+// SPI flash (SPISPI kind)
+
+void Gpl162xxCore::spiTx(uint8_t d)
+{
+    // full duplex: the byte clocked in while this one goes out
+    m_spi.rx.push_back(spiRead());
+    if (m_spi.rx.size() > 0x100000) m_spi.rx.pop_front();
+    switch (m_spi.state) {
+    case 0: if (d == 0x03) m_spi.state = 1; else if (d == 0x0b) m_spi.state = 11; else if (d == 0x9f) m_spi.state = 20; else if (d == 0x05) m_spi.state = 30; break;
+    case 1: case 11: m_spi.addr = uint32_t(d) << 16; m_spi.state++; break;
+    case 2: case 12: m_spi.addr |= uint32_t(d) << 8; m_spi.state++; break;
+    case 3: m_spi.addr |= d; m_spi.state = 5; break;
+    case 13: m_spi.addr |= d; m_spi.state = 14; break;
+    case 14: m_spi.state = 5; break;
+    default: break;
+    }
+}
+
+uint8_t Gpl162xxCore::spiRead()
+{
+    if (m_spi.state == 5) {
+        uint64_t i = m_spi.addr++ & 0xffffff;
+        const uint8_t* b = (const uint8_t*)m_rom;
+        return i < m_romWords * 2 ? b[i] : 0xff;
+    }
+    if (m_spi.state == 30) return 0x00;
+    if (m_spi.state >= 20 && m_spi.state < 23) { static const uint8_t id[3] = { 0xc2, 0x20, 0x16 }; return id[m_spi.state++ - 20]; }
+    return 0xff;
 }

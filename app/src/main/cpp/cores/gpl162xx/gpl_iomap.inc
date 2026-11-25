@@ -379,6 +379,8 @@ u16 Gpl162xxCore::io_read_16258vb(u32 a)
 
 void Gpl162xxCore::io_write_16258vb(u32 a, u16 data)
 {
+	// the flash's chip select is port B bit 4: raising it ends the command
+	if (m_kind == SPISPI && (a == 0x7868 || a == 0x7869) && (data & 0x10)) m_spi.state = 0;
 	if (a == 0x7af0) { byteswap_w(data); return; }
 	if (a == 0x70cd) { esp_ctrl_w(data); return; }
 	if (a == 0x785d) { nand_ecc_cpckr_lb_w(data); return; }

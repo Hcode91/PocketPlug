@@ -8,7 +8,8 @@
 // SPG2xx sound device are shared with the spg2xx core; scheduling and timers use spg_lite.h.
 //
 // Machines: beijuehh (GPL16218B, 220-in-1 handheld, ROM in 4 MB banks), beambox (GPL16258VB
-// with a 64 MB NAND; the internal boot ROM is simulated as MAME does).
+// with a 64 MB NAND; the internal boot ROM is simulated as MAME does), bkrankp (GPL16250 booting
+// from SPI flash, generalplus_gpl16250_spi.cpp: the first copy is simulated as MAME does).
 
 #pragma once
 #include "../../core_api.h"
@@ -16,6 +17,7 @@
 #include "gpl_video.h"
 #include <string>
 #include <vector>
+#include <deque>
 
 using gpl::address_space;
 
@@ -33,7 +35,7 @@ public:
 class Gpl162xxCore : public Core, public unsp_device::Bus, public SpgAudioHost
 {
 public:
-    enum Kind { BEIJUEHH, BEAMBOX };
+    enum Kind { BEIJUEHH, BEAMBOX, SPISPI };
     explicit Gpl162xxCore(Kind k);
     ~Gpl162xxCore() override;
     bool load(const std::vector<RomFile>& roms, std::string& error) override;
@@ -46,7 +48,21 @@ public:
     double refreshRate() const override { return 60.0; }
     int sampleRate() const override { return 44100; }
     size_t readAudio(int16_t* out, size_t maxSamples) override;
-    void setInputs(uint32_t pressed) override { m_inputs = pressed; }
+    void setInputs(uint32_t pressed) override {
+        if (m_kind != SPISPI) { m_inputs = pressed; return; }
+        // HandheldView bits -> PA10-15 / PB10-11 (raw bits 0-7): Start = row jump (PA10),
+        // Down / Up = next / previous letter (PA12 / PA13), Right / Left = input mode (PA14 / PA15),
+        // A = OK (PB10), B = quit (PB11)
+        uint32_t r = 0;
+        if (pressed & 0x40) r |= 0x01;
+        if (pressed & 0x02) r |= 0x04;
+        if (pressed & 0x01) r |= 0x08;
+        if (pressed & 0x08) r |= 0x10;
+        if (pressed & 0x04) r |= 0x20;
+        if (pressed & 0x10) r |= 0x40;
+        if (pressed & 0x20) r |= 0x80;
+        m_inputs = r;
+    }
     bool saveState(std::vector<uint8_t>&) override { return false; }
     bool loadState(const std::vector<uint8_t>&) override { return false; }
 
@@ -79,7 +95,8 @@ public:
     unsp_device m_cpu;
     gpl::gcm394_base_video_device m_video;
     GplAudio m_audio;
-    uint16_t m_mainram[0x3000];
+    uint16_t m_mainram[0x7000];
+    uint32_t m_ramTop = 0x3000;
 
     u16 io_read_16218b(u32 a);
     void io_write_16218b(u32 a, u16 data);
@@ -258,6 +275,11 @@ public:
     int m_initialCopyWords = 0x2000;
     uint32_t m_vectorbase = 0x2fe0;
     void nandInit();
+    // SPI-flash type (generalplus_gpl16250_spi.cpp): a serial flash on the SPI port, read with
+    // 03 / 0b commands; MAME simulates the boot ROM's first copy (init_spi) and so do we
+    struct SpiFlash { int state = 0; uint32_t addr = 0; std::deque<uint8_t> rx; } m_spi;
+    void spiTx(uint8_t d);
+    uint8_t spiRead();
     // the NAND chip (512 + 16 byte pages)
     struct Nand {
         int mode = 0;          // 0 idle, 1 read, 2 status, 3 id

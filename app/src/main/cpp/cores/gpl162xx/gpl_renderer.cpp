@@ -574,7 +574,12 @@ void gpl_renderer_device::draw_page(bool read_from_csspace, uint32_t palbank, co
 		y_mask <<= 1; // double height tilemap?
 	}
 
-	const uint32_t drawwidthmask = total_width - 1;
+	// the bit sets the tilemap size, not the screen's: a 512-wide map on the 640-wide screen
+	// still covers the whole line, wrapping (bkrankp's menus)
+	if (uint32_t(cliprect.max_x + 1) > screenwidth)
+		screenwidth = cliprect.max_x + 1;
+
+	const uint32_t drawwidthmask = (screenwidth > total_width ? 1024 : total_width) - 1;
 	y_mask--; // turn into actual mask
 
 	const uint32_t xscroll = scrollregs[0];

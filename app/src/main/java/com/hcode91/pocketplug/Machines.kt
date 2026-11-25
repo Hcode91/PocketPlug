@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN, CPM, MINI_FC, BIT90 }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN, CPM, MINI_FC, BIT90, BK }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -1885,6 +1885,115 @@ object Machines {
             ),
         ),
         MachineDef(
+            id = "bk0010",
+            title = "Keyboard Computer 10 (FOCAL)",
+            subtitle = "1985 Soviet home computer built into its keyboard and plugged into a TV: a 16-bit PDP-11-compatible "
+                + "CPU, 32 KB of RAM, the monitor and the FOCAL language in ROM (Elektronika BK-0010; MAME set: bk0010)",
+            chip = "K1801VM1 (PDP-11 instruction set) @ 3 MHz, 512x256 bitmap, 1-bit speaker",
+            region = "USSR",
+            year = "1985",
+            roms = listOf(
+                RomSpec("monit10.rom", 0x2000L, 0x26c6e8a0L),
+                RomSpec("focal.rom", 0x2000L, 0x717149b7L),
+                RomSpec("tests.rom", 0x1f80L, 0x91aecb4dL),
+            ),
+            skin = Skin.BK,
+            setup = listOf(
+                "It starts in FOCAL (the * prompt); СТОП interrupts a running program.",
+                "Keys send capitals; НР switches to small letters, СТОП is the HALT key, АР2 shifts the next key to the alternative register.",
+                "Programs: add a .bin file from the menu (Programs) or by tapping the strip at the back of the keyboard; it loads and starts at once.",
+            ),
+        ),
+        MachineDef(
+            id = "bk001001",
+            title = "Keyboard Computer 10.01 (BASIC)",
+            subtitle = "1987 version of the 10 with Vilnius BASIC in ROM in place of FOCAL; the most common model "
+                + "(Elektronika BK-0010.01; MAME set: bk001001, with monit10.rom from the bk0010 set)",
+            chip = "K1801VM1 (PDP-11 instruction set) @ 3 MHz, 512x256 bitmap, 1-bit speaker",
+            region = "USSR",
+            year = "1987",
+            roms = listOf(
+                RomSpec("monit10.rom", 0x2000L, 0x26c6e8a0L),
+                RomSpec("basic10-1.rom", 0x2000L, 0x5e3ff5daL),
+                RomSpec("basic10-2.rom", 0x2000L, 0xea63863cL),
+                RomSpec("basic10-3.rom", 0x1f80L, 0x63f3df2eL),
+            ),
+            skin = Skin.BK,
+            setup = listOf(
+                "It starts in BASIC: try PRINT 2+3 and ВВОД. Type MON for the monitor.",
+                "Keys send capitals; НР switches to small letters, СТОП is the HALT key, АР2 shifts the next key to the alternative register.",
+                "Programs: add a .bin file from the menu (Programs) or by tapping the strip at the back of the keyboard; it loads and starts at once.",
+            ),
+        ),
+        MachineDef(
+            id = "bk0010fd",
+            title = "Keyboard Computer 10 + Floppy Card",
+            subtitle = "The 10 with the floppy controller card and 16 KB more RAM (Elektronika BK-0010 with the KMD controller; "
+                + "MAME set: bk0010fd, with monit10.rom and focal.rom from the bk0010 set). No disk drives yet: it stops in the monitor",
+            chip = "K1801VM1 (PDP-11 instruction set) @ 3 MHz, 512x256 bitmap, floppy controller ROM",
+            region = "USSR",
+            year = "1987",
+            roms = listOf(
+                RomSpec("monit10.rom", 0x2000L, 0x26c6e8a0L),
+                RomSpec("focal.rom", 0x2000L, 0x717149b7L),
+                RomSpec("disk_327.rom", 0x1000L, 0xed8a43aeL),
+            ),
+            skin = Skin.BK,
+            setup = listOf(
+                "It starts in the monitor (the ? prompt).",
+                "Keys send capitals; НР switches to small letters, СТОП is the HALT key, АР2 shifts the next key to the alternative register.",
+                "Programs: add a .bin file from the menu (Programs) or by tapping the strip at the back of the keyboard; it loads and starts at once.",
+            ),
+        ),
+        MachineDef(
+            id = "bk0011",
+            title = "Keyboard Computer 11",
+            subtitle = "1989 successor: 128 KB of banked RAM, colour palettes, two screen pages and a BASIC in ROM, "
+                + "with the floppy controller (Elektronika BK-0011; MAME set: bk0011, plus disk_253.rom from bk_kmd). No disk drives yet",
+            chip = "K1801VM1 (PDP-11 instruction set) @ 4 MHz, 512x256 bitmap with 16 palettes, floppy controller ROM",
+            region = "USSR",
+            year = "1989",
+            roms = listOf(
+                RomSpec("bk11_199_basic2.rom", 0x2000L, 0x34273976L),
+                RomSpec("bk11_200_basic3.rom", 0x2000L, 0xd29731bcL),
+                RomSpec("bk11_198_basic1.rom", 0x2000L, 0x4992c478L),
+                RomSpec("bk11_202_ext.rom", 0x2000L, 0x1a0b6b59L),
+                RomSpec("bk11_201_bos.rom", 0x2000L, 0x6d927f81L),
+                RomSpec("disk_253.rom", 0x1000L, 0x7a21b887L),
+            ),
+            skin = Skin.BK,
+            setup = listOf(
+                "Import the bk0011 zip and the bk_kmd zip (the floppy controller's ROMs).",
+                "It starts in the keyboard monitor (the @ prompt); load programs from the menu.",
+                "Keys send capitals; НР switches to small letters, СТОП is the HALT key, АР2 shifts the next key to the alternative register.",
+                "Programs: add a .bin file from the menu (Programs) or by tapping the strip at the back of the keyboard; it loads and starts at once.",
+            ),
+        ),
+        MachineDef(
+            id = "bk0011m",
+            title = "Keyboard Computer 11M",
+            subtitle = "1990 revision of the 11; it starts straight into its BASIC (Elektronika BK-0011M; MAME set: bk0011m, "
+                + "plus disk_326.rom from bk_kmd). No disk drives yet",
+            chip = "K1801VM1 (PDP-11 instruction set) @ 4 MHz, 512x256 bitmap with 16 palettes, floppy controller ROM",
+            region = "USSR",
+            year = "1990",
+            roms = listOf(
+                RomSpec("bk11m_328_basic2.rom", 0x2000L, 0xdeb0b29fL),
+                RomSpec("bk11m_329_basic3.rom", 0x2000L, 0xbb645dfbL),
+                RomSpec("bk11m_327_basic1.rom", 0x2000L, 0x4c68ff59L),
+                RomSpec("bk11m_325_ext.rom", 0x2000L, 0xb2e4c33cL),
+                RomSpec("bk11m_324_bos.rom", 0x2000L, 0x8ffd5efaL),
+                RomSpec("disk_326.rom", 0x1000L, 0xfde7583dL),
+            ),
+            skin = Skin.BK,
+            setup = listOf(
+                "Import the bk0011m zip and the bk_kmd zip (the floppy controller's ROMs).",
+                "It starts in BASIC: try PRINT 2+3 and ВВОД.",
+                "Keys send capitals; НР switches to small letters, СТОП is the HALT key, АР2 shifts the next key to the alternative register.",
+                "Programs: add a .bin file from the menu (Programs) or by tapping the strip at the back of the keyboard; it loads and starts at once.",
+            ),
+        ),
+        MachineDef(
             id = "adam",
             title = "Adam Family Computer",
             subtitle = "1983 home computer built round a games console: it starts its built-in SmartWriter "
@@ -3016,6 +3125,39 @@ object Machines {
                 RomSpec("arcadeclassicstetris_25q16ct_c84015.bin", 0x200000L, 0xa97e1babL),
             ),
             skin = Skin.BASIC_FUN,
+        ),
+        MachineDef(
+            id = "bkrankp",
+            title = "Karaoke Party Unit",
+            subtitle = "2015 handheld karaoke game with a colour screen: make a nickname, pick songs and sing for a score "
+                + "(Bandai Karaoke Ranking Party; MAME set: bkrankp). No microphone or song cartridges here, so it stops at the menus",
+            chip = "GeneralPlus GPL16250 (u'nSP 2.0) booting from a 4 MB SPI flash; the boot ROM's first copy is simulated as in MAME",
+            region = "Japan",
+            year = "2015",
+            roms = listOf(RomSpec("unit_mx25l3206e_c22016.bin", 0x400000L, 0x7efad116L)),
+            skin = Skin.HANDHELD,
+            setup = listOf(
+                "Wait about 15 seconds for the title and the nickname screen.",
+                "Up/Down pick a letter, START jumps a row, Left/Right switch kana / roman letters, A enters the letter and B deletes one.",
+            ),
+        ),
+        MachineDef(
+            id = "bkid218",
+            title = "218-in-1 Handheld",
+            subtitle = "Upright colour handheld with 218 small action, shooting and puzzle games behind an English / Chinese menu; "
+                + "D-pad, A, B and START (BornKid BC-19 Handheld Game Console; MAME set: bkid218)",
+            chip = "GeneralPlus GPL162xx (u'nSP 2.0) with an internal boot ROM, 8 MB SPI flash, 320x240 LCD driven over its own bus; no sound yet (as in MAME)",
+            region = "China",
+            year = "201x",
+            roms = listOf(
+                RomSpec("internal.rom", 0x2000L, 0xea119561L),
+                RomSpec("218n1_25q64csig_c84017.bin", 0x800000L, 0x94f35dbdL),
+            ),
+            skin = Skin.HANDHELD,
+            setup = listOf(
+                "Pick English or the Chinese menu with Up/Down and A.",
+                "Move round the game grid with the D-pad and press A to play; START pauses in most games.",
+            ),
         ),
         MachineDef(
             id = "500in1hh",
