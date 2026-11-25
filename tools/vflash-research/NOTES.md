@@ -459,3 +459,25 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   the dump): purpose unknown.
 - 21 of the 96 meshes per frame are drawn with a zero translation: probably
   the 2D/overlay layer, with a different transform set-up.
+
+## Vertex number format, output buffers, first menu render
+
+- Vertex components are **not IEEE half floats**: 16-bit floats with 1 sign
+  bit, 6 exponent bits (bias 31) and 9 mantissa bits; 0x3E00 = 1.0, exponent 0
+  = zero. Check: the three "extra" components per vertex are unit normals
+  with this decoding. Vertex = position xyz, normal xyz, u, v (0..1, v points
+  up: sample row = (1 - v) * height), then a 16-bit colour word.
+- With positions decoded this way, camera = R * (pos * scale) * 4096 + T
+  (T in the same 4.12 units), depth = -z, and a guessed perspective
+  (x' = 256 + f*x/-z, y' = 120 + 0.47*f*y/-z, f ~ 420), py/render.py draws the
+  hub/menu room in colour: "Score" banner, score digits, stars, paw prints,
+  pillars and the three menu buttons. Palette entry 0 is treated as
+  transparent. Button faces are still smeared and the true projection
+  constants (registers 0x6C, 0x78) are not derived.
+- Packet `0C000000 addr` precedes some meshes: the chip is expected to WRITE
+  the transformed vertices of the following mesh to that address (the buffer
+  at 0x10DE8DF0 still holds the heap fill pattern 0xB2B2 because the harness
+  does not do it). Later sublists select that buffer with 0A and draw indexed
+  strips from it with registers 0x3C/0x40 set to 0x3E00 (1.0 in the vertex
+  float format) and zero translation: that is the "zero translation" group
+  (animated models and probably the button faces).
