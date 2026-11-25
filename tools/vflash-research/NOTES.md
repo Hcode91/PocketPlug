@@ -559,3 +559,18 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   are set); VFPADKEY="ms:mask,..." then sends state records with that button
   mask (axes 0x80). Which bit is which button, and the polarity, are being
   tested.
+
+## Save states (harness)
+
+- `VFSAVE=file:ms` writes the whole machine (CPU incl. banked registers and
+  CP15, RAM, register map, drive/decoder/interrupt/timer/sound/pad state,
+  renderer state) at that emulated time; `VFLOAD=file` starts from one.
+  Step counts on the command line stay absolute.
+  Checked: a run loaded from a state ends with byte-identical RAM to an
+  uninterrupted run.
+- Working state: menu.state at t = 212000 ms (step 6946265), made with
+  `VFPAD=1 VFPADKEY=0:0 VFRENDER=999999999` so the controller is present and
+  the renderer state is tracked. ~64 MB, kept outside the repo.
+  `VFLOAD=menu.state VFRENDER=212050 ./vf rom 6951000` renders menu frames in
+  about a second instead of a 25-minute boot.
+- The renderer no longer transforms vertices while it is only tracking state.

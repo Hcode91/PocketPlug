@@ -3,7 +3,11 @@
 #include <map>
 #include <deque>
 // V.Flash research harness: boot ROM on the ARM926 interpreter, logging I/O.
+#include <cstdint>
+#include <cstring>
+#define private public      // save states need the CPU core's private fields
 #include "cores/gpl32/arm926.h"
+#undef private
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -113,6 +117,7 @@ struct VF : Bus {
             if (op != 0x40 && op != 0x44 && op != 0x6f) return;
             u32 fl = (w >> 16) & 0xff, n = w & 0xffff; bool indexed = fl & 0x40;
             if (indexed && !rn.vb) return;
+            if (!draw && !(rn.cap && !indexed)) { a += 4 + (indexed ? 4 * ((n + 1) / 2) : 20 * n); continue; }
             std::vector<RnV> vs(n); std::vector<u32> src(n);
             for (u32 i = 0; i < n; i++) {
                 u32 va = indexed ? rn.vb + 4 * u32(u16(rd32(a + 4 + (i / 2) * 4) >> ((i & 1) * 16))) : a + 4 + 20 * i;
@@ -673,9 +678,41 @@ int main(int argc, char** argv) {
             return false;
         };
     }
+    // ---- save states: VFSAVE=file:ms writes one at that emulated time, VFLOAD=file starts from one (step counts stay absolute) ----
+    auto state_io = [&](FILE* f, bool wr) {
+        #define IO(x) do { if (wr) fwrite(&(x), sizeof(x), 1, f); else if (fread(&(x), sizeof(x), 1, f) != 1) { fprintf(stderr, "state: short read\n"); exit(1); } } while (0)
+        auto iovec = [&](std::vector<u8>& v) { u64 n = v.size(); IO(n); v.resize(n); if (n) { if (wr) fwrite(v.data(), 1, n, f); else if (fread(v.data(), 1, n, f) != n) exit(1); } };
+        u32 magic = 0x56465333; IO(magic); if (magic != 0x56465333) { fprintf(stderr, "state: bad file\n"); exit(1); }
+        IO(cpu.r); IO(cpu.cpsr); IO(cpu.spsr); IO(cpu.bank_r13); IO(cpu.bank_r14); IO(cpu.bank_spsr); IO(cpu.fiq_r8_12); IO(cpu.usr_r8_12);
+        IO(cpu.cp15_control); IO(cpu.cp15_ttb); IO(cpu.cp15_dacr); IO(cpu.cp15_dfsr); IO(cpu.cp15_ifsr); IO(cpu.cp15_far); IO(cpu.cp15_fcse_pid); IO(cpu.cp15_context_id);
+        IO(cpu.cp15_cache_lockdown_d); IO(cpu.cp15_cache_lockdown_i); IO(cpu.cp15_tlb_lockdown);
+        IO(cpu.mmu_on_prefetch); IO(cpu.mmu_grace); IO(cpu.mmu_grace_pc); IO(cpu.mmu_grace_pa); IO(cpu.total_cycles); IO(cpu.insn_count);
+        IO(cpu.irq_line); IO(cpu.fiq_line); IO(cpu.wfi); IO(cpu.cur_pc); IO(cpu.pc_written); IO(cpu.bex8); IO(cpu.bex16);
+        iovec(vf.sdram); iovec(vf.sram); iovec(vf.nv);
+        { u64 n = vf.regs.size(); IO(n); if (wr) { for (auto& kv : vf.regs) { u32 k = kv.first, v = kv.second; IO(k); IO(v); } } else { vf.regs.clear(); for (u64 i = 0; i < n; i++) { u32 k, v; IO(k); IO(v); vf.regs[k] = v; } } }
+        IO(vf.cycles); IO(vf.rtcBase); IO(vf.lcdStatus); IO(vf.servoLast); IO(vf.sledMode); IO(vf.rad); IO(vf.tracking); IO(vf.clv); IO(vf.jumpCount);
+        IO(vf.traverseTarget); IO(vf.traverseFrom); IO(vf.brakeAt); IO(vf.sledAt); IO(vf.subAt); IO(vf.leadInPtr); IO(vf.mediaReported);
+        IO(vf.gfxReg); IO(vf.fillPos); IO(vf.fillSize); IO(vf.fillColour); IO(vf.rn);
+        IO(vf.slotRd); IO(vf.slotCount); IO(vf.ringStopped); IO(vf.endPending); IO(vf.resetPending); IO(vf.decoding); IO(vf.matched); IO(vf.gpioD);
+        IO(vf.active); IO(vf.noninverted); IO(vf.sticky); IO(vf.sticky_status); IO(vf.raw_status); IO(vf.status); IO(vf.mask); IO(vf.prio_limit); IO(vf.prev_limit); IO(vf.prio);
+        IO(vf.pairs); IO(vf.sndOn); IO(vf.sndAt); IO(vf.padLive); IO(vf.padLast); IO(vf.padMask);
+        for (int p = 0; p < 2; p++) { std::vector<u8> q(vf.padRx[p].begin(), vf.padRx[p].end()); iovec(q); if (!wr) vf.padRx[p].assign(q.begin(), q.end()); iovec(vf.padTx[p]); }
+        #undef IO
+    };
+    long startStep = 0;
+    if (const char* lf = getenv("VFLOAD")) {
+        FILE* f = fopen(lf, "rb"); if (!f) { perror(lf); return 1; }
+        state_io(f, false); fclose(f);
+        cpu.flush_tlb(); vf.padMask = 0xffffffff;
+        startStep = long(vf.cycles / 4578);
+        printf("state: loaded %s at t=%llu ms (step %ld)\n", lf, vf.cycles / 150000, startStep);
+    }
+    std::string saveFile; u64 saveAt = ~0ull;
+    if (const char* sf = getenv("VFSAVE")) { std::string t = sf; size_t c = t.rfind(':'); if (c != std::string::npos) { saveFile = t.substr(0, c); saveAt = strtoull(t.c_str() + c + 1, nullptr, 10); } }
     std::map<u32, int> hot;
     // ~150 MHz CPU; the 32 kHz timer clock every ~4578 cycles
-    for (long i = 0; i < steps; i++) {
+    for (long i = startStep; i < steps; i++) {
+        if (vf.cycles / 150000 >= saveAt) { saveAt = ~0ull; FILE* f = fopen(saveFile.c_str(), "wb"); if (f) { state_io(f, true); fclose(f); printf("state: saved %s at t=%llu ms (step %ld)\n", saveFile.c_str(), vf.cycles / 150000, i); } }
         cpu.run(4578);
         vf.cycles += 4578;
         vf.tick32k();
