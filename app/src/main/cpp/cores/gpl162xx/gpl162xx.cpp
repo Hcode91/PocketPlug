@@ -92,6 +92,8 @@ bool Gpl162xxCore::load(const std::vector<RomFile>& roms, std::string& error)
         // external RAM on the chip selects (MAME: "CS0 should be RAM on these?")
         m_sdram.assign(0x400000, 0);
         m_sdram2.assign(0x10000, 0);
+        m_outW = 640; m_outH = 480;
+        m_out.assign(size_t(640) * 480, 0xff000000u);
     } else if (m_kind == BEIJUEHH) {
         // the dump's words are little-endian (ROM_LOAD16_WORD_SWAP of the big-endian region): used as they are
     } else {
@@ -475,10 +477,20 @@ void Gpl162xxCore::vblank_begin()
     m_screen.m_vblank_start_time = m_machine.time();
     m_screen.m_vblank_end_time = m_screen.m_vblank_start_time + attotime(0, m_screen.m_vblank_period);
     update_partial(m_screen.m_vis_bottom);
-    m_outW = m_visW; m_outH = m_visH;
-    m_out.resize(size_t(m_outW) * m_outH);
-    for (int y = 0; y < m_outH; y++)
-        for (int x = 0; x < m_outW; x++) m_out[size_t(y) * m_outW + x] = m_bitmap[size_t(y) * 640 + x] | 0xff000000u;
+    if (m_kind == SPISPI) {
+        // the karaoke unit switches between 320x240 and 640x480; the app takes one size, so
+        // the low-resolution screens are doubled
+        m_outW = 640; m_outH = 480;
+        m_out.resize(size_t(m_outW) * m_outH);
+        const int sx = m_visW <= 320 ? 2 : 1, sy = m_visH <= 240 ? 2 : 1;
+        for (int y = 0; y < 480; y++)
+            for (int x = 0; x < 640; x++) m_out[size_t(y) * 640 + x] = m_bitmap[size_t(y / sy) * 640 + x / sx] | 0xff000000u;
+    } else {
+        m_outW = m_visW; m_outH = m_visH;
+        m_out.resize(size_t(m_outW) * m_outH);
+        for (int y = 0; y < m_outH; y++)
+            for (int x = 0; x < m_outW; x++) m_out[size_t(y) * m_outW + x] = m_bitmap[size_t(y) * 640 + x] | 0xff000000u;
+    }
     m_frameDone = true;
     m_video.vblank(1);
     m_vblank_begin_timer->adjust(m_screen.time_until_vblank_start());

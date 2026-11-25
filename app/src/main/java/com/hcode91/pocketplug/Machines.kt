@@ -9,7 +9,7 @@ data class RomSpec(val name: String, val size: Long, val crc: Long) {
 }
 
 /** Which on-screen controller / cabinet the emulator screen shows. */
-enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN, CPM, MINI_FC, BIT90, BK }
+enum class Skin { DANCE_MAT, APVS_1292, EGG_PET, PHONE_CASE, ARCADE_CABINET, HANDHELD, WORKSTATION, DESKTOP_3B1, NIXIE_CLOCK, JOYSTICK_TV, WIDE_HANDHELD, UNIVERSITY_BOARD, ATARI_XL, ACORN, ABL_TV, CHESS, KIT, TABLETOP, ADAM, AIM65, ALTAIR, FLIGHT_STICK, KEYCHAIN, HH, APF, TV_CONSOLE, MINI_ARCADE, ASTROCADE, PLUG_PAD, ARCADE_GENIUS, BACKGAMMON, LETS_TV, KIDS_LAPTOP, GIZMONDO, ZODIAC, HYPERSCAN, PLAYDIA, GAME_WAVE, BBC, BRIDGE, BEENA, BEIJUE, BASIC_FUN, CPM, MINI_FC, BIT90, BK, KARAOKE }
 
 /** ROM_SET: one fixed set of ROMs (plug & play units). CARTRIDGE: a console that loads separate games. */
 enum class MediaKind { ROM_SET, CARTRIDGE }
@@ -3135,10 +3135,10 @@ object Machines {
             region = "Japan",
             year = "2015",
             roms = listOf(RomSpec("unit_mx25l3206e_c22016.bin", 0x400000L, 0x7efad116L)),
-            skin = Skin.HANDHELD,
+            skin = Skin.KARAOKE,
             setup = listOf(
                 "Wait about 15 seconds for the title and the nickname screen.",
-                "Up/Down pick a letter, START jumps a row, Left/Right switch kana / roman letters, A enters the letter and B deletes one.",
+                "On the microphone: ▲ / ▼ pick a letter, » jumps a row, ◀ / ▶ switch kana / roman letters, the star enters the letter and ✦ deletes one.",
             ),
         ),
         MachineDef(
@@ -3153,10 +3153,10 @@ object Machines {
                 RomSpec("internal.rom", 0x2000L, 0xea119561L),
                 RomSpec("218n1_25q64csig_c84017.bin", 0x800000L, 0x94f35dbdL),
             ),
-            skin = Skin.HANDHELD,
+            skin = Skin.BEIJUE,
             setup = listOf(
                 "Pick English or the Chinese menu with Up/Down and A.",
-                "Move round the game grid with the D-pad and press A to play; START pauses in most games.",
+                "Move round the game grid with the D-pad and press A to play; S/P pauses in most games, R goes back to the menu.",
             ),
         ),
         MachineDef(

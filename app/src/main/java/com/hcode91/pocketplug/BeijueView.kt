@@ -16,8 +16,17 @@ import kotlin.math.hypot
  * pads. Drawn for the phone held sideways; no maker's name - the strip under the screen is the
  * menu. Input bits as gpl162xx: 0-3 up / down / left / right, 4 button 1, 5 button 2, 6 menu
  * (A, X and S press button 1; B, Y and R button 2; N is the handheld's menu key).
+ *
+ * kid = true: the yellow 218-in-1 (BornKid BC-19 kind), after a photo: a rounded yellow body,
+ * the screen in a dark grey frame, the D-pad top left with a slim R key under it, the X Y A B
+ * diamond on the right (Y top, X left, B right, A bottom) and the slim Select and S/P keys
+ * under it. A / X = button 1, B / Y = button 2, S/P = start (0x40), Select = sound (0x80);
+ * R resets the handheld (back to its menu).
  */
-class BeijueView(ctx: Context) : View(ctx) {
+@SuppressLint("ViewConstructor")
+class BeijueView(ctx: Context, private val kid: Boolean = false) : View(ctx) {
+
+    var onReset: (() -> Unit)? = null
 
     var onInput: ((Int) -> Unit)? = null
     var onMenu: (() -> Unit)? = null
@@ -26,7 +35,7 @@ class BeijueView(ctx: Context) : View(ctx) {
 
     companion object {
         const val UP = 0x01; const val DOWN = 0x02; const val LEFT = 0x04; const val RIGHT = 0x08
-        const val B1 = 0x10; const val B2 = 0x20; const val MENU = 0x40
+        const val B1 = 0x10; const val B2 = 0x20; const val MENU = 0x40; const val SOUND = 0x80
         fun keyBit(code: Int): Int = when (code) {
             android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_W -> UP
             android.view.KeyEvent.KEYCODE_DPAD_DOWN, android.view.KeyEvent.KEYCODE_S -> DOWN
@@ -54,7 +63,7 @@ class BeijueView(ctx: Context) : View(ctx) {
     private val dpad = PointF(); private var dpadR = 0f
     private val btnA = PointF(); private val btnB = PointF(); private val btnX = PointF(); private val btnY = PointF(); private var abR = 0f
     private val btnR = PointF(); private var smallR = 0f
-    private val slimN = RectF(); private val slimS = RectF()
+    private val slimN = RectF(); private val slimS = RectF(); private val slimP = RectF()
 
     private val pointers = HashMap<Int, Int>()
     private var touchMask = 0
@@ -66,6 +75,7 @@ class BeijueView(ctx: Context) : View(ctx) {
     }
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
+        if (kid) { layoutKid(w, h); return }
         // fit a 2.05:1 body in the view
         var bw = w * 0.98f; var bh = bw / 2.05f
         if (bh > h * 0.96f) { bh = h * 0.96f; bw = bh * 2.05f }
@@ -86,7 +96,97 @@ class BeijueView(ctx: Context) : View(ctx) {
         slimS.set(l + bw * 0.84f - nw / 2, t + bh * 0.78f - nh / 2, l + bw * 0.84f + nw / 2, t + bh * 0.78f + nh / 2)
     }
 
+    private fun layoutKid(w: Int, h: Int) {
+        var bw = w * 0.98f; var bh = bw / 1.9f
+        if (bh > h * 0.96f) { bh = h * 0.96f; bw = bh * 1.9f }
+        val l = (w - bw) / 2; val t = (h - bh) / 2
+        body.set(l, t, l + bw, t + bh)
+        val sh = bh * 0.68f; val sw = sh * 320f / 240f
+        screen.set(body.centerX() - sw / 2 - bw * 0.01f, t + bh * 0.1f, body.centerX() + sw / 2 - bw * 0.01f, t + bh * 0.1f + sh)
+        bezel.set(screen.left - bh * 0.045f, screen.top - bh * 0.045f, screen.right + bh * 0.045f, screen.bottom + bh * 0.1f)
+        menuStrip.set(bezel.left, screen.bottom + bh * 0.015f, bezel.right, bezel.bottom - bh * 0.015f)
+        dpadR = bh * 0.17f; dpad.set(l + bw * 0.125f, t + bh * 0.33f)
+        abR = bh * 0.07f
+        val cx = l + bw * 0.875f; val cy = t + bh * 0.47f; val d = bh * 0.135f
+        btnY.set(cx, cy - d); btnA.set(cx, cy + d); btnX.set(cx - d, cy); btnB.set(cx + d, cy)
+        smallR = bh * 0.045f
+        val nw = bh * 0.16f; val nh = bh * 0.065f
+        fun slim(r: RectF, x: Float, y: Float) = r.set(x - nw / 2, y - nh / 2, x + nw / 2, y + nh / 2)
+        slim(slimN, l + bw * 0.12f, t + bh * 0.66f)     // R
+        slim(slimS, l + bw * 0.80f, t + bh * 0.82f)     // Select
+        slim(slimP, l + bw * 0.905f, t + bh * 0.82f)    // S/P
+    }
+
+    private fun drawKid(c: Canvas) {
+        c.drawColor(0xFF15161A.toInt())
+        val bh = body.height()
+        val r = bh * 0.4f
+        paint.color = 0x55000000
+        c.drawRoundRect(body.left + bh * 0.02f, body.top + bh * 0.03f, body.right + bh * 0.02f, body.bottom + bh * 0.03f, r, r, paint)
+        paint.shader = LinearGradient(body.left, body.top, body.left, body.bottom, 0xFFFBF04A.toInt(), 0xFFE9CF0E.toInt(), Shader.TileMode.CLAMP)
+        c.drawRoundRect(body, r, r, paint); paint.shader = null
+        // a soft highlight down the left end, as the photo's glossy plastic
+        paint.shader = LinearGradient(body.left, 0f, body.left + body.width() * 0.12f, 0f, 0x55FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawRoundRect(body, r, r, paint); paint.shader = null
+        stroke.color = 0xFFCDB20A.toInt(); stroke.strokeWidth = bh * 0.008f
+        c.drawRoundRect(body, r, r, stroke)
+        // dark grey screen frame
+        paint.color = 0xFF3A3B3E.toInt()
+        c.drawRoundRect(bezel, bh * 0.04f, bh * 0.04f, paint)
+        paint.color = 0xFF0C0C0E.toInt()
+        c.drawRect(screen.left - bh * 0.006f, screen.top - bh * 0.006f, screen.right + bh * 0.006f, screen.bottom + bh * 0.006f, paint)
+        frame.setPixels(framePx, 0, 320, 0, 0, 320, 240)
+        c.drawBitmap(frame, null, screen, smooth)
+        text.color = 0xFF6A6B70.toInt(); text.textSize = menuStrip.height() * 0.45f
+        c.drawText("MENU", menuStrip.centerX(), menuStrip.centerY() + text.textSize * 0.36f, text)
+
+        val held = touchMask or externalMask
+        drawDpadKid(c, held)
+        val pressed = touchKeys
+        for ((p, n) in listOf(btnX to "X", btnY to "Y", btnA to "A", btnB to "B")) {
+            val down = n in pressed || (pressed.isEmpty() && ((n == "A" && held and B1 != 0) || (n == "B" && held and B2 != 0)))
+            paint.color = 0x40000000; c.drawCircle(p.x + abR * 0.06f, p.y + abR * 0.12f, abR * 1.04f, paint)
+            paint.shader = RadialGradient(p.x - abR * 0.3f, p.y - abR * 0.35f, abR * 1.4f, if (down) 0xFF2A2A2C.toInt() else 0xFF5A5B5E.toInt(), 0xFF1E1E20.toInt(), Shader.TileMode.CLAMP)
+            c.drawCircle(p.x, p.y + (if (down) abR * 0.05f else 0f), abR, paint); paint.shader = null
+            text.color = 0xFF111112.toInt(); text.textSize = abR * 0.8f
+            c.drawText(n, p.x, p.y + text.textSize * 0.36f, text)
+        }
+        for ((rr, name, label) in listOf(Triple(slimN, "R", "R"), Triple(slimS, "SEL", "Select"), Triple(slimP, "SP", "S/P"))) {
+            val down = name in pressed || (name == "SP" && held and MENU != 0) || (name == "SEL" && held and SOUND != 0)
+            paint.color = 0x40000000
+            c.drawRoundRect(rr.left, rr.top + rr.height() * 0.15f, rr.right, rr.bottom + rr.height() * 0.15f, rr.height() / 2, rr.height() / 2, paint)
+            paint.color = if (down) 0xFF2A2A2C.toInt() else 0xFF4E4F52.toInt()
+            c.drawRoundRect(rr, rr.height() / 2, rr.height() / 2, paint)
+            text.color = 0xFF6E6A40.toInt(); text.textSize = smallR * 0.95f
+            c.drawText(label, rr.centerX(), rr.bottom + text.textSize * 1.25f, text)
+        }
+    }
+
+    private fun drawDpadKid(c: Canvas, held: Int) {
+        // four separate pentagon keys round a faint ring, dark grey, with a thin arrow line on each
+        stroke.color = 0x22000000; stroke.strokeWidth = dpadR * 0.03f
+        c.drawCircle(dpad.x, dpad.y, dpadR * 0.75f, stroke)
+        val k = dpadR * 0.36f
+        for ((dx, dy, bit) in listOf(Triple(0f, -1f, UP), Triple(0f, 1f, DOWN), Triple(-1f, 0f, LEFT), Triple(1f, 0f, RIGHT))) {
+            val cx = dpad.x + dx * dpadR * 0.55f; val cy = dpad.y + dy * dpadR * 0.55f
+            // pentagon: square-ish with the inner side pointed toward the centre
+            val path = Path()
+            val px = -dy; val py = dx   // perpendicular
+            fun pt(a: Float, b: Float) = PointF(cx + dx * a + px * b, cy + dy * a + py * b)
+            val pts = listOf(pt(k, -k), pt(k, k), pt(-k * 0.45f, k), pt(-k * 1.05f, 0f), pt(-k * 0.45f, -k))
+            path.moveTo(pts[0].x, pts[0].y); for (q in pts.drop(1)) path.lineTo(q.x, q.y); path.close()
+            paint.color = 0x40000000
+            c.save(); c.translate(dpadR * 0.03f, dpadR * 0.06f); c.drawPath(path, paint); c.restore()
+            paint.color = if (held and bit != 0) 0xFF2A2A2C.toInt() else 0xFF55565A.toInt()
+            c.drawPath(path, paint)
+            stroke.color = 0xFF3A3A3E.toInt(); stroke.strokeWidth = k * 0.08f
+            val a0 = pt(k * 0.45f, -k * 0.3f); val a1 = pt(k * 0.45f, k * 0.3f)
+            c.drawLine(a0.x, a0.y, a1.x, a1.y, stroke)
+        }
+    }
+
     override fun onDraw(c: Canvas) {
+        if (kid) { drawKid(c); return }
         c.drawColor(0xFF15161A.toInt())
         val bh = body.height()
         val r = bh * 0.42f
@@ -176,8 +276,14 @@ class BeijueView(ctx: Context) : View(ctx) {
         val dx = x - dpad.x; val dy = y - dpad.y
         if (hypot(dx, dy) < dpadR * 1.4f && hypot(dx, dy) > dpadR * 0.15f) return "D"
         for ((p, n) in listOf(btnA to "A", btnB to "B", btnX to "X", btnY to "Y")) if (hypot(x - p.x, y - p.y) < abR * 1.4f) return n
-        if (hypot(x - btnR.x, y - btnR.y) < smallR * 2.4f) return "R"
         val pad = body.height() * 0.05f
+        if (kid) {
+            if (RectF(slimN).apply { inset(-pad, -pad) }.contains(x, y)) return "R"
+            if (RectF(slimS).apply { inset(-pad * 0.6f, -pad) }.contains(x, y)) return "SEL"
+            if (RectF(slimP).apply { inset(-pad * 0.6f, -pad) }.contains(x, y)) return "SP"
+            return ""
+        }
+        if (hypot(x - btnR.x, y - btnR.y) < smallR * 2.4f) return "R"
         if (RectF(slimN).apply { inset(-pad, -pad) }.contains(x, y)) return "N"
         if (RectF(slimS).apply { inset(-pad, -pad) }.contains(x, y)) return "S"
         return ""
@@ -195,8 +301,10 @@ class BeijueView(ctx: Context) : View(ctx) {
                 b
             }
             "A", "X", "S" -> B1
-            "B", "Y", "R" -> B2
-            "N" -> MENU
+            "B", "Y" -> B2
+            "R" -> if (kid) 0 else B2
+            "N", "SP" -> MENU
+            "SEL" -> SOUND
             else -> 0
         }
     }
@@ -225,6 +333,7 @@ class BeijueView(ctx: Context) : View(ctx) {
                 if (e.actionMasked == MotionEvent.ACTION_DOWN && menuStrip.contains(x, y)) { onMenu?.invoke(); return true }
                 pointers[e.getPointerId(i)] = hit(x, y)
                 pointerKeys[e.getPointerId(i)] = key(x, y)
+                if (kid && key(x, y) == "R") { performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP); onReset?.invoke() }
                 update()
             }
             MotionEvent.ACTION_MOVE -> {

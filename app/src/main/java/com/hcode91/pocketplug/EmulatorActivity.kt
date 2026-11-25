@@ -45,6 +45,7 @@ class EmulatorActivity : Activity() {
     private var arcade: ArcadeCabinetView? = null
     private var bfCab: BasicFunCabinetView? = null
     private var handheld: HandheldView? = null
+    private var karaoke: KaraokeMicView? = null
     private var nixie: NixieClockView? = null
     private var joypad: JoystickPadView? = null
     private var ablPad: AblPadView? = null
@@ -469,9 +470,10 @@ class EmulatorActivity : Activity() {
             }
             Skin.BEIJUE -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                val v = BeijueView(this).apply {
+                val v = BeijueView(this, machine.id == "bkid218").apply {
                     onInput = { setTouch(0, it) }
                     onMenu = { showMenu() }
+                    onReset = { synchronized(coreLock) { Native.reset(handle) } }
                 }
                 beijue = v
                 setContentView(v)
@@ -591,6 +593,15 @@ class EmulatorActivity : Activity() {
                     onJoy = { setTouch(0, it) }
                 }
                 uboard = v
+                setContentView(v)
+            }
+            Skin.KARAOKE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                val v = KaraokeMicView(this, width, height).apply {
+                    onInput = { setTouch(0, it) }
+                    onMenu = { showMenu() }
+                }
+                karaoke = v
                 setContentView(v)
             }
             Skin.HANDHELD -> {
@@ -1866,6 +1877,7 @@ class EmulatorActivity : Activity() {
             else if (arcade != null) arcade?.updateFrame(pixels)
             else if (bfCab != null) bfCab?.updateFrame(pixels)
             else if (handheld != null) handheld?.updateFrame(pixels)
+            else if (karaoke != null) karaoke?.updateFrame(pixels)
             else if (mini != null) mini?.updateFrame(pixels)
             else if (nixie != null) nixie?.updateFrame(pixels)
             else if (chess != null) chess?.updateFrame(pixels)
@@ -2051,7 +2063,7 @@ class EmulatorActivity : Activity() {
         Skin.APVS_1292 -> apvsKeyBit(code)
         Skin.EGG_PET -> petKeyBit(code)
         Skin.PHONE_CASE, Skin.ARCADE_CABINET, Skin.BASIC_FUN -> caseKeyBit(code)
-        Skin.HANDHELD -> handheldKeyBit(code)
+        Skin.HANDHELD, Skin.KARAOKE -> handheldKeyBit(code)
         Skin.JOYSTICK_TV, Skin.WIDE_HANDHELD, Skin.MINI_FC -> caseKeyBit(code)
         Skin.BIT90 -> when (code) {
             KeyEvent.KEYCODE_DPAD_UP -> 0x01; KeyEvent.KEYCODE_DPAD_DOWN -> 0x02
@@ -2180,7 +2192,7 @@ class EmulatorActivity : Activity() {
             if (m != atariStick) setAtariStick(m)
             return true
         }
-        if (machine.skin == Skin.HANDHELD && event.action == android.view.MotionEvent.ACTION_MOVE &&
+        if ((machine.skin == Skin.HANDHELD || machine.skin == Skin.KARAOKE) && event.action == android.view.MotionEvent.ACTION_MOVE &&
             (event.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK) {
             val x = event.getAxisValue(android.view.MotionEvent.AXIS_X) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
             val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y) + event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
@@ -2189,7 +2201,7 @@ class EmulatorActivity : Activity() {
             if (y > 0.5f) m = m or HandheldView.DOWN
             if (x < -0.5f) m = m or HandheldView.LEFT
             if (x > 0.5f) m = m or HandheldView.RIGHT
-            if (m != stickMask) { stickMask = m; setTouch(3, m); handheld?.externalMask = keyInputs or m }
+            if (m != stickMask) { stickMask = m; setTouch(3, m); handheld?.externalMask = keyInputs or m; karaoke?.externalMask = keyInputs or m }
             return true
         }
         if ((machine.skin == Skin.PHONE_CASE || machine.skin == Skin.ARCADE_CABINET || machine.skin == Skin.BASIC_FUN) && event.action == android.view.MotionEvent.ACTION_MOVE &&
@@ -2693,6 +2705,7 @@ class EmulatorActivity : Activity() {
         arcade?.externalMask = keyInputs or stickMask
         bfCab?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
+        karaoke?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
         letsTv?.externalMask = keyInputs
@@ -2781,6 +2794,7 @@ class EmulatorActivity : Activity() {
         arcade?.externalMask = keyInputs or stickMask
         bfCab?.externalMask = keyInputs or stickMask
         handheld?.externalMask = keyInputs or stickMask
+        karaoke?.externalMask = keyInputs or stickMask
         joypad?.externalMask = keyInputs or stickMask
         ablPad?.externalMask = keyInputs or stickMask
         letsTv?.externalMask = keyInputs

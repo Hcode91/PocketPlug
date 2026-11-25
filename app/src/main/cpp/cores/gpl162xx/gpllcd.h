@@ -31,7 +31,8 @@ public:
     // app bits (HandheldView): Up 01, Down 02, Left 04, Right 08, A 10, B 20, Start 40
     void setInputs(uint32_t p) override {
         m_inputs = (p & 0x40 ? 0x01 : 0) | (p & 0x01 ? 0x02 : 0) | (p & 0x02 ? 0x04 : 0) | (p & 0x04 ? 0x08 : 0)
-                 | (p & 0x08 ? 0x10 : 0) | (p & 0x10 ? 0x20 : 0) | (p & 0x20 ? 0x40 : 0);
+                 | (p & 0x08 ? 0x10 : 0) | (p & 0x10 ? 0x20 : 0) | (p & 0x20 ? 0x40 : 0)
+                 | (p & 0x80 ? 0x80 : 0) | (p & 0x100 ? 0x100 : 0);
     }
     bool saveState(std::vector<uint8_t>&) override { return false; }
     bool loadState(const std::vector<uint8_t>&) override { return false; }
