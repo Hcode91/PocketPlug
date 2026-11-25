@@ -644,3 +644,32 @@ Screen state after the load: framebuffer clears only; 09 primitive records
 - Harness additions: VFRNLOG (one line per drawn mesh with texture, format,
   palette, screen box), second state sg.state at 215000 ms on this board,
   py/sgtest.sh.
+
+## Menu internals (engine + module), sound details
+
+- The menu logic lives in the VFF module (0x104Dxxxx-0x1052xxxx); the engine
+  only dispatches. Input bindings: the engine's dispatcher 0x10AF4174 walks a
+  set {+8 context, +0x10 count, +0x14 entries} of 24-byte entries
+  {type, mask, hold time, callback}; type 0x10000000 = press, 0x40000000 =
+  held (500 ms repeat). Main menu set (0x10C92F40): masks 4 and 8 (stick
+  up/down, with repeat), 0x4000 and 0x10 (same callback: confirm), 0x40, 8...
+  Pad events are queued in a 32-entry ring in the pad state (+0x24 codes,
+  +0xA4 kinds, +0x20 write index).
+- Screen behind the first menu item: its binding set (0x10C9B420) has only
+  masks 1 and 2 (stick left/right, callbacks 0x10511940 / 0x10511EDC). Those
+  callbacks do fire, but return at once because the panel object 0x10C9AF20
+  (vtable 0x1064507C) has its "ready" byte (+0x6D) clear. That byte is set in
+  the panel's event handler 0x1050F2C4 on event type 0x0C (and type 3 starts
+  something via 0x10A8E0E8); the panel only ever receives event types 1 and 2.
+  The owning page 0x10C9B320 does finish its own transition (0x105047E8 at
+  t = 213.577 s) and sets +0xB4/+0xB5 on the controller, but registers further
+  bindings only if [[page+0x9C]+0x74]+0x64 == 1, which is 0.
+  Open: who should send events 3 / 0x0C to the panel.
+- Engine sound API: 0x10A8E0E8(manager, object, loop, slot) -> 0x10ABD224(id,
+  loop, slot) plays table entry `id` (24-byte entries: start, .., length, ..,
+  rate 0x2B11 or 0x5622, channels). 0x10ABD6AC(slot) tests bit `slot` of the
+  chip's 0x1008 word = "voice reached its end", 0x10ABD6F4 clears it by
+  writing the word back without that bit. The harness now latches those bits.
+- Voices 1 and 2 are the music stream: a new chunk from VFF segment 2 is keyed
+  every ~171 ms (voice 1 ~29.5 KB per chunk = 16-bit stereo 44.1 kHz). Model
+  byte rate at pitch 0x1000 is therefore 176400/s.

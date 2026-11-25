@@ -476,8 +476,8 @@ struct VF : Bus {
         u32 b = 0xb0000000 + v * 0x40, len = regs[b + 4] - regs[b], pitch = regs[b + 0x10] & 0x1fff;
         if (!pitch) pitch = 0x1000;
         if (regs[b + 12] & 0x1e0) return true;      // looping voice: busy until keyed off
-        double rate = (getenv("SNDRATE") ? atof(getenv("SNDRATE")) : 44100.0) * pitch / 4096.0;   // bytes per second
-        if (double(cycles - sndAt[v]) / 150e6 * rate >= double(len)) { sndOn[v] = false; if (getenv("VFSND")) printf("snd voice %d ended t=%llu\n", v, cycles / 150000); }
+        double rate = (getenv("SNDRATE") ? atof(getenv("SNDRATE")) : 176400.0) * pitch / 4096.0;   // bytes per second
+        if (double(cycles - sndAt[v]) / 150e6 * rate >= double(len)) { sndOn[v] = false; if (!getenv("NOSNDEND")) regs[0xb0001008 + (v >= 32 ? 4 : 0)] |= 1u << (v & 31);   /* end-reached latch, read by the engine at 0x10ABD6AC */ if (getenv("VFSND")) printf("snd voice %d ended t=%llu\n", v, cycles / 150000); }
         return sndOn[v];
     }
     // ---- controller ports: two 16550 UARTs (0x90020000 = IRQ 1, 0x90030000 = IRQ 2, guessed from the game's mask) ----
@@ -494,6 +494,7 @@ struct VF : Bus {
     }
     // VFPADKEY="ms:mask,ms:mask,..." = button mask (hex) from each time on; records go out on change and every 500 ms once the probe was answered.
     bool padLive = false; u64 padLast = 0; u32 padMask = 0xffffffff; std::vector<std::pair<u64, u32>> padScript; bool padScriptInit = false;
+    void snd_tick() { if ((cycles / 4578) % 32 == 0) for (int v = 0; v < 64; v++) if (sndOn[v]) snd_busy(v); }
     void pad_tick() {
         if (!padLive) return;
         if (!padScriptInit) { padScriptInit = true; if (const char* e = getenv("VFPADKEY")) { while (*e) { u64 t = strtoull(e, (char**)&e, 10); if (*e != ':') break; u32 m = u32(strtoul(e + 1, (char**)&e, 16)); padScript.push_back({ t, m }); if (*e == ',') e++; } } }
@@ -541,6 +542,7 @@ struct VF : Bus {
         if (a == 0xb8000004) { u32 v = 0xffffffff; log("R", a, v); return v; }
         if (a == 0xb800208c || a == 0xb8002088) { u32 v = u32(cycles / 300) % 0x600; return v; }   // line counter
         if (a == 0xa1000010) { u32 v = 1; log("R", a, v); return v; }   // serial bus: transfer done
+        if ((a & 0xffffff3f) == 0x90000018 && getenv("GPIOIN")) return (u32(strtoul(getenv("GPIOIN"), 0, 16)) >> (((a >> 6) & 3) * 8)) & 0xff;   // GPIO port inputs A-D
         if (a == 0x900d0018) { u32 v = gpioD; log("R", a, v); return v; }
         if (a == 0x90090000) return rtcBase + u32(cycles / 150000000ull);
         // V.Flash: timer pair status at 900A002C (pair 0) / 900A0030 (pair 1), masks at 0034 / 0038
@@ -736,6 +738,7 @@ int main(int argc, char** argv) {
         vf.tick32k();
         vf.subcode_tick();
         vf.pad_tick();
+        vf.snd_tick();
         if (cpu.r[15] >= 0x10999d74 && cpu.r[15] <= 0x10999d84 && !getenv("NOIDLE")) cpu.halt();   // the game OS's idle task
         if (vf.resetPending) {
             vf.resetPending = false;
