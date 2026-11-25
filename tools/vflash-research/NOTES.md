@@ -405,3 +405,38 @@ Screen state after the load: framebuffer clears only; 09 primitive records
   0x100C0000 or 0x100C2000, but the loader screen is *rendered* ~1077 times a
   second (each state change or primitive is its own tiny list): frame pacing
   is not tied to the display yet - worth checking against the vblank status.
+
+## The game is in its 3D hub (t ~ 190 s onward)
+
+- The engine is not stuck on the video. From ~190 s it renders a full 3D scene
+  about 125 times a second (~96 meshes, ~2250 triangles per frame): the temple
+  room with the puzzle box from the intro. The MAIN01.MJP reads are a
+  read-ahead that nobody consumes (the MJP player code at
+  0x109A2900-0x109A4900 is never executed in that window; its state block is
+  at 0x10AD9AF0, default name "\AANY_AVI.mjp;1").
+  What is missing is the 3D renderer and controller input, not the disc.
+- Chip registers written directly: 0xA8000098 = base of the 2D space
+  (**ROM OS: 0x10800000, game OS: 0x10048000**), 0x90/0x94 = 0x00F00200
+  (240 x 512). The harness fill code now follows 0x98 and the block layout.
+- Buffers in the game: six 512x240 regions at x = 0/512, y = 0/240/480.
+  (0,0) is cleared with 0x199 every frame (depth); the display base cycles
+  through (512,0), (0,240), (512,240) = 0x1004A000, 0x100C0000, 0x100C2000.
+  82/83 = clip corners as (y << 12) | x.
+- Transform registers (list packet 20RRNNNN: N counts 16-bit values, packed two
+  per word, low half first): 0x3C scale x3 (4.12), 0x40 rotation 3x3 (4.12),
+  0x4C translation x3 (s16), 0x50 second 3x3 (lighting?), 0x5C x3, 0x60 x3,
+  0x6C x1 (0x77BD), 0x74/0x75, 0x78 x2 (0x0172, 0x020F: screen offsets?).
+- Mesh sublist: `0A000000, vertex buffer address, 4478NNNN` then N 16-bit
+  indices (word offsets into the buffer: vertex i = index / 5), triangle list.
+  Vertex = 5 words: 8 half floats (x, y, z, three more, u, v) + colour 0x7FFF.
+  Other record heads seen: 4038xxxx, 4078xxxx, 6FB8xxxx.
+- Texture state per mesh: 8F = palette (y << 12) | x, 87 = texture position,
+  86 = format (size = 8 << code for w and h).
+- py/scene.py + py/wire.py draw a wireframe of one dumped frame (VFFRAME=ms
+  dumps the lists); py/render.py is a rough textured attempt. Projection used
+  there is a guess: camera = R * (v * scale * 4096) + T, visible z negative,
+  screen = xy / -z, autoscaled.
+- Still open: palettes (rows 2288-2342 would overlap module code at base
+  0x10048000), exact projection (0x6C, 0x78), lighting, the 40/6F record types.
+- New harness switches: VFFLOW=lo,hi (with VFTRACE window) logs every
+  non-sequential PC in a range; VFBASE logs writes to 0xA800008C-A4; VFFRAME.

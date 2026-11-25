@@ -51,10 +51,11 @@ struct VF : Bus {
     static u8 bcd(int v) { return u8((v / 10) << 4 | (v % 10)); }
     static void msf(long lba, u8* m) { lba += 150; if (lba < 0) lba += 450000; m[0] = bcd(int(lba / 4500)); m[1] = bcd(int(lba / 75 % 60)); m[2] = bcd(int(lba % 75)); }
     bool spinning() { return clv != 0 && clv != 8 && tracking == 1; }
-    // ---- minimal command list interpreter: 2D space = RAM at VRAM_BASE, 2048 bytes per row, RGB555 ----
+    // ---- minimal command list interpreter: 2D space = RAM at chip register 0x98 (VRAM_BASE as fallback), block-linear, RGB555 ----
     static constexpr u32 VRAM_BASE = 0x10048000;
     u32 gfxReg[256] = {};
-    u16* vram_px(int x, int y) { u32 a = VRAM_BASE + u32(y) * 2048 + u32(x) * 2; if (x < 0 || y < 0 || x >= 1024 || a + 2 > 0x10000000 + sdram.size()) return nullptr; return (u16*)&sdram[a - 0x10000000]; }
+    // The 2D space is block-linear: 64-byte x 8-row blocks, 32 blocks per block row; base = chip register 0x98.
+    u16* vram_px(int x, int y) { u32 base = regs.count(0xa8000098) && regs[0xa8000098] ? regs[0xa8000098] : VRAM_BASE; if (x < 0 || y < 0 || x >= 1024) return nullptr; u32 xb = u32(x) * 2, a = base + (u32(y) / 8) * 16384 + (xb / 64) * 512 + (u32(y) % 8) * 64 + xb % 64; if (a < 0x10000000 || a + 2 > 0x10000000 + sdram.size()) return nullptr; return (u16*)&sdram[a - 0x10000000]; }
     u32 rd32(u32 a) { u32 w = 0; if (a >= 0x10000000 && a + 4 <= 0x10000000 + sdram.size()) memcpy(&w, &sdram[a - 0x10000000], 4); return w; }
     u32 fillPos = 0, fillSize = 0, fillColour = 0;
     std::map<u32, int> seenSub;
@@ -69,6 +70,16 @@ struct VF : Bus {
     }
     void gfx_run(u32 la) {
         if (getenv("VFD4")) d4_scan(la + 4, 4096, 0);
+        if (const char* fe = getenv("VFFRAME")) {   // VFFRAME=ms: dump lists and their sublists for 40 ms from that time
+            u64 t = cycles / 150000, t0 = (u64)atoll(fe);
+            if (t >= t0 && t < t0 + 40) {
+                printf("L %08x:", la);
+                for (int k = 0; k < 64; k++) { u32 w = rd32(la + 4 * k); printf(" %08x", w); if (k > 0 && (w & 0xff0000ff) == 0x14000001) break; }
+                printf("\n");
+                for (int k = 1; k < 64; k++) { u32 w = rd32(la + 4 * k); if ((w & 0xff0000ff) == 0x14000001) break;
+                    if (w == 0x09000000) { u32 tg = rd32(la + 4 * k + 4); printf("  S %08x:", tg); for (int j = 0; j < 40; j++) printf(" %08x", rd32(tg + 4 * j)); printf("\n"); k++; } }
+            }
+        }
         for (int k = 1; k < 4096; k++) {
             u32 w = rd32(la + 4 * k), op = w >> 24;
             if ((w & 0xff0000ff) == 0x14000001) break;
@@ -383,12 +394,13 @@ struct VF : Bus {
         return v;
     }
     std::string line;
-    std::map<u32, u64> regionCount;
+    std::map<u32, u64> regionCount; std::map<u32, u32> regionLast;
     void io_write(u32 a, u32 v) {
+        if (a >= 0xa800008c && a <= 0xa80000a4 && getenv("VFBASE")) printf("gfxreg %08x = %08x pc %08x t=%llu\n", a, v, cpu->r[15], cycles / 150000);
         if (getenv("VFREG") && cycles / 150000 > (u64)atoll(getenv("VFREG"))) {
             u64& c = regionCount[(a >> 24) == 0xa8 || (a >> 24) == 0xa4 ? a : a & 0xfffff000];
             if (!c) printf("region %08x first write %08x = %08x pc %08x t=%llu\n", a & 0xfffff000, a, v, cpu->r[15], cycles / 150000);
-            c++;
+            c++; regionLast[(a >> 24) == 0xa8 || (a >> 24) == 0xa4 ? a : a & 0xfffff000] = v;
         }
         if (a == 0xb0001010 || a == 0xb0001014 || a == 0xb0001018 || a == 0xb000101c) {
             int base = (a & 4) ? 32 : 0; bool on = a < 0xb0001018;
@@ -500,7 +512,14 @@ int main(int argc, char** argv) {
             if (trFrom >= 0) {   // VFTRACE=ms[,VFTRACETO=ms]: first execution of each PC in the window
                 long long t = (long long)(gvf->cycles / 150000);
                 static std::set<u32> seenPc;
-                if (t >= trFrom && t < trTo && seenPc.insert(pc).second) printf("tr %08x t=%lld\n", pc, t);
+                if (!getenv("VFFLOW") && t >= trFrom && t < trTo && seenPc.insert(pc).second) printf("tr %08x t=%lld\n", pc, t);
+            }
+            static u32 flLo = 0, flHi = 0, flPrev = 0; static bool flInit = false;
+            if (!flInit) { flInit = true; if (const char* e = getenv("VFFLOW")) { flLo = u32(strtoul(e, (char**)&e, 16)); if (*e == ',') flHi = u32(strtoul(e + 1, nullptr, 16)); } }
+            if (flHi && pc >= flLo && pc < flHi) {   // VFFLOW=lo,hi (+VFTRACE window): every non-sequential PC in the range
+                long long t = (long long)(gvf->cycles / 150000);
+                if (t >= trFrom && t < trTo && pc != flPrev + 4) printf("fl %08x r0 %08x t=%lld\n", pc, c->r[0], t);
+                flPrev = pc;
             }
             if (watch.count(pc)) {
                 printf("watch %08x lr %08x r0 %08x r1 %08x r2 %08x r3 %08x t=%llu", pc, c->r[14], c->r[0], c->r[1], c->r[2], c->r[3], gvf->cycles / 150000);
@@ -538,7 +557,7 @@ int main(int argc, char** argv) {
         }
     }
     if (getenv("DUMP")) { FILE* o = fopen("ram.bin", "wb"); fwrite(vf.sdram.data(), 1, 32 << 20, o); fclose(o); }
-    for (auto& [k, v] : vf.regionCount) printf("region %08x writes %llu\n", k, (unsigned long long)v);
+    for (auto& [k, v] : vf.regionCount) printf("region %08x writes %llu last %08x\n", k, (unsigned long long)v, vf.regionLast[k]);
     for (int k = 0; k < 32; k++) if (vf.claims[k]) printf("irq %d x%lu\n", k, vf.claims[k]);
     printf("active %08x status %08x mask %08x\n", vf.active, vf.status, vf.mask[0]);
     printf("regs:"); for (int k = 0; k < 16; k++) printf(" r%d=%08x", k, cpu.r[k]); printf(" cpsr=%08x\n", cpu.cpsr);
